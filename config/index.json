@@ -1,0 +1,42 @@
+{
+  "mumbai": {
+    "symphonyToken": "",
+    "symphonyAddress": "0x018970D15b319d584d488F230AdbD76Bf6d0B2ca",
+    "wethGatewayAddress": "0xE28C9FF85a4aFd332eB6a38E1112a1e276d57A13",
+    "aaveYieldAddress": "0xc37A3079f99dE673A3f27fD1591358AAfC362c0B",
+    "sushiswapHandlerAddress": "0xc4Ed6674e5980Bdc2A53283B78E5cC5996d14032",
+    "aaveWethGateway": "0xee9eE614Ad26963bEc1Bec0D2c92879ae1F209fA",
+    "aaveLendingPool": "0x9198F13B08E299d85E096929fA9781A1E3d5d827",
+    "aaveProtocolDataProvider": "0xFA3bD19110d986c5e5E9DD5F69362d05035D045B",
+    "wethAddress": "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
+    "sushiswapFactory": "0xc35DADB65012eC5796536bD9864eD8773aBc74C4",
+    "sushiswapCodeHash": "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
+    "proxyAdmin": ""
+  },
+  "mainnet": {
+    "symphonyToken": "",
+    "symphonyAddress": "",
+    "wethGatewayAddress": "",
+    "aaveYieldAddress": "",
+    "sushiswapHandlerAddress": "",
+    "aaveWethGateway": "0xcc9a0B7c43DC2a5F023Bb9b738E45B0Ef6B06E04",
+    "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
+    "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
+    "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "sushiswapFactory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+    "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f"
+  },
+  "development": {
+    "symphonyToken": "",
+    "symphonyAddress": "",
+    "wethGatewayAddress": "",
+    "aaveYieldAddress": "",
+    "sushiswapHandlerAddress": "",
+    "aaveWethGateway": "0xcc9a0B7c43DC2a5F023Bb9b738E45B0Ef6B06E04",
+    "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
+    "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
+    "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "sushiswapFactory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+    "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f"
+  }
+}

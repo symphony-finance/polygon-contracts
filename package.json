@@ -1,0 +1,35 @@
+{
+  "name": "symphony-finance",
+  "version": "1.0.0",
+  "description": "Symphony finance smart contracts",
+  "scripts": {
+    "compile": "SKIP_LOAD=true hardhat compile",
+    "console:fork": "MAINNET_FORK=true hardhat console",
+    "start:node": "hardhat node",
+    "start:fork": "MAINNET_FORK=true hardhat node",
+    "test": "hardhat compile && hardhat test",
+    "deploy:symphony": "hardhat run scripts/deploySymphony.js --network",
+    "deploy:weth-gateway": "hardhat run scripts/deployWethGateway.js --network",
+    "deploy:aave-yield": "hardhat run scripts/deployAaveYield.js --network",
+    "deploy:sushiswap-handler": "hardhat run scripts/deploySushiswapHandler.js --network",
+    "test:a": "hardhat run scripts/a.js --network"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@openzeppelin/hardhat-upgrades": "^1.6.0",
+    "bignumber.js": "^9.0.1",
+    "chai": "^4.3.0",
+    "dotenv": "^8.2.0",
+    "ethereum-waffle": "^3.2.2",
+    "ethers": "^5.1.0",
+    "hardhat": "^2.1.2",
+    "hardhat-gas-reporter": "^1.0.4",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^3.4.1",
+    "@openzeppelin/contracts-upgradeable": "^3.4.1"
+  }
+}
