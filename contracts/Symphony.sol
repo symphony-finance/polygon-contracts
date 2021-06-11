@@ -78,6 +78,7 @@ contract Symphony is Initializable, OwnableUpgradeable {
         super.transferOwnership(_owner);
     }
 
+    // todo: add lock and pause
     /**
      * @notice Create an order
      */
@@ -115,11 +116,16 @@ contract Symphony is Initializable, OwnableUpgradeable {
             orderHash[orderId] == 0x0,
             "Symphony: depositToken:: There is already an existing order with same key"
         );
+        
+        uint256 balanceBefore = IERC20(inputToken).balanceOf(address(this));
+        IERC20(inputToken).safeTransferFrom(msg.sender, address(this), inputAmount);
+        require(
+            IERC20(inputToken).balanceOf(address(this)) == inputAmount + balanceBefore,
+            "Symphony: tokens not transferred"
+        );
 
         uint256 shares = calculateShares(inputToken, inputAmount);
-
         totalAssetShares[inputToken] = totalAssetShares[inputToken].add(shares);
-
         bytes memory encodedOrder =
             abi.encode(
                 recipient,
@@ -130,15 +136,8 @@ contract Symphony is Initializable, OwnableUpgradeable {
                 stoplossAmount,
                 shares
             );
-
         orderHash[orderId] = keccak256(encodedOrder);
-
         emit OrderCreated(orderId, encodedOrder);
-        IERC20(inputToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputAmount
-        );
     }
 
     /**
@@ -294,8 +293,7 @@ contract Symphony is Initializable, OwnableUpgradeable {
 
         totalAssetShares[myOrder.inputToken] = totalAssetShares[
             myOrder.inputToken
-        ]
-            .sub(myOrder.shares);
+        ].sub(myOrder.shares);
 
         delete orderHash[orderId];
 
@@ -326,6 +324,7 @@ contract Symphony is Initializable, OwnableUpgradeable {
         );
     }
 
+    // todo: add lock and pause
     /**
      * @notice Fill an order with own liquidity
      */
@@ -360,8 +359,7 @@ contract Symphony is Initializable, OwnableUpgradeable {
 
         totalAssetShares[myOrder.inputToken] = totalAssetShares[
             myOrder.inputToken
-        ]
-            .sub(myOrder.shares);
+        ].sub(myOrder.shares);
 
         uint256 feePercent =
             orderExecutionFee[myOrder.inputToken] != 0
@@ -397,7 +395,6 @@ contract Symphony is Initializable, OwnableUpgradeable {
             );
         }
 
-        // caution: external calls to unknown address
         IERC20(myOrder.outputToken).safeTransferFrom(
             msg.sender,
             myOrder.recipient,
