@@ -9,6 +9,7 @@ import "../interfaces/IHandler.sol";
 import "../interfaces/IUniswapRouter.sol";
 import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
+import "../oracles/ChainlinkOracle.sol";
 
 /// @notice Sushiswap Handler used to execute an order
 contract SushiswapHandler is IHandler {
@@ -21,6 +22,7 @@ contract SushiswapHandler is IHandler {
     address public immutable FACTORY;
     bytes32 public immutable FACTORY_CODE_HASH;
     IUniswapRouter internal UniswapRouter;
+    IOracle public oracle;
 
     /**
      * @notice Creates the handler
@@ -35,13 +37,15 @@ contract SushiswapHandler is IHandler {
         IUniswapRouter _router,
         address _weth,
         address _wmatic,
-        bytes32 _codeHash
+        bytes32 _codeHash,
+        IOracle _oracle
     ) {
         FACTORY = _factory;
         UniswapRouter = _router;
         WETH = _weth;
         WMATIC = _wmatic;
         FACTORY_CODE_HASH = _codeHash;
+        oracle = _oracle;
     }
 
     /// @notice receive ETH
@@ -113,8 +117,15 @@ contract SushiswapHandler is IHandler {
 
         uint256 fee = bought.percentMul(_feePercent);
         uint256 amountOut = bought.sub(fee);
+        uint256 oracleAmount = 0;
 
-        return amountOut >= _minReturnAmount || amountOut <= _stoplossAmount;
+        if (_stoplossAmount > 0) {
+            oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
+        }
+
+        return
+            amountOut >= _minReturnAmount ||
+            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
     }
 
     /**
@@ -197,4 +208,12 @@ contract SushiswapHandler is IHandler {
 
         amountOut = _amounts[_amounts.length - 1];
     }
+}
+
+interface IOracle {
+    function get(
+        address inputToken,
+        address outputToken,
+        uint256 inputAmount
+    ) external view returns (uint256 answer);
 }
