@@ -30,6 +30,12 @@ contract ChainlinkOracle {
     ) public view returns (uint256) {
         uint256 price = uint256(1e36);
 
+        require(
+            oracleFeed[inputToken] != address(0) &&
+                oracleFeed[outputToken] != address(0),
+            "Oracle does not exist for the token"
+        );
+
         if (inputToken != address(0)) {
             address inputFeedAddress = oracleFeed[inputToken];
             price = price.mul(

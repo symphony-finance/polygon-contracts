@@ -156,9 +156,19 @@ contract SushiswapHandler is IHandler {
 
         uint256 fee = bought.percentMul(_feePercent);
         uint256 amountOut = bought.sub(fee);
+        uint256 oracleAmount = 0;
+
+        if (_stoplossAmount > 0) {
+            oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
+        }
+
+        amountOut >= _minReturnAmount ||
+            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
 
         return (
-            amountOut >= _minReturnAmount || amountOut <= _stoplossAmount,
+            amountOut >= _minReturnAmount ||
+                (amountOut <= _stoplossAmount &&
+                    oracleAmount <= _stoplossAmount),
             amountOut
         );
     }

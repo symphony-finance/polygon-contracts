@@ -27,6 +27,7 @@ async function main() {
         "0x6aA61E359301b2E9a3c3118d409834BDc8b10dC4", // WETH
         "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361", // WMATIC
         configParams.sushiswapCodeHash,
+        configParams.chainlinkOracle,
     );
 
     await sushiswapHandler.deployed();

@@ -20,7 +20,8 @@ async function main() {
         [
             deployer.address,
             10, // 0.1 %
-            3000, // 30%
+            // 3000, // 30%
+            0,
         ]
     );
 

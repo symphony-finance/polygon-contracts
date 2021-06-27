@@ -1,10 +1,10 @@
 {
   "mumbai": {
     "symphonyToken": "",
-    "symphonyAddress": "0x018970D15b319d584d488F230AdbD76Bf6d0B2ca",
-    "wethGatewayAddress": "0xE28C9FF85a4aFd332eB6a38E1112a1e276d57A13",
-    "aaveYieldAddress": "0xDf75633D32ca64AC90658475D06023d55125F961",
-    "sushiswapHandlerAddress": "0xc4Ed6674e5980Bdc2A53283B78E5cC5996d14032",
+    "symphonyAddress": "0x3100b1114bdCe16FCAd3F8b4cd74e86B5521F57B",
+    "wethGatewayAddress": "0x867dd447C7Bd73415b41FC860A1D9eC8e9E9538C",
+    "aaveYieldAddress": "0x2AFe69f50F637caAD0934ac67893A71DE8d8baD6",
+    "sushiswapHandlerAddress": "0xF29321Cb2Ff04b9bef2AaA63A4b57d6cBBC1E6c2",
     "aaveWethGateway": "0xee9eE614Ad26963bEc1Bec0D2c92879ae1F209fA",
     "aaveLendingPool": "0x9198F13B08E299d85E096929fA9781A1E3d5d827",
     "aaveProtocolDataProvider": "0xFA3bD19110d986c5e5E9DD5F69362d05035D045B",
@@ -12,7 +12,7 @@
     "sushiswapFactory": "0xc35DADB65012eC5796536bD9864eD8773aBc74C4",
     "sushiswapCodeHash": "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
     "proxyAdmin": "",
-    "chainlinkOracle": "0xC520380942F3cc9E7854D197abfCE03B56f093Ad"
+    "chainlinkOracle": "0x080A99801ff4FFe44cA28311F954D2E777cC72e6"
   },
   "mainnet": {
     "symphonyToken": "",
@@ -25,7 +25,8 @@
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "sushiswapFactory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-    "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f"
+    "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+    "chainlinkOracle": ""
   },
   "development": {
     "symphonyToken": "",
@@ -38,6 +39,7 @@
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "sushiswapFactory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-    "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f"
+    "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+    "chainlinkOracle": ""
   }
 }

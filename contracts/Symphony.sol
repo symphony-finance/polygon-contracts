@@ -139,6 +139,10 @@ contract Symphony is Initializable, OwnableUpgradeable {
             address(this),
             inputAmount
         );
+
+        if (strategy[inputToken] != address(0)) {
+            rebalanceAsset(inputToken);
+        }
     }
 
     /**
@@ -407,7 +411,7 @@ contract Symphony is Initializable, OwnableUpgradeable {
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
     }
 
-    function rebalanceAsset(address asset) external {
+    function rebalanceAsset(address asset) public {
         require(
             strategy[asset] != address(0),
             "Symphony: rebalanceAsset:: Rebalance needs some strategy"
