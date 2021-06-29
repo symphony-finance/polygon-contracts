@@ -36,6 +36,9 @@ contract Symphony is
     // Protocol treasury address
     address public treasury;
 
+    // Emergency admin address
+    address public emergencyAdmin;
+
     /// Total fee (protocol_fee + relayer_fee)
     uint256 public BASE_FEE; // 1 for 0.01%
 
@@ -63,12 +66,21 @@ contract Symphony is
     event UpdatedBaseFee(uint256 fee);
     event UpdatedBufferPercentage(uint256 percent);
 
+    modifier onlyEmergencyAdminOrOwner {
+        require(
+            _msgSender() == emergencyAdmin || _msgSender() == owner(),
+            "Symphony: Only emergency admin or owner can invoke this function"
+        );
+        _;
+    }
+
     function initialize(address _owner, uint256 _baseFee) external initializer {
         BASE_FEE = _baseFee;
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         super.transferOwnership(_owner);
+        emergencyAdmin = msg.sender;
     }
 
     /**
@@ -517,15 +529,25 @@ contract Symphony is
     /**
      * @notice Pause the contract
      */
-    function pause() external onlyOwner {
+    function pause() external onlyEmergencyAdminOrOwner {
         _pause();
     }
 
     /**
      * @notice Unpause the contract
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlyEmergencyAdminOrOwner {
         _unpause();
+    }
+
+    /**
+     * @notice Update emergency admin address
+     */
+    function updateEmergencyAdmin(address _emergencyAdmin)
+        external
+        onlyEmergencyAdminOrOwner
+    {
+        emergencyAdmin = _emergencyAdmin;
     }
 
     /**

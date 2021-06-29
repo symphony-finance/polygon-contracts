@@ -13,7 +13,8 @@
     "deploy:weth-gateway": "hardhat run scripts/deployWethGateway.js --network",
     "deploy:aave-yield": "hardhat run scripts/deployAaveYield.js --network",
     "deploy:sushiswap-handler": "hardhat run scripts/deploySushiswapHandler.js --network",
-    "deploy:chainlink-oracle": "hardhat run scripts/deployChainlinkOracle.js --network"
+    "deploy:chainlink-oracle": "hardhat run scripts/deployChainlinkOracle.js --network",
+    "deploy:treasury": "hardhat run scripts/deployTreasury.js --network"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
