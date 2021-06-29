@@ -26,8 +26,8 @@ async function main() {
 
     if (network.name === "mumbai") {
         file.mumbai.chainlinkOracle = chainlinkOracle.address;
-    } else if (network.name === "mainnet") {
-        file.mainnet.chainlinkOracle = chainlinkOracle.address;
+    } else if (network.name === "matic") {
+        file.matic.chainlinkOracle = chainlinkOracle.address;
     } else {
         file.development.chainlinkOracle = chainlinkOracle.address;
     }

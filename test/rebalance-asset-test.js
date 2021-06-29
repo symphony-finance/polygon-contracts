@@ -28,7 +28,7 @@ describe("Rebalance Asset Test", function () {
             deployer.address, "\n"
         );
 
-        let configParams = config.development;
+        let configParams = config.mainnet;
         if (network.name === "mainnet") {
             configParams = config.mainnet;
         } else if (network.name === "mumbai") {

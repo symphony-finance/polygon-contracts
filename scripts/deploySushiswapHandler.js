@@ -11,8 +11,8 @@ const SymphonyArtifacts = require(
 
 async function main() {
     let configParams = config.development;
-    if (network.name === "mainnet") {
-        configParams = config.mainnet;
+    if (network.name === "matic") {
+        configParams = config.matic;
     } else if (network.name === "mumbai") {
         configParams = config.mumbai;
     }
@@ -22,10 +22,9 @@ async function main() {
 
     const sushiswapHandler = await SushiswapHandler.deploy(
         configParams.sushiswapFactory,
-        "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506", // Router
-        // "0x5B67676a984807a212b1c59eBFc9B3568a474F0a", // WETH
-        "0x6aA61E359301b2E9a3c3118d409834BDc8b10dC4", // WETH
-        "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361", // WMATIC
+        configParams.sushiswapRouter, // Router
+        configParams.wethAddress, // WETH
+        configParams.wmaticAddress, // WMATIC
         configParams.sushiswapCodeHash,
         configParams.chainlinkOracle,
     );
@@ -35,8 +34,8 @@ async function main() {
 
     if (network.name === "mumbai") {
         file.mumbai.sushiswapHandlerAddress = sushiswapHandler.address;
-    } else if (network.name === "mainnet") {
-        file.mainnet.sushiswapHandlerAddress = sushiswapHandler.address;
+    } else if (network.name === "matic") {
+        file.matic.sushiswapHandlerAddress = sushiswapHandler.address;
     } else {
         file.development.sushiswapHandlerAddress = sushiswapHandler.address;
     }

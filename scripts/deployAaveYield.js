@@ -13,8 +13,8 @@ async function main() {
     );
 
     let configParams = config.development;
-    if (network.name === "mainnet") {
-        configParams = config.mainnet;
+    if (network.name === "matic") {
+        configParams = config.matic;
     } else if (network.name === "mumbai") {
         configParams = config.mumbai;
     }
@@ -35,8 +35,8 @@ async function main() {
 
     if (network.name === "mumbai") {
         file.mumbai.aaveYieldAddress = aaveYield.address;
-    } else if (network.name === "mainnet") {
-        file.mainnet.aaveYieldAddress = aaveYield.address;
+    } else if (network.name === "matic") {
+        file.matic.aaveYieldAddress = aaveYield.address;
     } else {
         file.development.aaveYieldAddress = aaveYield.address;
     }

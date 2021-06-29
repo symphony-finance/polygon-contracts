@@ -19,9 +19,7 @@ async function main() {
         Symphony,
         [
             deployer.address,
-            10, // 0.1 %
-            // 3000, // 30%
-            0,
+            40, // 0.4 %
         ]
     );
 
@@ -30,8 +28,8 @@ async function main() {
 
     if (network.name === "mumbai") {
         file.mumbai.symphonyAddress = symphony.address;
-    } else if (network.name === "mainnet") {
-        file.mainnet.symphonyAddress = symphony.address;
+    } else if (network.name === "matic") {
+        file.matic.symphonyAddress = symphony.address;
     } else {
         file.development.symphonyAddress = symphony.address;
     }

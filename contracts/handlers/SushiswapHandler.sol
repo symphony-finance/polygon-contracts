@@ -60,7 +60,6 @@ contract SushiswapHandler is IHandler {
      * @notice Handle an order execution
      * @param inputToken - Address of the input token
      * @param outputToken - Address of the output token
-     * @return bought - Amount of output token bought
      */
     function handle(
         address inputToken,
@@ -69,29 +68,37 @@ contract SushiswapHandler is IHandler {
         uint256,
         address recipient,
         uint256 feePercent,
+        uint256 protcolFeePercent,
         address executor,
+        address treasury,
         bytes calldata
-    ) external override returns (uint256 bought) {
-        (uint256 amountOut, address[] memory path) =
-            getPathAndAmountOut(inputToken, outputToken, inputAmount);
+    ) external override {
+        (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
+            inputToken,
+            outputToken,
+            inputAmount
+        );
 
         IERC20(inputToken).safeApprove(address(UniswapRouter), inputAmount);
 
         // Swap Tokens
-        uint256[] memory returnAmount =
-            UniswapRouter.swapExactTokensForTokens(
-                inputAmount,
-                amountOut.mul(98).div(100), // Slipage: 2%
-                path,
-                address(this),
-                block.timestamp.add(1800)
-            );
+        uint256[] memory returnAmount = UniswapRouter.swapExactTokensForTokens(
+            inputAmount,
+            amountOut.mul(98).div(100), // Slipage: 2%
+            path,
+            address(this),
+            block.timestamp.add(1800)
+        );
 
-        bought = returnAmount[returnAmount.length - 1];
-        uint256 fee = bought.percentMul(feePercent);
-
-        IERC20(outputToken).safeTransfer(recipient, bought.sub(fee));
-        IERC20(outputToken).safeTransfer(executor, fee);
+        transferTokens(
+            outputToken,
+            returnAmount[returnAmount.length - 1], // Output amount received
+            recipient,
+            executor,
+            treasury,
+            feePercent,
+            protcolFeePercent
+        );
     }
 
     /**
@@ -112,11 +119,14 @@ contract SushiswapHandler is IHandler {
         uint256 _feePercent,
         bytes calldata
     ) external view override returns (bool) {
-        (uint256 bought, ) =
-            getPathAndAmountOut(_inputToken, _outputToken, _inputAmount);
+        (uint256 bought, ) = getPathAndAmountOut(
+            _inputToken,
+            _outputToken,
+            _inputAmount
+        );
 
-        uint256 fee = bought.percentMul(_feePercent);
-        uint256 amountOut = bought.sub(fee);
+        uint256 totalFee = bought.percentMul(_feePercent);
+        uint256 amountOut = bought.sub(totalFee);
         uint256 oracleAmount = 0;
 
         if (_stoplossAmount > 0) {
@@ -182,13 +192,12 @@ contract SushiswapHandler is IHandler {
         path[0] = inputToken;
         path[1] = outputToken;
 
-        uint256[] memory _amounts =
-            UniswapLibrary.getAmountsOut(
-                FACTORY,
-                inputAmount,
-                path,
-                FACTORY_CODE_HASH
-            );
+        uint256[] memory _amounts = UniswapLibrary.getAmountsOut(
+            FACTORY,
+            inputAmount,
+            path,
+            FACTORY_CODE_HASH
+        );
 
         if (_amounts[1] == 0) {
             path = new address[](3);
@@ -217,6 +226,23 @@ contract SushiswapHandler is IHandler {
         }
 
         amountOut = _amounts[_amounts.length - 1];
+    }
+
+    function transferTokens(
+        address token,
+        uint256 amount,
+        address recipient,
+        address executor,
+        address treasury,
+        uint256 feePercent,
+        uint256 protcolFeePercent
+    ) internal {
+        uint256 totalFee = amount.percentMul(feePercent);
+        uint256 protocolFee = totalFee.percentMul(protcolFeePercent);
+
+        IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
+        IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
+        IERC20(token).safeTransfer(treasury, protocolFee);
     }
 }
 

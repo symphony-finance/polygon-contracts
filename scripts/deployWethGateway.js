@@ -14,8 +14,8 @@ async function main() {
     );
 
     let configParams = config.development;
-    if (network.name === "mainnet") {
-        configParams = config.mainnet;
+    if (network.name === "matic") {
+        configParams = config.matic;
     } else if (network.name === "mumbai") {
         configParams = config.mumbai;
     }
@@ -37,8 +37,8 @@ async function main() {
 
     if (network.name === "mumbai") {
         file.mumbai.wethGatewayAddress = wethGateway.address;
-    } else if (network.name === "mainnet") {
-        file.mainnet.wethGatewayAddress = wethGateway.address;
+    } else if (network.name === "matic") {
+        file.matic.wethGatewayAddress = wethGateway.address;
     } else {
         file.development.wethGatewayAddress = wethGateway.address;
     }

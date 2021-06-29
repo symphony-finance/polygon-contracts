@@ -8,6 +8,7 @@
     "start:node": "hardhat node",
     "start:fork": "MAINNET_FORK=true hardhat node",
     "test": "hardhat compile && hardhat test",
+    "setup": "hardhat run scripts/setup.js --network",
     "deploy:symphony": "hardhat run scripts/deploySymphony.js --network",
     "deploy:weth-gateway": "hardhat run scripts/deployWethGateway.js --network",
     "deploy:aave-yield": "hardhat run scripts/deployAaveYield.js --network",
