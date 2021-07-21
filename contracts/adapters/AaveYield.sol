@@ -9,7 +9,7 @@ import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/IAaveToken.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
-import "../interfaces/IAaveIncentiveCollector.sol";
+import "../interfaces/IAaveIncentivesController.sol";
 
 /**
  * @title Aave Yield contract
@@ -23,7 +23,7 @@ contract AaveYield is IYieldAdapter {
     // Addresses related to aave
     address public lendingPool;
     address public protocolDataProvider;
-    IAaveIncentiveCollector public incentiveCollector;
+    IAaveIncentivesController public incentivesController;
 
     address symphony;
     address governance;
@@ -55,7 +55,7 @@ contract AaveYield is IYieldAdapter {
         address _governance,
         address _lendingPool,
         address _protocolDataProvider,
-        address _incentiveCollector
+        address _incentivesController
     ) {
         require(_symphony != address(0), "AaveYield: Symphony:: zero address");
         require(
@@ -75,7 +75,7 @@ contract AaveYield is IYieldAdapter {
         governance = _governance;
         lendingPool = _lendingPool;
         protocolDataProvider = _protocolDataProvider;
-        incentiveCollector = IAaveIncentiveCollector(_incentiveCollector);
+        incentivesController = IAaveIncentivesController(_incentivesController);
     }
 
     function updateAaveAddresses(
@@ -103,7 +103,9 @@ contract AaveYield is IYieldAdapter {
         external
         onlyGovernance
     {
-        incentiveCollector = IAaveIncentiveCollector(_incetivizedController);
+        incentivesController = IAaveIncentivesController(
+            _incetivizedController
+        );
     }
 
     /**
@@ -153,7 +155,9 @@ contract AaveYield is IYieldAdapter {
         }
 
         if (
-            address(incentiveCollector) != address(0) && recipient != address(0)
+            shares > 0 &&
+            recipient != address(0) &&
+            address(incentivesController) != address(0)
         ) {
             calculateAndTransferWmaticReward(
                 asset,
@@ -241,17 +245,28 @@ contract AaveYield is IYieldAdapter {
         uint256 _totalShares,
         address _recipient
     ) internal {
-        address[] memory assets;
-        assets[1] = _asset;
+        address[] memory assets = new address[](1);
+        assets[0] = _asset;
 
-        uint256 totalTokens = incentiveCollector.getRewardsBalance(
+        uint256 totalTokens = incentivesController.getRewardsBalance(
             assets,
             symphony
         );
 
         uint256 amount = _shares.mul(totalTokens).div(_totalShares);
 
-        incentiveCollector.claimRewards(assets, amount, _recipient);
+        incentivesController.claimRewards(assets, amount, _recipient);
+    }
+
+    function getWmaticRewardBalance(address _asset)
+        public
+        view
+        returns (uint256 amount)
+    {
+        address[] memory assets = new address[](1);
+        assets[0] = _asset;
+
+        amount = incentivesController.getRewardsBalance(assets, symphony);
     }
 
     receive() external payable {}

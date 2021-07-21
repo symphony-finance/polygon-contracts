@@ -128,6 +128,18 @@ contract Symphony is
             "Symphony: depositToken:: There is already an existing order with same key"
         );
 
+        uint256 balanceBefore = IERC20(inputToken).balanceOf(address(this));
+        IERC20(inputToken).safeTransferFrom(
+            msg.sender,
+            address(this),
+            inputAmount
+        );
+        require(
+            IERC20(inputToken).balanceOf(address(this)) ==
+                inputAmount + balanceBefore,
+            "Symphony: tokens not transferred"
+        );
+
         uint256 shares = calculateShares(inputToken, inputAmount);
 
         totalAssetShares[inputToken] = totalAssetShares[inputToken].add(shares);
@@ -145,11 +157,6 @@ contract Symphony is
         orderHash[orderId] = keccak256(encodedOrder);
 
         emit OrderCreated(orderId, encodedOrder);
-        IERC20(inputToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            inputAmount
-        );
 
         if (strategy[inputToken] != address(0)) {
             rebalanceAsset(inputToken);
