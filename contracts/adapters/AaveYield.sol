@@ -9,6 +9,7 @@ import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/IAaveToken.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
+import "../interfaces/IAaveIncentiveCollector.sol";
 
 /**
  * @title Aave Yield contract
@@ -22,6 +23,7 @@ contract AaveYield is IYieldAdapter {
     // Addresses related to aave
     address public lendingPool;
     address public protocolDataProvider;
+    IAaveIncentiveCollector public incentiveCollector;
 
     address symphony;
     address governance;
@@ -52,7 +54,8 @@ contract AaveYield is IYieldAdapter {
         address _symphony,
         address _governance,
         address _lendingPool,
-        address _protocolDataProvider
+        address _protocolDataProvider,
+        address _incentiveCollector
     ) {
         require(_symphony != address(0), "AaveYield: Symphony:: zero address");
         require(
@@ -72,6 +75,7 @@ contract AaveYield is IYieldAdapter {
         governance = _governance;
         lendingPool = _lendingPool;
         protocolDataProvider = _protocolDataProvider;
+        incentiveCollector = IAaveIncentiveCollector(_incentiveCollector);
     }
 
     function updateAaveAddresses(
@@ -95,6 +99,13 @@ contract AaveYield is IYieldAdapter {
         referralCode = _referralCode;
     }
 
+    function updateIncetivizedController(address _incetivizedController)
+        external
+        onlyGovernance
+    {
+        incentiveCollector = IAaveIncentiveCollector(_incetivizedController);
+    }
+
     /**
      * @dev Used to deposit tokens in available protocol
      * @param asset the address of token to invest
@@ -115,14 +126,14 @@ contract AaveYield is IYieldAdapter {
 
     /**
      * @dev Used to withdraw tokens from available protocol
-     * @param asset the address of underlying token
-     * @param amount the amount of asset
      **/
-    function withdraw(address asset, uint256 amount)
-        external
-        override
-        onlySymphony
-    {
+    function withdraw(
+        address asset,
+        uint256 amount,
+        uint256 shares,
+        uint256 totalShares,
+        address recipient
+    ) external override onlySymphony {
         require(amount != 0, "AaveYield: withdraw:: amount can't be zero");
 
         address aToken = getATokenAddress(asset);
@@ -138,6 +149,17 @@ contract AaveYield is IYieldAdapter {
             require(
                 underlyingAssetAmt > 0,
                 "AaveYield::withdraw: incorrect amount withdrawn"
+            );
+        }
+
+        if (
+            address(incentiveCollector) != address(0) && recipient != address(0)
+        ) {
+            calculateAndTransferWmaticReward(
+                asset,
+                shares,
+                totalShares,
+                recipient
             );
         }
     }
@@ -180,7 +202,7 @@ contract AaveYield is IYieldAdapter {
         returns (address iouToken)
     {
         (iouToken, , ) = IAavePoolCore(protocolDataProvider)
-            .getReserveTokensAddresses(_asset);
+        .getReserveTokensAddresses(_asset);
     }
 
     function _depositERC20(address asset, uint256 amount) internal {
@@ -196,8 +218,11 @@ contract AaveYield is IYieldAdapter {
         internal
         returns (uint256)
     {
-        uint256 underlyingAsssetAmt =
-            IAaveLendingPool(lendingPool).withdraw(asset, amount, symphony);
+        uint256 underlyingAsssetAmt = IAaveLendingPool(lendingPool).withdraw(
+            asset,
+            amount,
+            symphony
+        );
         return underlyingAsssetAmt;
     }
 
@@ -207,7 +232,26 @@ contract AaveYield is IYieldAdapter {
         returns (address aToken)
     {
         (aToken, , ) = IAavePoolCore(protocolDataProvider)
-            .getReserveTokensAddresses(asset);
+        .getReserveTokensAddresses(asset);
+    }
+
+    function calculateAndTransferWmaticReward(
+        address _asset,
+        uint256 _shares,
+        uint256 _totalShares,
+        address _recipient
+    ) internal {
+        address[] memory assets;
+        assets[1] = _asset;
+
+        uint256 totalTokens = incentiveCollector.getRewardsBalance(
+            assets,
+            symphony
+        );
+
+        uint256 amount = _shares.mul(totalTokens).div(_totalShares);
+
+        incentiveCollector.claimRewards(assets, amount, _recipient);
     }
 
     receive() external payable {}

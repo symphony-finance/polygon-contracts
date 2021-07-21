@@ -27,9 +27,17 @@ interface IYieldAdapter {
      * @dev Used to withdraw from available protocol
      * @param asset the address of underlying token
      * @param amount the amount of liquidity shares to unlock
+     * @param shares shares of the user (only for  external reward)
+     * @param totalShares total share for particular asset
+     * @param recipient address of reward receiever (if any)
      **/
-    function withdraw(address asset, uint256 amount)
-        external;
+    function withdraw(
+        address asset,
+        uint256 amount,
+        uint256 shares,
+        uint256 totalShares,
+        address recipient
+    ) external;
 
     /**
      * @dev Used to approve max token from yield provider contract

@@ -11,8 +11,8 @@ import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
 import "../oracles/ChainlinkOracle.sol";
 
-/// @notice Sushiswap Handler used to execute an order
-contract SushiswapHandler is IHandler {
+/// @notice Quickswap Handler used to execute an order
+contract QuickswapHandler is IHandler {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
@@ -26,10 +26,10 @@ contract SushiswapHandler is IHandler {
 
     /**
      * @notice Creates the handler
-     * @param _router - Address of the Sushiswap router contract
+     * @param _router - Address of the Quickswap router contract
      * @param _weth - Address of WETH contract
      * @param _wmatic - Address of WMATIC contract
-     * @param _codeHash - Bytes32 of the Sushiswap v2 pair contract unit code hash
+     * @param _codeHash - Bytes32 of the Quickswap v2 pair contract unit code hash
      */
     constructor(
         IUniswapRouter _router,

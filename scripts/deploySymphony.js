@@ -19,6 +19,7 @@ async function main() {
         Symphony,
         [
             deployer.address,
+            deployer.address,
             40, // 0.4 %
         ]
     );

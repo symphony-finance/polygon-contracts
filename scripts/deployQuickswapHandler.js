@@ -17,26 +17,26 @@ async function main() {
         configParams = config.mumbai;
     }
 
-    // Deploy SushiswapHandler Contract
-    const SushiswapHandler = await hre.ethers.getContractFactory("SushiswapHandler");
+    // Deploy QuickswapHandler Contract
+    const QuickswapHandler = await hre.ethers.getContractFactory("QuickswapHandler");
 
-    const sushiswapHandler = await SushiswapHandler.deploy(
-        configParams.sushiswapRouter, // Router
+    const quickswapHandler = await QuickswapHandler.deploy(
+        configParams.quickswapRouter, // Router
         configParams.wethAddress, // WETH
         configParams.wmaticAddress, // WMATIC
-        configParams.sushiswapCodeHash,
+        configParams.quickswapCodeHash,
         configParams.chainlinkOracle,
     );
 
-    await sushiswapHandler.deployed();
-    console.log("Sushiswap Handler deployed to:", sushiswapHandler.address, "\n");
+    await quickswapHandler.deployed();
+    console.log("Quickswap Handler deployed to:", quickswapHandler.address, "\n");
 
     if (network.name === "mumbai") {
-        file.mumbai.sushiswapHandlerAddress = sushiswapHandler.address;
+        file.mumbai.quickswapHandlerAddress = quickswapHandler.address;
     } else if (network.name === "matic") {
-        file.matic.sushiswapHandlerAddress = sushiswapHandler.address;
+        file.matic.quickswapHandlerAddress = quickswapHandler.address;
     } else {
-        file.development.sushiswapHandlerAddress = sushiswapHandler.address;
+        file.development.quickswapHandlerAddress = quickswapHandler.address;
     }
 
     fs.writeFileSync(
@@ -53,7 +53,7 @@ async function main() {
         deployer
     );
 
-    await symphony.addHandler(sushiswapHandler.address);
+    await symphony.addHandler(quickswapHandler.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

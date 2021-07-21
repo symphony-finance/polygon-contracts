@@ -60,11 +60,13 @@ contract MstableYield is IYieldAdapter {
      * @param asset the address of underlying token
      * @param amount the amount of asset
      **/
-    function withdraw(address asset, uint256 amount)
-        external
-        override
-        onlySymphony
-    {
+    function withdraw(
+        address asset,
+        uint256 amount,
+        uint256 shares,
+        uint256 totalShares,
+        address recipient
+    ) external override onlySymphony {
         address saveAddress = savingManager.savingsContracts(asset);
         ISaveContract(saveAddress).redeem(amount);
     }

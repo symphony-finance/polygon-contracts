@@ -11,10 +11,11 @@
     "setup": "hardhat run scripts/setup.js --network",
     "deploy:symphony": "hardhat run scripts/deploySymphony.js --network",
     "deploy:weth-gateway": "hardhat run scripts/deployWethGateway.js --network",
+    "deploy:treasury": "hardhat run scripts/deployTreasury.js --network",
     "deploy:aave-yield": "hardhat run scripts/deployAaveYield.js --network",
-    "deploy:sushiswap-handler": "hardhat run scripts/deploySushiswapHandler.js --network",
     "deploy:chainlink-oracle": "hardhat run scripts/deployChainlinkOracle.js --network",
-    "deploy:treasury": "hardhat run scripts/deployTreasury.js --network"
+    "deploy:sushiswap-handler": "hardhat run scripts/deploySushiswapHandler.js --network",
+    "deploy:quickswap-handler": "hardhat run scripts/deployQuickswapHandler.js --network"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",

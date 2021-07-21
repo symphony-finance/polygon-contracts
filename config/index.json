@@ -1,52 +1,64 @@
 {
   "mumbai": {
     "symphonyToken": "",
-    "symphonyAddress": "0x3100b1114bdCe16FCAd3F8b4cd74e86B5521F57B",
-    "wethGatewayAddress": "0x867dd447C7Bd73415b41FC860A1D9eC8e9E9538C",
-    "aaveYieldAddress": "0x2AFe69f50F637caAD0934ac67893A71DE8d8baD6",
-    "sushiswapHandlerAddress": "0xF29321Cb2Ff04b9bef2AaA63A4b57d6cBBC1E6c2",
+    "symphonyAddress": "0x8A71a0C0988218a551d163a751C7D4353B6A94B8",
+    "wethGatewayAddress": "0x7aaCEcaF59cA6c8c5900e2989f39CFE7C1F46202",
+    "treasury": "0x518B4F4D245F5d9762Fd9d4bEbc27Ab4E303c0cE",
+    "aaveYieldAddress": "0x12b4Ee521dc8c0d6d9B91bc53f7847906d516129",
     "aaveWethGateway": "0xee9eE614Ad26963bEc1Bec0D2c92879ae1F209fA",
     "aaveLendingPool": "0x9198F13B08E299d85E096929fA9781A1E3d5d827",
     "aaveProtocolDataProvider": "0xFA3bD19110d986c5e5E9DD5F69362d05035D045B",
+    "aaveIncentivesController": "0xd41aE58e803Edf4304334acCE4DC4Ec34a63C644",
     "wethAddress": "0x6aA61E359301b2E9a3c3118d409834BDc8b10dC4",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
+    "chainlinkOracle": "0xC8B207a6ae23E70277fA95F17321155395971A7D",
+    "sushiswapHandlerAddress": "0xE910f85E2475f07006834eacf45974e6A70E537B",
     "sushiswapRouter": "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
     "sushiswapCodeHash": "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
-    "proxyAdmin": "",
-    "chainlinkOracle": "0x080A99801ff4FFe44cA28311F954D2E777cC72e6",
-    "treasury": ""
+    "quickswapHandlerAddress": "",
+    "quickswapRouter": "",
+    "quickswapCodeHash": "",
+    "proxyAdmin": ""
   },
   "matic": {
     "symphonyToken": "",
     "symphonyAddress": "",
     "wethGatewayAddress": "",
+    "treasury": "",
     "aaveYieldAddress": "",
-    "sushiswapHandlerAddress": "",
     "aaveWethGateway": "0xcc9a0B7c43DC2a5F023Bb9b738E45B0Ef6B06E04",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
+    "aaveIncentivesController": "0x357D51124f59836DeD84c8a1730D72B749d8BC23",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
+    "chainlinkOracle": "",
+    "sushiswapHandlerAddress": "",
     "sushiswapRouter": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
     "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
-    "chainlinkOracle": "",
-    "treasury": ""
+    "quickswapHandlerAddress": "",
+    "quickswapRouter": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
+    "quickswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+    "proxyAdmin": ""
   },
   "mainnet": {
     "symphonyToken": "",
     "symphonyAddress": "",
     "wethGatewayAddress": "",
+    "treasury": "",
     "aaveYieldAddress": "",
-    "sushiswapHandlerAddress": "",
     "aaveWethGateway": "0xcc9a0B7c43DC2a5F023Bb9b738E45B0Ef6B06E04",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
+    "chainlinkOracle": "",
+    "sushiswapHandlerAddress": "",
     "sushiswapRouter": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
     "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
-    "chainlinkOracle": "",
-    "treasury": ""
+    "quickswapHandlerAddress": "",
+    "quickswapRouter": "",
+    "quickswapCodeHash": ""
   },
   "development": {
     "symphonyToken": "",
@@ -62,6 +74,9 @@
     "sushiswapRouter": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
     "sushiswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
     "chainlinkOracle": "",
-    "treasury": ""
+    "treasury": "",
+    "quickswapHandlerAddress": "",
+    "quickswapRouter": "",
+    "quickswapCodeHash": ""
   }
 }

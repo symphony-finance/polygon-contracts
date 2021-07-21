@@ -51,6 +51,7 @@ contract Symphony is
 
     mapping(address => bool) public isRegisteredHandler;
     mapping(address => uint256) public totalAssetShares;
+    mapping(address => bool) public isWhitelistedForRewards;
 
     // ************** //
     // *** EVENTS *** //
@@ -64,7 +65,9 @@ contract Symphony is
     event HandlerAdded(address handler);
     event HandlerRemoved(address handler);
     event UpdatedBaseFee(uint256 fee);
-    event UpdatedBufferPercentage(uint256 percent);
+    event UpdatedBufferPercentage(address asset, uint256 percent);
+    event AddedAssetForReward(address asset);
+    event RemovedAssetFromReward(address asset);
 
     modifier onlyEmergencyAdminOrOwner {
         require(
@@ -74,13 +77,17 @@ contract Symphony is
         _;
     }
 
-    function initialize(address _owner, uint256 _baseFee) external initializer {
+    function initialize(
+        address _owner,
+        address _emergencyAdmin,
+        uint256 _baseFee
+    ) external initializer {
         BASE_FEE = _baseFee;
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         super.transferOwnership(_owner);
-        emergencyAdmin = msg.sender;
+        emergencyAdmin = _emergencyAdmin;
     }
 
     /**
@@ -229,22 +236,25 @@ contract Symphony is
             totalTokens
         );
 
-        totalAssetShares[myOrder.inputToken] = totalAssetShares[
-            myOrder.inputToken
-        ]
-        .sub(myOrder.shares);
+        uint256 totalSharesInAsset = totalAssetShares[myOrder.inputToken];
+
+        totalAssetShares[myOrder.inputToken] = totalSharesInAsset.sub(
+            myOrder.shares
+        );
 
         delete orderHash[orderId];
         emit OrderCancelled(orderId);
 
-        if (bufferAmount < depositPlusYield) {
-            calcAndwithdrawFromStrategy(
-                myOrder.inputToken,
-                depositPlusYield,
-                bufferAmount,
-                totalTokens
-            );
-        }
+        calcAndwithdrawFromStrategy(
+            myOrder.inputToken,
+            depositPlusYield,
+            bufferAmount,
+            totalTokens,
+            myOrder.shares,
+            totalSharesInAsset,
+            myOrder.recipient,
+            bufferAmount < depositPlusYield
+        );
 
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
     }
@@ -303,14 +313,16 @@ contract Symphony is
 
         emit OrderExecuted(orderId, msg.sender);
 
-        if (bufferAmount < depositPlusYield) {
-            calcAndwithdrawFromStrategy(
-                myOrder.inputToken,
-                depositPlusYield,
-                bufferAmount,
-                totalTokens
-            );
-        }
+        calcAndwithdrawFromStrategy(
+            myOrder.inputToken,
+            depositPlusYield,
+            bufferAmount,
+            totalTokens,
+            myOrder.shares,
+            totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stake too deep
+            myOrder.recipient,
+            bufferAmount < depositPlusYield
+        );
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
@@ -360,10 +372,11 @@ contract Symphony is
             totalTokens
         );
 
-        totalAssetShares[myOrder.inputToken] = totalAssetShares[
-            myOrder.inputToken
-        ]
-        .sub(myOrder.shares);
+        uint256 totalSharesInAsset = totalAssetShares[myOrder.inputToken];
+
+        totalAssetShares[myOrder.inputToken] = totalSharesInAsset.sub(
+            myOrder.shares
+        );
 
         (bool success, uint256 estimatedAmount) = IHandler(_handler).simulate(
             myOrder.inputToken,
@@ -384,14 +397,16 @@ contract Symphony is
 
         emit OrderExecuted(orderId, msg.sender);
 
-        if (bufferAmount < depositPlusYield) {
-            calcAndwithdrawFromStrategy(
-                myOrder.inputToken,
-                depositPlusYield,
-                bufferAmount,
-                totalTokens
-            );
-        }
+        calcAndwithdrawFromStrategy(
+            myOrder.inputToken,
+            depositPlusYield,
+            bufferAmount,
+            totalTokens,
+            myOrder.shares,
+            totalSharesInAsset,
+            myOrder.recipient,
+            bufferAmount < depositPlusYield
+        );
 
         uint256 totalFee = estimatedAmount.percentMul(BASE_FEE);
 
@@ -449,7 +464,10 @@ contract Symphony is
         } else if (balanceInContract < bufferBalanceNeeded) {
             IYieldAdapter(strategy[asset]).withdraw(
                 asset,
-                bufferBalanceNeeded.sub(balanceInContract)
+                bufferBalanceNeeded.sub(balanceInContract),
+                0,
+                0,
+                address(0)
             );
         }
     }
@@ -560,29 +578,36 @@ contract Symphony is
     /**
      * @notice Update Strategy of a token
      */
-    function updateTokenStrategyAndBuffer(
-        address _token,
+    function updateAssetStrategyAndBuffer(
+        address _asset,
         address _strategy,
         uint256 _bufferPercent
     ) external onlyOwner {
-        strategy[_token] = _strategy;
-        assetBuffer[_token] = _bufferPercent; // 3000 for 30%;
+        address previousStrategy = strategy[_asset];
+
+        strategy[_asset] = _strategy;
+        assetBuffer[_asset] = _bufferPercent; // 3000 for 30%;
 
         // max approve token
         if (
             _strategy != address(0) &&
-            IERC20(_token).allowance(address(this), address(_strategy)) == 0
+            IERC20(_asset).allowance(address(this), address(_strategy)) == 0
         ) {
-            emit AssetStrategyUpdated(_token, _strategy);
+            emit AssetStrategyUpdated(_asset, _strategy);
 
             // caution: external call to unknown address
-            IERC20(_token).safeApprove(address(_strategy), uint256(-1));
-            IYieldAdapter(_strategy).maxApprove(_token);
+            IERC20(_asset).safeApprove(address(_strategy), uint256(-1));
+            IYieldAdapter(_strategy).maxApprove(_asset);
 
             address iouToken = IYieldAdapter(_strategy).getYieldTokenAddress(
-                _token
+                _asset
             );
             IERC20(iouToken).safeApprove(address(_strategy), uint256(-1));
+
+            if (previousStrategy != address(0)) {
+                withdrawAllTokensFromStrategy(_asset);
+                rebalanceAsset(_asset);
+            }
         }
     }
 
@@ -625,7 +650,44 @@ contract Symphony is
         onlyOwner
     {
         assetBuffer[_asset] = _value;
-        emit UpdatedBufferPercentage(_value);
+        emit UpdatedBufferPercentage(_asset, _value);
+    }
+
+    /**
+     * @notice Add a token for rewards earning
+     */
+    function addTokenForReward(address _token) external onlyOwner {
+        isWhitelistedForRewards[_token] = true;
+        AddedAssetForReward(_token);
+    }
+
+    /**
+     * @notice Remove a token from rewards earning
+     */
+    function removeTokenFromReward(address _token) external onlyOwner {
+        isWhitelistedForRewards[_token] = false;
+        RemovedAssetFromReward(_token);
+    }
+
+    /**
+     * @notice Withdraw all tokens from strategy
+     */
+    function withdrawAllTokensFromStrategy(address _asset)
+        public
+        onlyEmergencyAdminOrOwner
+    {
+        uint256 amount = IYieldAdapter(strategy[_asset]).getTokensForShares(
+            _asset
+        );
+        uint256 totalSharesInAsset = totalAssetShares[_asset];
+
+        IYieldAdapter(strategy[_asset]).withdraw(
+            _asset,
+            amount,
+            totalSharesInAsset,
+            totalSharesInAsset,
+            address(this)
+        );
     }
 
     // ************************** //
@@ -658,19 +720,33 @@ contract Symphony is
         address asset,
         uint256 orderAmount,
         uint256 bufferAmount,
-        uint256 totalTokens
+        uint256 totalTokens,
+        uint256 orderShare,
+        uint256 totalSharesInAsset,
+        address recipient,
+        bool isWithdrawlRequired
     ) internal {
-        uint256 leftBalanceAfterOrder = totalTokens.sub(orderAmount);
+        uint256 amountToWithdraw = 0;
 
-        uint256 neededAmountInBuffer = leftBalanceAfterOrder.percentMul(
-            assetBuffer[asset]
-        );
+        if (isWithdrawlRequired) {
+            uint256 leftBalanceAfterOrder = totalTokens.sub(orderAmount);
 
-        uint256 amountToWithdraw = orderAmount.sub(bufferAmount).add(
-            neededAmountInBuffer
-        );
+            uint256 neededAmountInBuffer = leftBalanceAfterOrder.percentMul(
+                assetBuffer[asset]
+            );
+
+            amountToWithdraw = orderAmount.sub(bufferAmount).add(
+                neededAmountInBuffer
+            );
+        }
 
         emit AssetRebalanced(asset);
-        IYieldAdapter(strategy[asset]).withdraw(asset, amountToWithdraw);
+        IYieldAdapter(strategy[asset]).withdraw(
+            asset,
+            amountToWithdraw > 0 ? amountToWithdraw : 0,
+            orderShare,
+            totalSharesInAsset,
+            recipient
+        );
     }
 }
