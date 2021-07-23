@@ -740,14 +740,12 @@ contract Symphony is
             assetBuffer[asset]
         );
 
-        uint256 amountToWithdraw = orderAmount.sub(bufferAmount).add(
-            neededAmountInBuffer
-        );
+        uint256 amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(bufferAmount);
 
         emit AssetRebalanced(asset);
         IYieldAdapter(strategy[asset]).withdraw(
             asset,
-            amountToWithdraw > 0 ? amountToWithdraw : 0,
+            amountToWithdraw,
             orderShare,
             totalSharesInAsset,
             recipient
