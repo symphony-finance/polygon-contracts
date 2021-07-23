@@ -136,18 +136,15 @@ contract AaveYield is IYieldAdapter {
         uint256 totalShares,
         address recipient
     ) external override onlySymphony {
-        require(amount != 0, "AaveYield: withdraw:: amount can't be zero");
-
-        address aToken = getATokenAddress(asset);
-
-        emit Withdraw(asset, amount);
-
-        IERC20(aToken).safeTransferFrom(msg.sender, address(this), amount);
-
-        uint256 underlyingAssetAmt = _withdrawERC20(asset, amount);
-
-        // todo: add/change validation?
         if (amount > 0) {
+            address aToken = getATokenAddress(asset);
+
+            emit Withdraw(asset, amount);
+
+            IERC20(aToken).safeTransferFrom(msg.sender, address(this), amount);
+
+            uint256 underlyingAssetAmt = _withdrawERC20(asset, amount);
+
             require(
                 underlyingAssetAmt > 0,
                 "AaveYield::withdraw: incorrect amount withdrawn"

@@ -259,8 +259,7 @@ contract Symphony is
             totalTokens,
             myOrder.shares,
             totalSharesInAsset,
-            myOrder.recipient,
-            bufferAmount < depositPlusYield
+            myOrder.recipient
         );
 
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
@@ -327,8 +326,7 @@ contract Symphony is
             totalTokens,
             myOrder.shares,
             totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stake too deep
-            myOrder.recipient,
-            bufferAmount < depositPlusYield
+            myOrder.recipient
         );
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
@@ -411,8 +409,7 @@ contract Symphony is
             totalTokens,
             myOrder.shares,
             totalSharesInAsset,
-            myOrder.recipient,
-            bufferAmount < depositPlusYield
+            myOrder.recipient
         );
 
         uint256 totalFee = estimatedAmount.percentMul(BASE_FEE);
@@ -735,22 +732,17 @@ contract Symphony is
         uint256 totalTokens,
         uint256 orderShare,
         uint256 totalSharesInAsset,
-        address recipient,
-        bool isWithdrawlRequired
+        address recipient
     ) internal {
-        uint256 amountToWithdraw = 0;
+        uint256 leftBalanceAfterOrder = totalTokens.sub(orderAmount);
 
-        if (isWithdrawlRequired) {
-            uint256 leftBalanceAfterOrder = totalTokens.sub(orderAmount);
+        uint256 neededAmountInBuffer = leftBalanceAfterOrder.percentMul(
+            assetBuffer[asset]
+        );
 
-            uint256 neededAmountInBuffer = leftBalanceAfterOrder.percentMul(
-                assetBuffer[asset]
-            );
-
-            amountToWithdraw = orderAmount.sub(bufferAmount).add(
-                neededAmountInBuffer
-            );
-        }
+        uint256 amountToWithdraw = orderAmount.sub(bufferAmount).add(
+            neededAmountInBuffer
+        );
 
         emit AssetRebalanced(asset);
         IYieldAdapter(strategy[asset]).withdraw(
