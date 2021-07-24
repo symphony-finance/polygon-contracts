@@ -77,6 +77,9 @@ contract Symphony is
         _;
     }
 
+    /**
+     * @notice To initalize the variables
+     */
     function initialize(
         address _owner,
         address _emergencyAdmin,
@@ -158,8 +161,15 @@ contract Symphony is
 
         emit OrderCreated(orderId, encodedOrder);
 
-        if (strategy[inputToken] != address(0)) {
+        address assetStrategy = strategy[inputToken];
+
+        if (assetStrategy != address(0)) {
             rebalanceAsset(inputToken);
+
+            IYieldAdapter(assetStrategy).setOrderRewardDebt(
+                orderId,
+                inputToken
+            );
         }
     }
 
@@ -234,9 +244,6 @@ contract Symphony is
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 bufferAmount = IERC20(myOrder.inputToken).balanceOf(
-            address(this)
-        );
         uint256 depositPlusYield = calculateTokenFromShares(
             myOrder.inputToken,
             myOrder.shares,
@@ -252,21 +259,21 @@ contract Symphony is
         delete orderHash[orderId];
         emit OrderCancelled(orderId);
 
-        calcAndwithdrawFromStrategy(
-            myOrder.inputToken,
-            depositPlusYield,
-            bufferAmount,
-            totalTokens,
-            myOrder.shares,
-            totalSharesInAsset,
-            myOrder.recipient
-        );
+        if (strategy[myOrder.inputToken] != address(0)) {
+            calcAndwithdrawFromStrategy(
+                myOrder,
+                depositPlusYield,
+                totalTokens,
+                totalSharesInAsset,
+                orderId
+            );
+        }
 
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
     }
 
     /**
-     * @notice Execute the order
+     * @notice Execute the order using external DEX
      */
     function executeOrder(
         bytes32 orderId,
@@ -300,10 +307,6 @@ contract Symphony is
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 bufferAmount = IERC20(myOrder.inputToken).balanceOf(
-            address(this)
-        );
-
         uint256 depositPlusYield = calculateTokenFromShares(
             myOrder.inputToken,
             myOrder.shares,
@@ -319,15 +322,15 @@ contract Symphony is
 
         emit OrderExecuted(orderId, msg.sender);
 
-        calcAndwithdrawFromStrategy(
-            myOrder.inputToken,
-            depositPlusYield,
-            bufferAmount,
-            totalTokens,
-            myOrder.shares,
-            totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stake too deep
-            myOrder.recipient
-        );
+        if (strategy[myOrder.inputToken] != address(0)) {
+            calcAndwithdrawFromStrategy(
+                myOrder,
+                depositPlusYield,
+                totalTokens,
+                totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stake too deep
+                orderId
+            );
+        }
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
@@ -367,10 +370,6 @@ contract Symphony is
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 bufferAmount = IERC20(myOrder.inputToken).balanceOf(
-            address(this)
-        );
-
         uint256 depositPlusYield = calculateTokenFromShares(
             myOrder.inputToken,
             myOrder.shares,
@@ -402,15 +401,15 @@ contract Symphony is
 
         emit OrderExecuted(orderId, msg.sender);
 
-        calcAndwithdrawFromStrategy(
-            myOrder.inputToken,
-            depositPlusYield,
-            bufferAmount,
-            totalTokens,
-            myOrder.shares,
-            totalSharesInAsset,
-            myOrder.recipient
-        );
+        if (strategy[myOrder.inputToken] != address(0)) {
+            calcAndwithdrawFromStrategy(
+                myOrder,
+                depositPlusYield,
+                totalTokens,
+                totalSharesInAsset,
+                orderId
+            );
+        }
 
         uint256 totalFee = estimatedAmount.percentMul(BASE_FEE);
 
@@ -436,6 +435,9 @@ contract Symphony is
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
     }
 
+    /**
+     * @notice rebalance asset according to buffer percent
+     */
     function rebalanceAsset(address asset) public whenNotPaused {
         require(
             strategy[asset] != address(0),
@@ -471,7 +473,8 @@ contract Symphony is
                 bufferBalanceNeeded.sub(balanceInContract),
                 0,
                 0,
-                address(0)
+                address(0),
+                bytes32(0)
             );
         }
     }
@@ -501,6 +504,20 @@ contract Symphony is
             );
     }
 
+    function getTotalFunds(address asset)
+        public
+        view
+        returns (uint256 totalBalance)
+    {
+        totalBalance = IERC20(asset).balanceOf(address(this));
+
+        if (strategy[asset] != address(0)) {
+            totalBalance = totalBalance.add(
+                IYieldAdapter(strategy[asset]).getTokensForShares(asset)
+            );
+        }
+    }
+
     function decodeOrder(bytes memory _data)
         public
         view
@@ -528,20 +545,6 @@ contract Symphony is
             stoplossAmount,
             shares
         );
-    }
-
-    function getTotalFunds(address asset)
-        public
-        view
-        returns (uint256 totalBalance)
-    {
-        totalBalance = IERC20(asset).balanceOf(address(this));
-
-        if (strategy[asset] != address(0)) {
-            totalBalance = totalBalance.add(
-                IYieldAdapter(strategy[asset]).getTokensForShares(asset)
-            );
-        }
     }
 
     // ************************** //
@@ -614,39 +617,17 @@ contract Symphony is
     }
 
     /**
-     * @notice Update Strategy of a token
+     * @notice Update strategy
      */
-    function updateAssetStrategyAndBuffer(
-        address _asset,
-        address _strategy,
-        uint256 _bufferPercent
-    ) external onlyOwner {
-        address previousStrategy = strategy[_asset];
-
-        strategy[_asset] = _strategy;
-        assetBuffer[_asset] = _bufferPercent; // 3000 for 30%;
-
-        // max approve token
-        if (
-            _strategy != address(0) &&
-            IERC20(_asset).allowance(address(this), address(_strategy)) == 0
-        ) {
-            emit AssetStrategyUpdated(_asset, _strategy);
-
-            // caution: external call to unknown address
-            IERC20(_asset).safeApprove(address(_strategy), uint256(-1));
-            IYieldAdapter(_strategy).maxApprove(_asset);
-
-            address iouToken = IYieldAdapter(_strategy).getYieldTokenAddress(
-                _asset
-            );
-            IERC20(iouToken).safeApprove(address(_strategy), uint256(-1));
-
-            if (previousStrategy != address(0)) {
-                withdrawTokenFromStrategyInternal(_asset);
-                rebalanceAsset(_asset);
-            }
-        }
+    function updateStrategy(address _asset, address _strategy)
+        external
+        onlyOwner
+    {
+        require(
+            strategy[_asset] != _strategy,
+            "Symphony: updateStrategy:: Strategy shouldn't be same."
+        );
+        _updateAssetStrategy(_asset, _strategy);
     }
 
     /**
@@ -661,6 +642,67 @@ contract Symphony is
             IERC20(assets[i]).safeTransfer(receiver, amount[i]);
         }
     }
+
+    /**
+     * @notice Migrate to new strategy
+     */
+    function migrateStrategy(
+        address _asset,
+        address _strategy,
+        address _router,
+        uint256 _slippage,
+        bytes32 _codeHash,
+        address[] calldata _path
+    ) external {
+        IYieldAdapter(strategy[_asset]).withdrawAll(
+            _asset,
+            _router,
+            _slippage,
+            _codeHash,
+            _path
+        );
+
+        if (_strategy != address(0)) {
+            _updateAssetStrategy(_asset, _strategy);
+        }
+    }
+
+    /**
+     * @notice For executing any transaction from the contract
+     */
+    function executeTransaction(
+        address target,
+        uint256 value,
+        string memory signature,
+        bytes memory data
+    ) external payable onlyOwner returns (bytes memory) {
+        bytes memory callData;
+
+        if (bytes(signature).length == 0) {
+            callData = data;
+        } else {
+            callData = abi.encodePacked(
+                bytes4(keccak256(bytes(signature))),
+                data
+            );
+        }
+
+        // solium-disable-next-line security/no-call-value
+        (bool success, bytes memory returnData) = target.call{value: value}(
+            callData
+        );
+
+        require(
+            success,
+            "Symphony::executeTransaction: Transaction execution reverted."
+        );
+
+        return returnData;
+    }
+
+    // *************************** //
+    // **** EMERGENCY METHODS **** //
+    // *************************** //
 
     /**
      * @notice Pause the contract
@@ -687,15 +729,16 @@ contract Symphony is
     }
 
     /**
-     * @notice Withdraw all assets from strategies
+     * @notice Withdraw all assets from strategies including rewards
+     * @dev Only in emergency case. Transfer rewards to symphony contract
      */
-    function withdrawAllTokensFromStrategy(address[] calldata assets)
+    function emergencyWithdrawFromStrategy(address[] calldata assets)
         external
         onlyEmergencyAdminOrOwner
     {
         for (uint256 i = 0; i < assets.length; i++) {
             address asset = assets[i];
-            withdrawTokenFromStrategyInternal(asset);
+            _withdrawFromStrategy(asset);
         }
     }
 
@@ -726,33 +769,37 @@ contract Symphony is
     }
 
     function calcAndwithdrawFromStrategy(
-        address asset,
+        Order memory myOrder,
         uint256 orderAmount,
-        uint256 bufferAmount,
         uint256 totalTokens,
-        uint256 orderShare,
         uint256 totalSharesInAsset,
-        address recipient
+        bytes32 orderId
     ) internal {
+        address asset = myOrder.inputToken;
         uint256 leftBalanceAfterOrder = totalTokens.sub(orderAmount);
 
         uint256 neededAmountInBuffer = leftBalanceAfterOrder.percentMul(
             assetBuffer[asset]
         );
 
-        uint256 amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(bufferAmount);
+        uint256 bufferAmount = IERC20(asset).balanceOf(address(this));
+
+        uint256 amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
+            bufferAmount
+        );
 
         emit AssetRebalanced(asset);
         IYieldAdapter(strategy[asset]).withdraw(
             asset,
             amountToWithdraw,
-            orderShare,
+            myOrder.shares,
             totalSharesInAsset,
-            recipient
+            myOrder.recipient,
+            orderId
         );
     }
 
-    function withdrawTokenFromStrategyInternal(address asset) internal {
+    function _withdrawFromStrategy(address asset) internal {
         uint256 amount = IYieldAdapter(strategy[asset]).getTokensForShares(
             asset
         );
@@ -763,7 +810,40 @@ contract Symphony is
             amount,
             totalSharesInAsset,
             totalSharesInAsset,
-            address(this)
+            address(this),
+            bytes32(0)
         );
+    }
+
+    /**
+     * @notice Update Strategy of a token
+     */
+    function _updateAssetStrategy(address _asset, address _strategy) internal {
+        address previousStrategy = strategy[_asset];
+
+        // max approve token
+        if (
+            _strategy != address(0) &&
+            IERC20(_asset).allowance(address(this), _strategy) == 0
+        ) {
+            emit AssetStrategyUpdated(_asset, _strategy);
+
+            if (
+                previousStrategy != _strategy && previousStrategy != address(0)
+            ) {
+                rebalanceAsset(_asset);
+            }
+
+            // caution: external call to unknown address
+            IERC20(_asset).safeApprove(_strategy, uint256(-1));
+            IYieldAdapter(_strategy).maxApprove(_asset);
+
+            address iouToken = IYieldAdapter(_strategy).getYieldTokenAddress(
+                _asset
+            );
+            IERC20(iouToken).safeApprove(_strategy, uint256(-1));
+
+            strategy[_asset] = _strategy;
+        }
     }
 }

@@ -6,6 +6,13 @@ const SymphonyArtifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
+const { deploySymphony } = require('./deploySymphony');
+const { deployTreasury } = require('./deployTreasury');
+const { deployAaveYield } = require('./deployAaveYield');
+const { deployChainlinkOracle } = require('./deployChainlinkOracle');
+const { deploySushiswapHandler } = require('./deploySushiswapHandler');
+const executionFee = 40 // 0.4%
+const protocolFee = 2500 // 0.1% (25% of total fee)
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -14,11 +21,20 @@ async function main() {
         deployer.address
     );
 
-    // Deploy Symphony
-    // Deploy Aave yield adapter
-    // Deploy Chainlink Oracle
-    // Deploy Quickswap Handler
-    // Deploy Treasury
+    console.log("\nDeploying Symphony..");
+    await deploySymphony(executionFee);
+
+    console.log("\nDeploying Treasury..");
+    await deployTreasury();
+
+    console.log("\nDeploying AaveYield..");
+    await deployAaveYield();
+
+    console.log("\nDeploying ChainlinkOracle..");
+    await deployChainlinkOracle();
+
+    console.log("\nDeploying SushiswapHandler..");
+    await deploySushiswapHandler();
 
     let configParams = config.development;
     if (network.name === "matic") {
@@ -44,9 +60,9 @@ async function main() {
         assetsData = assetConfig.matic;
     }
 
-
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];
+        console.log("\nsetting feed & startegy for asset ", i + 1);
 
         if (data.feed) {
             await chainlinkOracle.addTokenFeed(
@@ -56,16 +72,20 @@ async function main() {
         }
 
         if ((data.address || data.aaveAddress) && data.strategy) {
-            await symphony.updateTokenStrategyAndBuffer(
+            await symphony.updateAssetStrategyAndBuffer(
                 data.address ? data.address : data.aaveAddress,
-                data.strategy,
+                // data.strategy, // TODO: Update directly in assets.json
+                configParams.aaveYieldAddress,
                 data.buffer,
             );
         }
     }
 
+    console.log("\nupdating treasury address in contract");
     await symphony.updateTreasury(configParams.treasury);
-    await symphony.updateProtocolFee(2500); // 25% of base fee(0.4%)
+
+    console.log("\nupdating protocol fee in contract");
+    await symphony.updateProtocolFee(protocolFee); // 25% of base fee(0.4%)
 }
 
 // We recommend this pattern to be able to use async/await everywhere

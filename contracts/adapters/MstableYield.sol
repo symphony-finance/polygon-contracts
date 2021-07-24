@@ -4,13 +4,14 @@ pragma solidity 0.7.4;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/IAaveToken.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
 
-contract MstableYield is IYieldAdapter {
+contract MstableYield is IYieldAdapter, Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -25,7 +26,15 @@ contract MstableYield is IYieldAdapter {
         _;
     }
 
-    constructor(address _symphony, ISavingsManager _savingManager) {
+    /**
+     * @dev To initialize the contract addresses interacting with this contract
+     * @param _savingManager the address of mstable saving manager
+     * @param _symphony the address of the symphony smart contract
+     **/
+    function initialize(ISavingsManager _savingManager, address _symphony)
+        external
+        initializer
+    {
         require(
             _symphony != address(0),
             "MstableYield: Symphony:: zero address"
@@ -49,10 +58,16 @@ contract MstableYield is IYieldAdapter {
         override
         onlySymphony
     {
+        require(amount != 0, "MstableYield: zero amount");
+
+        emit Deposit(asset, amount);
+
         address saveAddress = savingManager.savingsContracts(asset);
 
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+
         // Deposit amount to saving pool
-        ISaveContract(saveAddress).depositSavings(amount);
+        ISaveContract(saveAddress).depositSavings(amount, symphony);
     }
 
     /**
@@ -63,12 +78,52 @@ contract MstableYield is IYieldAdapter {
     function withdraw(
         address asset,
         uint256 amount,
-        uint256 shares,
-        uint256 totalShares,
-        address recipient
+        uint256,
+        uint256,
+        address,
+        bytes32
     ) external override onlySymphony {
         address saveAddress = savingManager.savingsContracts(asset);
-        ISaveContract(saveAddress).redeem(amount);
+
+        emit Withdraw(asset, amount);
+
+        address iouToken = getYieldTokenAddress(asset);
+
+        IERC20(iouToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        withdrawInternal(asset, saveAddress, amount);
+    }
+
+    /**
+     * @dev Withdraw all tokens from the strategy
+     * @param asset the address of token
+     **/
+    function withdrawAll(
+        address asset,
+        address,
+        uint256,
+        bytes32,
+        address[] calldata
+    ) external override onlySymphony {
+        address saveAddress = savingManager.savingsContracts(asset);
+        uint256 amount = ISaveContract(saveAddress).balanceOfUnderlying(
+            symphony
+        );
+
+        address iouToken = getYieldTokenAddress(asset);
+
+        IERC20(iouToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        withdrawInternal(asset, saveAddress, amount);
+    }
+
+    /**
+     * @dev Used to approve max token from yield provider contract
+     * @param asset the address of token
+     **/
+    function maxApprove(address asset) external override {
+        address saveAddress = savingManager.savingsContracts(asset);
+        IERC20(asset).safeApprove(saveAddress, uint256(-1));
     }
 
     /**
@@ -92,7 +147,7 @@ contract MstableYield is IYieldAdapter {
      * @return iouToken address of IOU token
      **/
     function getYieldTokenAddress(address asset)
-        external
+        public
         view
         override
         returns (address iouToken)
@@ -101,19 +156,21 @@ contract MstableYield is IYieldAdapter {
         iouToken = ISaveContract(saveAddress).underlying();
     }
 
-    /**
-     * @dev Used to approve max token from yield provider contract
-     * @param asset the address of token
-     **/
-    function maxApprove(address asset) external override {
-        address saveAddress = savingManager.savingsContracts(asset);
-        IERC20(asset).safeApprove(saveAddress, uint256(-1));
+    function withdrawInternal(
+        address asset,
+        address saveAddress,
+        uint256 amount
+    ) internal {
+        uint256 receivedAmount = ISaveContract(saveAddress).redeem(amount);
+        IERC20(asset).safeTransfer(symphony, receivedAmount);
     }
+
+    function setOrderRewardDebt(bytes32, address) external override {}
 }
 
 interface ISaveContract {
     /** @dev Saver privs */
-    function depositSavings(uint256 _amount)
+    function depositSavings(uint256 _amount, address _beneficiary)
         external
         returns (uint256 creditsIssued);
 

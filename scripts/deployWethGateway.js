@@ -6,54 +6,47 @@ const config = require("../config/index.json");
 const file = require("../config/index.json");
 const fileName = "../config/index.json";
 
-async function main() {
-    const [deployer] = await ethers.getSigners();
-    console.log(
-        "Deploying contracts with the account:",
-        deployer.address
-    );
+const main = () => {
+    return new Promise(async (resolve) => {
+        const [deployer] = await ethers.getSigners();
 
-    let configParams = config.development;
-    if (network.name === "matic") {
-        configParams = config.matic;
-    } else if (network.name === "mumbai") {
-        configParams = config.mumbai;
-    }
+        let configParams = config.development;
+        if (network.name === "matic") {
+            configParams = config.matic;
+        } else if (network.name === "mumbai") {
+            configParams = config.mumbai;
+        }
 
-    // Deploy Symphony Contract
-    const WethGateway = await hre.ethers.getContractFactory("WETHGateway");
+        // Deploy Symphony Contract
+        const WethGateway = await hre.ethers.getContractFactory("WETHGateway");
 
-    const wethGateway = await upgrades.deployProxy(
-        WethGateway,
-        [
-            configParams.wethAddress,
-            deployer.address,
-            configParams.symphonyAddress,
-        ]
-    );
+        upgrades.deployProxy(
+            WethGateway,
+            [
+                configParams.wethAddress,
+                deployer.address,
+                configParams.symphonyAddress,
+            ]
+        ).then(async (wethGateway) => {
+            await wethGateway.deployed();
+            console.log("WETH Gateway deployed to:", wethGateway.address, "\n");
 
-    await wethGateway.deployed();
-    console.log("WETH Gateway deployed to:", wethGateway.address, "\n");
+            if (network.name === "mumbai") {
+                file.mumbai.wethGatewayAddress = wethGateway.address;
+            } else if (network.name === "matic") {
+                file.matic.wethGatewayAddress = wethGateway.address;
+            } else {
+                file.development.wethGatewayAddress = wethGateway.address;
+            }
 
-    if (network.name === "mumbai") {
-        file.mumbai.wethGatewayAddress = wethGateway.address;
-    } else if (network.name === "matic") {
-        file.matic.wethGatewayAddress = wethGateway.address;
-    } else {
-        file.development.wethGatewayAddress = wethGateway.address;
-    }
+            fs.writeFileSync(
+                path.join(__dirname, fileName),
+                JSON.stringify(file, null, 2),
+            );
 
-    fs.writeFileSync(
-        path.join(__dirname, fileName),
-        JSON.stringify(file, null, 2),
-    );
+            resolve(true);
+        });
+    });
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main()
-    .then(() => process.exit(0))
-    .catch(error => {
-        console.error(error);
-        process.exit(1);
-    });
+module.exports = { deployWethGateway: main }

@@ -30,13 +30,31 @@ interface IYieldAdapter {
      * @param shares shares of the user (only for  external reward)
      * @param totalShares total share for particular asset
      * @param recipient address of reward receiever (if any)
+     * @param orderId bytes32 format orderId
      **/
     function withdraw(
         address asset,
         uint256 amount,
         uint256 shares,
         uint256 totalShares,
-        address recipient
+        address recipient,
+        bytes32 orderId
+    ) external;
+
+    /**
+     * @dev Withdraw all tokens from the strategy
+     * @param asset the address of token
+     * @param slippage max slippage in case of swap
+     * @param codeHash DEX router code hash
+     * @param router address of the dex router
+     * @param path desired path(only in case of swap)
+     **/
+    function withdrawAll(
+        address asset,
+        address router,
+        uint256 slippage,
+        bytes32 codeHash,
+        address[] calldata path
     ) external;
 
     /**
@@ -64,4 +82,11 @@ interface IYieldAdapter {
         external
         view
         returns (address iouToken);
+
+    /**
+     * @dev Used to set order current external reward debt
+     * @param orderId the order Id
+     * @param asset the address of token
+     **/
+    function setOrderRewardDebt(bytes32 orderId, address asset) external;
 }
