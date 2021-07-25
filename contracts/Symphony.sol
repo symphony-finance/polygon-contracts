@@ -12,6 +12,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "./interfaces/IHandler.sol";
 import "./interfaces/IYieldAdapter.sol";
 import "./libraries/PercentageMath.sol";
+import "./interfaces/IAaveIncentivesController.sol";
 
 contract Symphony is
     Initializable,
@@ -145,7 +146,8 @@ contract Symphony is
 
         uint256 shares = calculateShares(inputToken, inputAmount);
 
-        totalAssetShares[inputToken] = totalAssetShares[inputToken].add(shares);
+        uint256 previousAssetShares = totalAssetShares[inputToken];
+        totalAssetShares[inputToken] = previousAssetShares.add(shares);
 
         bytes memory encodedOrder = abi.encode(
             recipient,
@@ -168,7 +170,9 @@ contract Symphony is
 
             IYieldAdapter(assetStrategy).setOrderRewardDebt(
                 orderId,
-                inputToken
+                inputToken,
+                shares,
+                previousAssetShares
             );
         }
     }
@@ -479,6 +483,24 @@ contract Symphony is
         }
     }
 
+    /**
+     * @notice Withdraw reward from Aave
+     * @param _assets Array of aToken addresses
+     * @param _incentiveController address of the aave incentive controller
+     * @param _amount Amount to withdraw (check using getRewardsBalance)
+     */
+    function withdrawAaveReward(
+        address _incentiveController,
+        address[] calldata _assets,
+        uint256 _amount
+    ) external {
+        IAaveIncentivesController(_incentiveController).claimRewards(
+            _assets,
+            _amount,
+            strategy[_assets[0]]
+        );
+    }
+
     // *************** //
     // *** GETTERS *** //
     // *************** //
@@ -646,21 +668,8 @@ contract Symphony is
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(
-        address _asset,
-        address _strategy,
-        address _router,
-        uint256 _slippage,
-        bytes32 _codeHash,
-        address[] calldata _path
-    ) external {
-        IYieldAdapter(strategy[_asset]).withdrawAll(
-            _asset,
-            _router,
-            _slippage,
-            _codeHash,
-            _path
-        );
+    function migrateStrategy(address _asset, address _strategy) external {
+        IYieldAdapter(strategy[_asset]).withdrawAll(_asset);
 
         if (_strategy != address(0)) {
             _updateAssetStrategy(_asset, _strategy);
@@ -719,16 +728,6 @@ contract Symphony is
     }
 
     /**
-     * @notice Update emergency admin address
-     */
-    function updateEmergencyAdmin(address _emergencyAdmin)
-        external
-        onlyEmergencyAdminOrOwner
-    {
-        emergencyAdmin = _emergencyAdmin;
-    }
-
-    /**
      * @notice Withdraw all assets from strategies including rewards
      * @dev Only in emergency case. Transfer rewards to symphony contract
      */
@@ -740,6 +739,17 @@ contract Symphony is
             address asset = assets[i];
             _withdrawFromStrategy(asset);
         }
+    }
+
+    /**
+     * @notice Update emergency admin address
+     */
+    function updateEmergencyAdmin(address _emergencyAdmin) external {
+        require(
+            _msgSender() == emergencyAdmin,
+            "Symphony: Only emergency admin can invoke this function"
+        );
+        emergencyAdmin = _emergencyAdmin;
     }
 
     // ************************** //

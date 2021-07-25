@@ -11,8 +11,8 @@ import "../interfaces/IAaveToken.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
 import "../interfaces/IAaveIncentivesController.sol";
-import "../libraries/UniswapLibrary.sol";
 import "../interfaces/IUniswapRouter.sol";
+import "../libraries/UniswapLibrary.sol";
 
 /**
  * @title Aave Yield contract
@@ -28,12 +28,16 @@ contract AaveYield is IYieldAdapter, Initializable {
     address public protocolDataProvider;
     IAaveIncentivesController public incentivesController;
 
-    address symphony;
-    address governance;
+    address public symphony;
+    address public governance;
+    address public REWARD_TOKEN;
     uint16 public referralCode;
     bool public isExternalRewardEnabled;
 
-    mapping(bytes32 => uint256) orderRewardDebt;
+    mapping(bytes32 => uint256) public orderRewardDebt;
+    mapping(address => uint256) public previousRewards;
+    mapping(address => uint256) public previousAccRewardPerShare;
+    mapping(address => uint256) public userReward;
 
     modifier onlySymphony {
         require(
@@ -83,6 +87,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         protocolDataProvider = _protocolDataProvider;
         incentivesController = IAaveIncentivesController(_incentivesController);
         isExternalRewardEnabled = true;
+        REWARD_TOKEN = incentivesController.REWARD_TOKEN();
     }
 
     /**
@@ -129,12 +134,8 @@ contract AaveYield is IYieldAdapter, Initializable {
             );
         }
 
-        if (
-            shares > 0 &&
-            recipient != address(0) &&
-            address(incentivesController) != address(0)
-        ) {
-            calculateAndTransferWmaticReward(
+        if (isExternalRewardEnabled && shares > 0 && recipient != address(0)) {
+            calculateAndStoreReward(
                 aToken,
                 shares,
                 totalShares,
@@ -147,45 +148,40 @@ contract AaveYield is IYieldAdapter, Initializable {
     /**
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
-     * @param router address of the dex router
-     * @param slippage max slippage in case of swap
-     * @param codeHash DEX router code hash
-     * @param path desired path(only in case of swap)
      **/
-    function withdrawAll(
-        address asset,
-        address router,
-        uint256 slippage,
-        bytes32 codeHash,
-        address[] calldata path
-    ) external override onlySymphony {
+    function withdrawAll(address asset) external override onlySymphony {
         address aToken = getATokenAddress(asset);
-
-        address[] memory assets = new address[](1);
-        assets[0] = aToken;
 
         uint256 amount = IERC20(aToken).balanceOf(symphony);
         if (amount > 0) {
             _withdrawERC20(asset, amount);
         }
+    }
 
-        if (router != address(0) && codeHash != bytes32(0)) {
-            uint256 rewardAmount = calculateAndTransferWmaticReward(
-                aToken,
-                100,
-                100,
-                0,
-                address(this)
-            );
+    /**
+     * @dev Used to set external reward debt at the time of order creation
+     * @param orderId the id of the order
+     * @param asset the address of token
+     **/
+    function setOrderRewardDebt(
+        bytes32 orderId,
+        address asset,
+        uint256 shares,
+        uint256 totalShares
+    ) external override onlySymphony {
+        uint256 totalRewardBalance = getRewardBalance(asset);
 
-            swap(
-                incentivesController.REWARD_TOKEN(),
-                rewardAmount,
-                router,
-                slippage,
-                codeHash,
-                path
+        if (totalRewardBalance > 0) {
+            uint256 accRewardPerShare = getAccumulatedRewardPerShare(
+                asset,
+                totalShares,
+                totalRewardBalance
             );
+            uint256 orderDebt = calculateOrderDebt(shares, accRewardPerShare);
+
+            previousRewards[asset] = totalRewardBalance;
+            previousAccRewardPerShare[asset] = accRewardPerShare;
+            orderRewardDebt[orderId] = orderDebt;
         }
     }
 
@@ -200,18 +196,15 @@ contract AaveYield is IYieldAdapter, Initializable {
     }
 
     /**
-     * @dev Used to set external reward debt at the time of order creation
-     * @param orderId the id of the order
-     * @param asset the address of token
+     * @dev Used to claim reward
      **/
-    function setOrderRewardDebt(bytes32 orderId, address asset)
-        external
-        override
-    {
-        uint256 currentRewardBalance = getRewardBalance(asset);
-        if (currentRewardBalance > 0) {
-            orderRewardDebt[orderId] = currentRewardBalance;
-        }
+    function claimReward(uint256 amount) external {
+        require(
+            amount <= userReward[msg.sender],
+            "AaveYield::claimReward: Amount shouldn't execeed total reward"
+        );
+
+        IERC20(REWARD_TOKEN).safeTransfer(msg.sender, amount);
     }
 
     // *************** //
@@ -224,7 +217,7 @@ contract AaveYield is IYieldAdapter, Initializable {
      * @return amount amount of underlying tokens
      **/
     function getTokensForShares(address asset)
-        external
+        public
         view
         override
         returns (uint256 amount)
@@ -266,6 +259,25 @@ contract AaveYield is IYieldAdapter, Initializable {
         }
     }
 
+    function getAccumulatedRewardPerShare(
+        address asset,
+        uint256 totalShares,
+        uint256 rewardBalance
+    ) public view returns (uint256 result) {
+        // ARPC = previous_APRC + (new_reward / total_shares)
+        uint256 newReward = rewardBalance.sub(previousRewards[asset]);
+        uint256 newRewardPerShare = newReward.mul(10**9).div(totalShares);
+        result = previousAccRewardPerShare[asset].add(newRewardPerShare);
+    }
+
+    function calculateOrderDebt(uint256 shares, uint256 accRewardPerShare)
+        public
+        view
+        returns (uint256 rewardDebt)
+    {
+        rewardDebt = shares.mul(accRewardPerShare).div(10**9);
+    }
+
     // ************************** //
     // *** GOVERNANCE METHODS *** //
     // ************************** //
@@ -290,6 +302,10 @@ contract AaveYield is IYieldAdapter, Initializable {
         );
     }
 
+    function updateRewardToken(address _token) external onlyGovernance {
+        REWARD_TOKEN = _token;
+    }
+
     function updateAaveAddresses(
         address _lendingPool,
         address _protocolDataProvider
@@ -305,6 +321,39 @@ contract AaveYield is IYieldAdapter, Initializable {
 
         lendingPool = _lendingPool;
         protocolDataProvider = _protocolDataProvider;
+    }
+
+    /**
+     * @notice For executing any transaction from the contract
+     */
+    function executeTransaction(
+        address target,
+        uint256 value,
+        string memory signature,
+        bytes memory data
+    ) external payable onlyGovernance returns (bytes memory) {
+        bytes memory callData;
+
+        if (bytes(signature).length == 0) {
+            callData = data;
+        } else {
+            callData = abi.encodePacked(
+                bytes4(keccak256(bytes(signature))),
+                data
+            );
+        }
+
+        // solium-disable-next-line security/no-call-value
+        (bool success, bytes memory returnData) = target.call{value: value}(
+            callData
+        );
+
+        require(
+            success,
+            "AaveYield::executeTransaction: Transaction execution reverted."
+        );
+
+        return returnData;
     }
 
     // ************************** //
@@ -340,7 +389,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         .getReserveTokensAddresses(_asset);
     }
 
-    function calculateAndTransferWmaticReward(
+    function calculateAndStoreReward(
         address _asset,
         uint256 _shares,
         uint256 _totalShares,
@@ -350,66 +399,18 @@ contract AaveYield is IYieldAdapter, Initializable {
         address[] memory assets = new address[](1);
         assets[0] = _asset;
 
-        uint256 totalTokens = incentivesController.getRewardsBalance(
-            assets,
-            symphony
+        uint256 totalRewardBalance = getRewardBalance(_asset);
+        uint256 accRewardPerShare = getAccumulatedRewardPerShare(
+            _asset,
+            _totalShares,
+            totalRewardBalance
         );
 
-        if (totalTokens > 0) {
-            uint256 rewardBalance = totalTokens.sub(_rewardDebt);
-            uint256 amount = _shares.mul(rewardBalance).div(_totalShares);
+        // reward_amount = shares x (ARCP) - (reward_debt)
+        reward = _shares.mul(accRewardPerShare).div(10**9).sub(_rewardDebt);
 
-            reward = incentivesController.claimRewards(
-                assets,
-                amount,
-                _recipient
-            );
-        }
-    }
-
-    function swap(
-        address _inputToken,
-        uint256 _inputAmount,
-        address _router,
-        uint256 _slippage,
-        bytes32 _codeHash,
-        address[] calldata _path
-    ) internal {
-        IERC20(_inputToken).safeApprove(_router, _inputAmount);
-
-        uint256 amountOut = getAmountOut(
-            _inputAmount,
-            _router,
-            _codeHash,
-            _path
-        );
-
-        // Swap Tokens
-        IUniswapRouter(_router).swapExactTokensForTokens(
-            _inputAmount,
-            amountOut.mul(uint256(100).sub(_slippage)).div(100), // Slipage: 2 for 2%
-            _path,
-            symphony,
-            block.timestamp.add(1800)
-        );
-    }
-
-    function getAmountOut(
-        uint256 _inputAmount,
-        address _router,
-        bytes32 _codeHash,
-        address[] calldata path
-    ) internal view returns (uint256 amountOut) {
-        address factory = IUniswapRouter(_router).factory();
-
-        uint256[] memory _amounts = UniswapLibrary.getAmountsOut(
-            factory,
-            _inputAmount,
-            path,
-            _codeHash
-        );
-
-        amountOut = _amounts[_amounts.length - 1];
+        previousRewards[_asset] = previousRewards[_asset].sub(reward);
+        userReward[_recipient] = userReward[_recipient].add(reward);
     }
 
     receive() external payable {}

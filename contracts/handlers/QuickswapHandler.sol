@@ -23,6 +23,7 @@ contract QuickswapHandler is IHandler {
     bytes32 public immutable FACTORY_CODE_HASH;
     IUniswapRouter internal UniswapRouter;
     IOracle public oracle;
+    address public symphony;
 
     /**
      * @notice Creates the handler
@@ -36,7 +37,8 @@ contract QuickswapHandler is IHandler {
         address _weth,
         address _wmatic,
         bytes32 _codeHash,
-        IOracle _oracle
+        IOracle _oracle,
+        address _symphony
     ) {
         UniswapRouter = _router;
         WETH = _weth;
@@ -44,6 +46,15 @@ contract QuickswapHandler is IHandler {
         FACTORY_CODE_HASH = _codeHash;
         oracle = _oracle;
         FACTORY = _router.factory();
+        symphony = _symphony;
+    }
+
+    modifier onlySymphony {
+        require(
+            msg.sender == symphony,
+            "AaveYield: Only symphony contract can invoke this function"
+        );
+        _;
     }
 
     /// @notice receive ETH
@@ -70,7 +81,7 @@ contract QuickswapHandler is IHandler {
         address executor,
         address treasury,
         bytes calldata
-    ) external override {
+    ) external override onlySymphony {
         (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
             inputToken,
             outputToken,

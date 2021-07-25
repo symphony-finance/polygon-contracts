@@ -15,8 +15,8 @@ contract MstableYield is IYieldAdapter, Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    address symphony;
-    ISavingsManager savingManager;
+    address public symphony;
+    ISavingsManager public savingManager;
 
     modifier onlySymphony {
         require(
@@ -98,13 +98,7 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(
-        address asset,
-        address,
-        uint256,
-        bytes32,
-        address[] calldata
-    ) external override onlySymphony {
+    function withdrawAll(address asset) external override onlySymphony {
         address saveAddress = savingManager.savingsContracts(asset);
         uint256 amount = ISaveContract(saveAddress).balanceOfUnderlying(
             symphony
@@ -165,7 +159,12 @@ contract MstableYield is IYieldAdapter, Initializable {
         IERC20(asset).safeTransfer(symphony, receivedAmount);
     }
 
-    function setOrderRewardDebt(bytes32, address) external override {}
+    function setOrderRewardDebt(
+        bytes32,
+        address,
+        uint256,
+        uint256
+    ) external override {}
 }
 
 interface ISaveContract {

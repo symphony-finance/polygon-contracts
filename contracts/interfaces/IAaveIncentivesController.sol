@@ -8,6 +8,13 @@ interface IAaveIncentivesController {
         address to
     ) external returns (uint256);
 
+    function claimRewardsOnBehalf(
+        address[] calldata assets,
+        uint256 amount,
+        address user,
+        address to
+    ) external returns (uint256);
+
     function getRewardsBalance(address[] calldata assets, address user)
         external
         view

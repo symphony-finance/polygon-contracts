@@ -27,7 +27,7 @@ interface IYieldAdapter {
      * @dev Used to withdraw from available protocol
      * @param asset the address of underlying token
      * @param amount the amount of liquidity shares to unlock
-     * @param shares shares of the user (only for  external reward)
+     * @param shares shares of the order (only for  external reward)
      * @param totalShares total share for particular asset
      * @param recipient address of reward receiever (if any)
      * @param orderId bytes32 format orderId
@@ -44,18 +44,8 @@ interface IYieldAdapter {
     /**
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
-     * @param slippage max slippage in case of swap
-     * @param codeHash DEX router code hash
-     * @param router address of the dex router
-     * @param path desired path(only in case of swap)
      **/
-    function withdrawAll(
-        address asset,
-        address router,
-        uint256 slippage,
-        bytes32 codeHash,
-        address[] calldata path
-    ) external;
+    function withdrawAll(address asset) external;
 
     /**
      * @dev Used to approve max token from yield provider contract
@@ -87,6 +77,13 @@ interface IYieldAdapter {
      * @dev Used to set order current external reward debt
      * @param orderId the order Id
      * @param asset the address of token
+     * @param shares shares of the order (only for  external reward)
+     * @param totalShares total share for particular asset
      **/
-    function setOrderRewardDebt(bytes32 orderId, address asset) external;
+    function setOrderRewardDebt(
+        bytes32 orderId,
+        address asset,
+        uint256 shares,
+        uint256 totalShares
+    ) external;
 }

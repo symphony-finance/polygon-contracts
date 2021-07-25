@@ -72,10 +72,14 @@ async function main() {
         }
 
         if ((data.address || data.aaveAddress) && data.strategy) {
-            await symphony.updateAssetStrategyAndBuffer(
+            await symphony.updateStrategy(
                 data.address ? data.address : data.aaveAddress,
                 // data.strategy, // TODO: Update directly in assets.json
                 configParams.aaveYieldAddress,
+            );
+
+            await symphony.updateBufferPercentage(
+                data.address ? data.address : data.aaveAddress,
                 data.buffer,
             );
         }
@@ -86,6 +90,25 @@ async function main() {
 
     console.log("\nupdating protocol fee in contract");
     await symphony.updateProtocolFee(protocolFee); // 25% of base fee(0.4%)
+
+    // await symphony.executeTransaction(
+    //     configParams.aaveIncentivesController,
+    //     0,
+    //     'claimRewards(address[],uint256,address)',
+    //     encodeParameters(
+    //         ['address[]', 'uint256', 'address'],
+    //         [
+    //             ["0x2271e3fef9e15046d09e1d78a8ff038c691e9cf9"],
+    //             1,
+    //             deployer.address
+    //         ]
+    //     ),
+    // )
+}
+
+function encodeParameters(types, values) {
+    const abi = new ethers.utils.AbiCoder();
+    return abi.encode(types, values);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
