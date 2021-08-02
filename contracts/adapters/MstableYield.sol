@@ -15,10 +15,11 @@ contract MstableYield is IYieldAdapter, Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
+    IERC20 public musdToken;
     address public symphony;
     ISavingsManager public savingManager;
 
-    modifier onlySymphony {
+    modifier onlySymphony() {
         require(
             msg.sender == symphony,
             "MstableYield: Only symphony contract can invoke this function"
@@ -31,19 +32,25 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @param _savingManager the address of mstable saving manager
      * @param _symphony the address of the symphony smart contract
      **/
-    function initialize(ISavingsManager _savingManager, address _symphony)
-        external
-        initializer
-    {
+    function initialize(
+        ISavingsManager _savingManager,
+        IERC20 _musdToken,
+        address _symphony
+    ) external initializer {
         require(
             _symphony != address(0),
             "MstableYield: Symphony:: zero address"
+        );
+        require(
+            address(_musdToken) != address(0),
+            "MstableYield: MUSD Token: zero address"
         );
         require(
             address(_savingManager) != address(0),
             "MstableYield: SavingManager:: zero address"
         );
 
+        musdToken = _musdToken;
         symphony = _symphony;
         savingManager = _savingManager;
     }
@@ -91,7 +98,7 @@ contract MstableYield is IYieldAdapter, Initializable {
 
         IERC20(iouToken).safeTransferFrom(msg.sender, address(this), amount);
 
-        withdrawInternal(asset, saveAddress, amount);
+        _withdraw(asset, saveAddress, amount);
     }
 
     /**
@@ -108,7 +115,7 @@ contract MstableYield is IYieldAdapter, Initializable {
 
         IERC20(iouToken).safeTransferFrom(msg.sender, address(this), amount);
 
-        withdrawInternal(asset, saveAddress, amount);
+        _withdraw(asset, saveAddress, amount);
     }
 
     /**
@@ -150,7 +157,14 @@ contract MstableYield is IYieldAdapter, Initializable {
         iouToken = ISaveContract(saveAddress).underlying();
     }
 
-    function withdrawInternal(
+    function setOrderRewardDebt(
+        bytes32,
+        address,
+        uint256,
+        uint256
+    ) external override {}
+
+    function _withdraw(
         address asset,
         address saveAddress,
         uint256 amount
@@ -159,12 +173,7 @@ contract MstableYield is IYieldAdapter, Initializable {
         IERC20(asset).safeTransfer(symphony, receivedAmount);
     }
 
-    function setOrderRewardDebt(
-        bytes32,
-        address,
-        uint256,
-        uint256
-    ) external override {}
+    function updatePendingReward(address, uint256) external override {}
 }
 
 interface ISaveContract {

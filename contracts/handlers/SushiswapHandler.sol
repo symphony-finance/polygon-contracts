@@ -9,7 +9,6 @@ import "../interfaces/IHandler.sol";
 import "../interfaces/IUniswapRouter.sol";
 import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
-import "../oracles/ChainlinkOracle.sol";
 
 /// @notice Sushiswap Handler used to execute an order
 contract SushiswapHandler is IHandler {
@@ -49,10 +48,10 @@ contract SushiswapHandler is IHandler {
         symphony = _symphony;
     }
 
-    modifier onlySymphony {
+    modifier onlySymphony() {
         require(
             msg.sender == symphony,
-            "AaveYield: Only symphony contract can invoke this function"
+            "SushiswapHandler: Only symphony contract can invoke this function"
         );
         _;
     }
@@ -141,8 +140,8 @@ contract SushiswapHandler is IHandler {
         oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
 
         return
-            (amountOut >= _minReturnAmount && amountOut >= _minReturnAmount) ||
-            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
+            (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
+            (amountOut <= _stoplossAmount && amountOut <= oracleAmount);
     }
 
     /**
@@ -175,17 +174,11 @@ contract SushiswapHandler is IHandler {
         uint256 amountOut = bought.sub(fee);
         uint256 oracleAmount = 0;
 
-        if (_stoplossAmount > 0) {
-            oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
-        }
-
-        amountOut >= _minReturnAmount ||
-            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
+        oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
 
         return (
-            amountOut >= _minReturnAmount ||
-                (amountOut <= _stoplossAmount &&
-                    oracleAmount <= _stoplossAmount),
+            (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
+                (amountOut <= _stoplossAmount && amountOut <= oracleAmount),
             amountOut
         );
     }
@@ -249,7 +242,9 @@ contract SushiswapHandler is IHandler {
 
         IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
         IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
-        IERC20(token).safeTransfer(treasury, protocolFee);
+        if (treasury != address(0)) {
+            IERC20(token).safeTransfer(treasury, protocolFee);
+        }
     }
 }
 

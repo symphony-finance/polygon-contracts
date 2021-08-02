@@ -9,7 +9,6 @@ import "../interfaces/IHandler.sol";
 import "../interfaces/IUniswapRouter.sol";
 import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
-import "../oracles/ChainlinkOracle.sol";
 
 /// @notice Quickswap Handler used to execute an order
 contract QuickswapHandler is IHandler {
@@ -49,10 +48,10 @@ contract QuickswapHandler is IHandler {
         symphony = _symphony;
     }
 
-    modifier onlySymphony {
+    modifier onlySymphony() {
         require(
             msg.sender == symphony,
-            "AaveYield: Only symphony contract can invoke this function"
+            "QuickswapHandler: Only symphony contract can invoke this function"
         );
         _;
     }
@@ -141,7 +140,7 @@ contract QuickswapHandler is IHandler {
         oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
 
         return
-            (amountOut >= _minReturnAmount && amountOut >= _minReturnAmount) ||
+            (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
             (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
     }
 
@@ -179,13 +178,9 @@ contract QuickswapHandler is IHandler {
             oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
         }
 
-        amountOut >= _minReturnAmount ||
-            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
-
         return (
-            amountOut >= _minReturnAmount ||
-                (amountOut <= _stoplossAmount &&
-                    oracleAmount <= _stoplossAmount),
+            (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
+                (amountOut <= _stoplossAmount && amountOut <= oracleAmount),
             amountOut
         );
     }
@@ -249,7 +244,9 @@ contract QuickswapHandler is IHandler {
 
         IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
         IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
-        IERC20(token).safeTransfer(treasury, protocolFee);
+        if (treasury != address(0)) {
+            IERC20(token).safeTransfer(treasury, protocolFee);
+        }
     }
 }
 

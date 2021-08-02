@@ -28,6 +28,7 @@ const main = () => {
             configParams.wmaticAddress, // WMATIC
             configParams.quickswapCodeHash,
             configParams.chainlinkOracle,
+            configParams.symphonyAddress
         ).then(async (quickswapHandler) => {
             await quickswapHandler.deployed();
 

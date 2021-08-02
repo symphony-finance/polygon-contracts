@@ -12,15 +12,12 @@ const SymphonyArtifacts = require(
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
 );
-const ChainlinkArtifacts = require(
-    "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
-);
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
-describe("Execute Order Test", function () {
-    it("Should execute order", async function () {
+describe("Migrate Strategt Test", function () {
+    it("Should migrate strategy of asset", async function () {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -95,48 +92,8 @@ describe("Execute Order Test", function () {
             deployer
         );
 
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
+        await symphony.updateStrategy(usdcAddress, aaveYield.address);
         await symphony.updateBufferPercentage(usdcAddress, 4000);
-
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-        console.log("Chainlink Oracle deployed to:", chainlinkOracle.address, "\n");
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.addTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.addTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        // Deploy Sushiswap Handler
-        const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
-
-        const sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
-            symphony.address
-        );
-
-        await sushiswapHandler.deployed();
-        console.log("Sushiswap Handler deployed to:", sushiswapHandler.address, "\n");
-
-        // Add Handler
-        await symphony.addHandler(sushiswapHandler.address);
 
         const approveAmount = new BigNumber(100)
             .times(
@@ -149,22 +106,22 @@ describe("Execute Order Test", function () {
         await usdcContract.approve(symphony.address, approveAmount);
 
         const inputAmount = new BigNumber(10).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
         const minReturnAmount = new BigNumber(15).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
         const stoplossAmount = new BigNumber(11).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
         // Create Order
         await symphony.createOrder(
             deployer.address,
-            daiAddress,
             usdcAddress,
+            daiAddress,
             1000000,
             minReturnAmount,
             stoplossAmount
@@ -178,8 +135,8 @@ describe("Execute Order Test", function () {
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
-            daiAddress,
             usdcAddress,
+            daiAddress,
             inputAmount,
             minReturnAmount,
             stoplossAmount
@@ -191,22 +148,63 @@ describe("Execute Order Test", function () {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
-        console.log("USDC Balance Before Execution: ", usdcBalBeforeExecute.toString());
-
-        console.log("Advancing 100 blocks..");
         for (let i = 0; i < 100; ++i) {
             await time.advanceBlock();
         };
 
-        // Execute Order
-        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        const rewardBalance = await aaveYield.getRewardBalance(usdcAddress);
 
-        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
+        // withdrawing reward from Aave
+        await symphony.executeTransaction(
+            configParams.aaveIncentivesController,
+            0,
+            'claimRewards(address[],uint256,address)',
+            encodeParameters(
+                ['address[]', 'uint256', 'address'],
+                [
+                    [await aaveYield.getYieldTokenAddress(usdcAddress)],
+                    rewardBalance,
+                    symphony.address
+                ]
+            ),
+        );
 
-        console.log("USDC Balance After Execution: ", usdcBalAfterExecute.toString());
-        console.log("Balance Received After Swap: ", usdcBalAfterExecute - usdcBalBeforeExecute);
+        const rewardToken = "0x4da27a545c0c5b758a6ba100e3a049001de870f5";
 
-        expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(Number(usdcBalBeforeExecute));
+        // Create USDC contract instance
+        const rewardContract = new ethers.Contract(
+            rewardToken,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        expect(
+            Number(await rewardContract.balanceOf(symphony.address))
+        ).greaterThanOrEqual(Number(rewardBalance));
+
+        // Deploy AaveYield Contract
+        const AaveYieldNew = await hre.ethers.getContractFactory("AaveYield");
+
+        let aaveYieldNew = await upgrades.deployProxy(
+            AaveYieldNew,
+            [
+                symphony.address,
+                configParams.mstableSavingManager,
+            ]
+        );
+
+        await aaveYieldNew.deployed();
+        console.log("AaveYield new contract deployed to:", aaveYieldNew.address, "\n");
+
+        await symphony.migrateStrategy(usdcAddress, aaveYieldNew.address);
+
+        expect(await symphony.strategy(usdcAddress)).to.eq(aaveYieldNew.address);
+
+        await symphony.cancelOrder(orderId, orderData);
     });
 });
+
+function encodeParameters(types, values) {
+    const abi = new ethers.utils.AbiCoder();
+    return abi.encode(types, values);
+}

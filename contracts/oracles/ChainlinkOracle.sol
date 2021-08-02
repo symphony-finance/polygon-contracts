@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
 
+import "../interfaces/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract ChainlinkOracle {
-    using SafeMath for uint256; // Keep everything in uint256
+    using SafeMath for uint256;
 
     address owner;
     mapping(address => address) public oracleFeed;
 
-    modifier onlyOwner {
+    modifier onlyOwner() {
         require(
             msg.sender == owner,
             "ChainlinkOracle: Only owner contract can invoke this function"
@@ -27,7 +28,7 @@ contract ChainlinkOracle {
         address inputToken,
         address outputToken,
         uint256 inputAmount
-    ) public view returns (uint256) {
+    ) public view returns (uint256 oracleAmount) {
         uint256 price = uint256(1e36);
 
         require(
@@ -52,7 +53,14 @@ contract ChainlinkOracle {
                 uint256(IAggregator(outputFeedAddress).latestAnswer());
         }
 
-        return price.mul(inputAmount) / uint256(1e36);
+        oracleAmount = price.mul(inputAmount) / uint256(1e36);
+
+        if (outputToken != address(0)) {
+            uint8 decimals = IERC20(outputToken).decimals();
+            if (decimals < 18) {
+                oracleAmount = oracleAmount.div(10**(18 - decimals));
+            }
+        }
     }
 
     function addTokenFeed(address asset, address feed) external onlyOwner {

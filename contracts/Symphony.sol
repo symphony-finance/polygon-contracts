@@ -9,9 +9,9 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
+import "./libraries/PercentageMath.sol";
 import "./interfaces/IHandler.sol";
 import "./interfaces/IYieldAdapter.sol";
-import "./libraries/PercentageMath.sol";
 import "./interfaces/IAaveIncentivesController.sol";
 
 contract Symphony is
@@ -70,7 +70,7 @@ contract Symphony is
     event AddedAssetForReward(address asset);
     event RemovedAssetFromReward(address asset);
 
-    modifier onlyEmergencyAdminOrOwner {
+    modifier onlyEmergencyAdminOrOwner() {
         require(
             _msgSender() == emergencyAdmin || _msgSender() == owner(),
             "Symphony: Only emergency admin or owner can invoke this function"
@@ -79,7 +79,7 @@ contract Symphony is
     }
 
     /**
-     * @notice To initalize the variables
+     * @notice To initalize the global variables
      */
     function initialize(
         address _owner,
@@ -107,15 +107,15 @@ contract Symphony is
     ) external nonReentrant whenNotPaused returns (bytes32 orderId) {
         require(
             inputAmount > 0,
-            "Symphony: createOrder:: Input amoount can't be zero"
+            "Symphony::createOrder: Input amoount can't be zero"
         );
         require(
             minReturnAmount > 0,
-            "Symphony: createOrder:: Amount out can't be zero"
+            "Symphony::createOrder: Amount out can't be zero"
         );
         require(
             stoplossAmount < minReturnAmount,
-            "Symphony: createOrder:: StoplossAmount amount should be less than amount out"
+            "Symphony::createOrder: stoploss amount should be less than amount out"
         );
 
         orderId = getOrderId(
@@ -129,8 +129,10 @@ contract Symphony is
 
         require(
             orderHash[orderId] == 0x0,
-            "Symphony: createOrder:: There is already an existing order with same key"
+            "Symphony::createOrder: There is already an existing order with same id"
         );
+
+        uint256 shares = _calculateShares(inputToken, inputAmount);
 
         uint256 balanceBefore = IERC20(inputToken).balanceOf(address(this));
         IERC20(inputToken).safeTransferFrom(
@@ -141,10 +143,8 @@ contract Symphony is
         require(
             IERC20(inputToken).balanceOf(address(this)) ==
                 inputAmount + balanceBefore,
-            "Symphony: tokens not transferred"
+            "Symphony::createOrder: tokens not transferred"
         );
-
-        uint256 shares = calculateShares(inputToken, inputAmount);
 
         uint256 previousAssetShares = totalAssetShares[inputToken];
         totalAssetShares[inputToken] = previousAssetShares.add(shares);
@@ -190,14 +190,14 @@ contract Symphony is
     ) external nonReentrant whenNotPaused {
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: updateOrder:: Order doesn't match"
+            "Symphony::updateOrder: Order doesn't match"
         );
 
         Order memory myOrder = decodeOrder(_orderData);
 
         require(
             msg.sender == myOrder.recipient,
-            "Symphony: updateOrder:: Only recipient can update the order"
+            "Symphony::updateOrder: Only recipient can update the order"
         );
 
         delete orderHash[orderId];
@@ -236,19 +236,19 @@ contract Symphony is
     {
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: cancelOrder:: Order doesn't match"
+            "Symphony::cancelOrder: Order doesn't match"
         );
 
         Order memory myOrder = decodeOrder(_orderData);
 
         require(
             msg.sender == myOrder.recipient,
-            "Symphony: cancelOrder:: Only recipient can cancel the order"
+            "Symphony::cancelOrder: Only recipient can cancel the order"
         );
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 depositPlusYield = calculateTokenFromShares(
+        uint256 depositPlusYield = _calculateTokenFromShares(
             myOrder.inputToken,
             myOrder.shares,
             totalTokens
@@ -264,7 +264,7 @@ contract Symphony is
         emit OrderCancelled(orderId);
 
         if (strategy[myOrder.inputToken] != address(0)) {
-            calcAndwithdrawFromStrategy(
+            _calcAndwithdrawFromStrategy(
                 myOrder,
                 depositPlusYield,
                 totalTokens,
@@ -287,11 +287,11 @@ contract Symphony is
     ) external nonReentrant whenNotPaused {
         require(
             isRegisteredHandler[_handler],
-            "Symphony: executeOrder:: Handler doesn't exists"
+            "Symphony::executeOrder: Handler doesn't exists"
         );
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: executeOrder:: Order doesn't match"
+            "Symphony::executeOrder: Order doesn't match"
         );
 
         Order memory myOrder = decodeOrder(_orderData);
@@ -306,12 +306,12 @@ contract Symphony is
                 BASE_FEE,
                 _handlerData
             ),
-            "Symphony: executeOrder:: Handler Can't handle this tx"
+            "Symphony::executeOrder: Handler Can't handle this tx"
         );
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 depositPlusYield = calculateTokenFromShares(
+        uint256 depositPlusYield = _calculateTokenFromShares(
             myOrder.inputToken,
             myOrder.shares,
             totalTokens
@@ -319,15 +319,14 @@ contract Symphony is
 
         totalAssetShares[myOrder.inputToken] = totalAssetShares[
             myOrder.inputToken
-        ]
-        .sub(myOrder.shares);
+        ].sub(myOrder.shares);
 
         delete orderHash[orderId];
 
         emit OrderExecuted(orderId, msg.sender);
 
         if (strategy[myOrder.inputToken] != address(0)) {
-            calcAndwithdrawFromStrategy(
+            _calcAndwithdrawFromStrategy(
                 myOrder,
                 depositPlusYield,
                 totalTokens,
@@ -363,18 +362,18 @@ contract Symphony is
     ) external nonReentrant whenNotPaused {
         require(
             isRegisteredHandler[_handler],
-            "Symphony: fillOrder:: Handler doesn't exists"
+            "Symphony::fillOrder: Handler doesn't exists"
         );
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: fillOrder:: Order doesn't match"
+            "Symphony::fillOrder: Order doesn't match"
         );
 
         Order memory myOrder = decodeOrder(_orderData);
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 depositPlusYield = calculateTokenFromShares(
+        uint256 depositPlusYield = _calculateTokenFromShares(
             myOrder.inputToken,
             myOrder.shares,
             totalTokens
@@ -396,17 +395,14 @@ contract Symphony is
             _handlerData
         );
 
-        require(
-            success,
-            "Symphony: fillOrder:: Fill condition doesn't satisfy"
-        );
+        require(success, "Symphony::fillOrder: Fill condition doesn't satisfy");
 
         delete orderHash[orderId];
 
         emit OrderExecuted(orderId, msg.sender);
 
         if (strategy[myOrder.inputToken] != address(0)) {
-            calcAndwithdrawFromStrategy(
+            _calcAndwithdrawFromStrategy(
                 myOrder,
                 depositPlusYield,
                 totalTokens,
@@ -445,13 +441,13 @@ contract Symphony is
     function rebalanceAsset(address asset) public whenNotPaused {
         require(
             strategy[asset] != address(0),
-            "Symphony: rebalanceAsset:: Rebalance needs some strategy"
+            "Symphony::rebalanceAsset: Rebalance needs some strategy"
         );
 
         uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
         uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
-        .getTokensForShares(asset);
+            .getTokensForShares(asset);
 
         uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
@@ -461,7 +457,7 @@ contract Symphony is
 
         require(
             balanceInContract != bufferBalanceNeeded,
-            "Symphony: rebalanceAsset:: Asset already balanced"
+            "Symphony::rebalanceAsset: Asset already balanced"
         );
 
         emit AssetRebalanced(asset);
@@ -484,21 +480,28 @@ contract Symphony is
     }
 
     /**
-     * @notice Withdraw reward from Aave
-     * @param _assets Array of aToken addresses
+     * @notice Withdraw asset reward from Aave
+     * @param _asset underlying asset address
      * @param _incentiveController address of the aave incentive controller
      * @param _amount Amount to withdraw (check using getRewardsBalance)
      */
     function withdrawAaveReward(
         address _incentiveController,
-        address[] calldata _assets,
+        address _asset,
         uint256 _amount
     ) external {
-        IAaveIncentivesController(_incentiveController).claimRewards(
-            _assets,
-            _amount,
-            strategy[_assets[0]]
+        address assetStrategy = strategy[_asset];
+        address aToken = IYieldAdapter(assetStrategy).getYieldTokenAddress(
+            _asset
         );
+
+        address[] memory assets = new address[](1);
+        assets[0] = aToken;
+
+        uint256 returnAmount = IAaveIncentivesController(_incentiveController)
+            .claimRewards(assets, _amount, assetStrategy);
+
+        IYieldAdapter(assetStrategy).updatePendingReward(_asset, returnAmount);
     }
 
     // *************** //
@@ -554,9 +557,9 @@ contract Symphony is
             uint256 stoplossAmount,
             uint256 shares
         ) = abi.decode(
-            _data,
-            (address, address, address, uint256, uint256, uint256, uint256)
-        );
+                _data,
+                (address, address, address, uint256, uint256, uint256, uint256)
+            );
 
         order = Order(
             recipient,
@@ -668,11 +671,22 @@ contract Symphony is
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(address _asset, address _strategy) external {
-        IYieldAdapter(strategy[_asset]).withdrawAll(_asset);
+    function migrateStrategy(address _asset, address _newStrategy)
+        external
+        onlyOwner
+    {
+        address previousStrategy = strategy[_asset];
+        require(
+            previousStrategy != address(0),
+            "Symphony::migrateStrategy: no strategy for asset exists!!"
+        );
 
-        if (_strategy != address(0)) {
-            _updateAssetStrategy(_asset, _strategy);
+        IYieldAdapter(previousStrategy).withdrawAll(_asset);
+
+        if (_newStrategy != address(0)) {
+            _updateAssetStrategy(_asset, _newStrategy);
+        } else {
+            strategy[_asset] = _newStrategy;
         }
     }
 
@@ -756,7 +770,7 @@ contract Symphony is
     // *** INTERNAL FUNCTIONS *** //
     // ************************** //
 
-    function calculateShares(address _token, uint256 _amount)
+    function _calculateShares(address _token, uint256 _amount)
         internal
         view
         returns (uint256 shares)
@@ -770,7 +784,7 @@ contract Symphony is
         }
     }
 
-    function calculateTokenFromShares(
+    function _calculateTokenFromShares(
         address _token,
         uint256 _shares,
         uint256 totalTokens
@@ -778,7 +792,7 @@ contract Symphony is
         amount = _shares.mul(totalTokens).div(totalAssetShares[_token]);
     }
 
-    function calcAndwithdrawFromStrategy(
+    function _calcAndwithdrawFromStrategy(
         Order memory myOrder,
         uint256 orderAmount,
         uint256 totalTokens,

@@ -86,4 +86,12 @@ interface IYieldAdapter {
         uint256 shares,
         uint256 totalShares
     ) external;
+
+    /**
+     * @dev Used to update the pending reward in contract
+     **/
+    function updatePendingReward(
+        address asset,
+        uint256 amount
+    ) external;
 }

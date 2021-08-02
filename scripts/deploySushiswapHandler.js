@@ -28,6 +28,7 @@ const main = () => {
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
             configParams.chainlinkOracle,
+            configParams.symphonyAddress
         ).then(async (sushiswapHandler) => {
             await sushiswapHandler.deployed();
 
