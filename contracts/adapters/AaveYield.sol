@@ -222,6 +222,7 @@ contract AaveYield is IYieldAdapter, Initializable {
             "AaveYield::claimReward: Amount shouldn't execeed total reward"
         );
 
+        userReward[msg.sender] = userReward[msg.sender].sub(amount);
         IERC20(REWARD_TOKEN).safeTransfer(msg.sender, amount);
     }
 
@@ -282,8 +283,10 @@ contract AaveYield is IYieldAdapter, Initializable {
         uint256 totalShares,
         uint256 rewardBalance
     ) public view returns (uint256 result) {
-        // ARPC = previous_APRC + (new_reward / total_shares)
+        // ARPS = previous_APRS + (new_reward / total_shares)
         uint256 newReward = rewardBalance.sub(pendingRewards[asset]);
+
+        // ARPS stored in 10^18 denomination.
         uint256 newRewardPerShare = newReward.mul(10**18).div(totalShares);
         result = previousAccRewardPerShare[asset].add(newRewardPerShare);
     }
@@ -421,7 +424,7 @@ contract AaveYield is IYieldAdapter, Initializable {
             totalRewardBalance
         );
 
-        // reward_amount = shares x (ARCP) - (reward_debt)
+        // reward_amount = shares x (ARPS) - (reward_debt)
         reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
 
         pendingRewards[_asset] = totalRewardBalance;

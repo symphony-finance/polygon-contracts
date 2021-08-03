@@ -330,7 +330,7 @@ contract Symphony is
                 myOrder,
                 depositPlusYield,
                 totalTokens,
-                totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stake too deep
+                totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stack too deep
                 orderId
             );
         }
@@ -421,7 +421,7 @@ contract Symphony is
         );
 
         if (PROTOCOL_FEE_PERCENT > 0) {
-            uint256 protocolFee = estimatedAmount.percentMul(
+            uint256 protocolFee = totalFee.percentMul(
                 PROTOCOL_FEE_PERCENT
             );
 
@@ -848,7 +848,7 @@ contract Symphony is
         // max approve token
         if (
             _strategy != address(0) &&
-            IERC20(_asset).allowance(address(this), _strategy) == 0
+            IERC20(_asset).allowance(address(this), _strategy) == 0 
         ) {
             emit AssetStrategyUpdated(_asset, _strategy);
 
