@@ -128,7 +128,7 @@ contract Symphony is
         );
 
         require(
-            orderHash[orderId] == 0x0,
+            orderHash[orderId] == bytes32(0),
             "Symphony::createOrder: There is already an existing order with same id"
         );
 
@@ -209,6 +209,11 @@ contract Symphony is
             myOrder.inputAmount,
             _minReturnAmount,
             _stoplossAmount
+        );
+
+        require(
+            orderHash[newOrderId] == bytes32(0),
+            "Symphony::updateOrder: There is already an existing order with same id"
         );
 
         bytes memory encodedOrder = abi.encode(
@@ -317,9 +322,11 @@ contract Symphony is
             totalTokens
         );
 
-        totalAssetShares[myOrder.inputToken] = totalAssetShares[
-            myOrder.inputToken
-        ].sub(myOrder.shares);
+        uint256 totalSharesInAsset = totalAssetShares[myOrder.inputToken];
+
+        totalAssetShares[myOrder.inputToken] = totalSharesInAsset.sub(
+            myOrder.shares
+        );
 
         delete orderHash[orderId];
 
@@ -330,7 +337,7 @@ contract Symphony is
                 myOrder,
                 depositPlusYield,
                 totalTokens,
-                totalAssetShares[myOrder.inputToken].add(myOrder.shares), // avoiding stack too deep
+                totalSharesInAsset,
                 orderId
             );
         }
@@ -420,10 +427,8 @@ contract Symphony is
             estimatedAmount.sub(totalFee)
         );
 
-        if (PROTOCOL_FEE_PERCENT > 0) {
-            uint256 protocolFee = totalFee.percentMul(
-                PROTOCOL_FEE_PERCENT
-            );
+        if (PROTOCOL_FEE_PERCENT > 0 && treasury != address(0)) {
+            uint256 protocolFee = totalFee.percentMul(PROTOCOL_FEE_PERCENT);
 
             IERC20(myOrder.outputToken).safeTransferFrom(
                 msg.sender,
@@ -848,7 +853,7 @@ contract Symphony is
         // max approve token
         if (
             _strategy != address(0) &&
-            IERC20(_asset).allowance(address(this), _strategy) == 0 
+            IERC20(_asset).allowance(address(this), _strategy) == 0
         ) {
             emit AssetStrategyUpdated(_asset, _strategy);
 

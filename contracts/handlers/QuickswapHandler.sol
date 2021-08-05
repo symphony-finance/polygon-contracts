@@ -239,14 +239,17 @@ contract QuickswapHandler is IHandler {
         uint256 feePercent,
         uint256 protcolFeePercent
     ) internal {
+        uint256 protocolFee;
         uint256 totalFee = amount.percentMul(feePercent);
-        uint256 protocolFee = totalFee.percentMul(protcolFeePercent);
 
         IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
-        IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
+
         if (treasury != address(0)) {
+            protocolFee = totalFee.percentMul(protcolFeePercent);
             IERC20(token).safeTransfer(treasury, protocolFee);
         }
+
+        IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
     }
 }
 
