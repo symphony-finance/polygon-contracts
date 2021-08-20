@@ -6,18 +6,17 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
+import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
-import "../interfaces/IAaveToken.sol";
-import "../interfaces/IAaveLendingPool.sol";
-import "../interfaces/IAavePoolCore.sol";
+import "../interfaces/ISavingsContract.sol";
 
 contract MstableYield is IYieldAdapter, Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    IERC20 public musdToken;
+    address public musdToken;
     address public symphony;
-    ISavingsManager public savingManager;
+    ISavingsContract public savingContract;
 
     modifier onlySymphony() {
         require(
@@ -29,12 +28,13 @@ contract MstableYield is IYieldAdapter, Initializable {
 
     /**
      * @dev To initialize the contract addresses interacting with this contract
-     * @param _savingManager the address of mstable saving manager
+     * @param _musdToken the address of mUSD token
+     * @param _savingContract the address of mstable saving manager
      * @param _symphony the address of the symphony smart contract
      **/
     function initialize(
-        ISavingsManager _savingManager,
-        IERC20 _musdToken,
+        address _musdToken,
+        ISavingsContract _savingContract,
         address _symphony
     ) external initializer {
         require(
@@ -46,13 +46,14 @@ contract MstableYield is IYieldAdapter, Initializable {
             "MstableYield: MUSD Token: zero address"
         );
         require(
-            address(_savingManager) != address(0),
-            "MstableYield: SavingManager:: zero address"
+            address(_savingContract) != address(0),
+            "MstableYield: SavingContract:: zero address"
         );
 
         musdToken = _musdToken;
         symphony = _symphony;
-        savingManager = _savingManager;
+        savingContract = _savingContract;
+        IERC20(musdToken).safeApprove(address(_savingContract), uint256(-1));
     }
 
     /**
@@ -69,12 +70,24 @@ contract MstableYield is IYieldAdapter, Initializable {
 
         emit Deposit(asset, amount);
 
-        address saveAddress = savingManager.savingsContracts(asset);
-
+        // transfer token from symphony
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
 
+        if (asset != musdToken) {
+            // get minimum musd token to mint
+            uint256 minOutput = ImAsset(musdToken).getMintOutput(asset, amount);
+
+            // mint mUSD from base asset
+            amount = ImAsset(musdToken).mint(
+                asset,
+                amount,
+                minOutput,
+                address(this)
+            );
+        }
+
         // Deposit amount to saving pool
-        ISaveContract(saveAddress).depositSavings(amount, symphony);
+        savingContract.depositSavings(amount);
     }
 
     /**
@@ -90,15 +103,8 @@ contract MstableYield is IYieldAdapter, Initializable {
         address,
         bytes32
     ) external override onlySymphony {
-        address saveAddress = savingManager.savingsContracts(asset);
-
         emit Withdraw(asset, amount);
-
-        address iouToken = getYieldTokenAddress(asset);
-
-        IERC20(iouToken).safeTransferFrom(msg.sender, address(this), amount);
-
-        _withdraw(asset, saveAddress, amount);
+        _withdraw(asset, amount);
     }
 
     /**
@@ -106,16 +112,9 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @param asset the address of token
      **/
     function withdrawAll(address asset) external override onlySymphony {
-        address saveAddress = savingManager.savingsContracts(asset);
-        uint256 amount = ISaveContract(saveAddress).balanceOfUnderlying(
-            symphony
-        );
-
-        address iouToken = getYieldTokenAddress(asset);
-
-        IERC20(iouToken).safeTransferFrom(msg.sender, address(this), amount);
-
-        _withdraw(asset, saveAddress, amount);
+        uint256 amount = savingContract.balanceOfUnderlying(symphony);
+        emit Withdraw(asset, amount);
+        _withdraw(asset, amount);
     }
 
     /**
@@ -123,38 +122,33 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @param asset the address of token
      **/
     function maxApprove(address asset) external override {
-        address saveAddress = savingManager.savingsContracts(asset);
-        IERC20(asset).safeApprove(saveAddress, uint256(-1));
+        IERC20(asset).safeApprove(address(musdToken), uint256(-1));
     }
 
     /**
      * @dev Used to get amount of underlying tokens
-     * @param asset the address of asset
      * @return amount amount of underlying tokens
      **/
-    function getTokensForShares(address asset)
+    function getTokensForShares(address)
         external
         view
         override
         returns (uint256 amount)
     {
-        address saveAddress = savingManager.savingsContracts(asset);
-        amount = ISaveContract(saveAddress).balanceOfUnderlying(symphony);
+        amount = savingContract.balanceOfUnderlying(address(this));
     }
 
     /**
      * @dev Used to get IOU token address
-     * @param asset the address of token
      * @return iouToken address of IOU token
      **/
-    function getYieldTokenAddress(address asset)
+    function getYieldTokenAddress(address)
         public
         view
         override
         returns (address iouToken)
     {
-        address saveAddress = savingManager.savingsContracts(asset);
-        iouToken = ISaveContract(saveAddress).underlying();
+        iouToken = savingContract.underlying();
     }
 
     function setOrderRewardDebt(
@@ -164,35 +158,25 @@ contract MstableYield is IYieldAdapter, Initializable {
         uint256
     ) external override {}
 
-    function _withdraw(
-        address asset,
-        address saveAddress,
-        uint256 amount
-    ) internal {
-        uint256 receivedAmount = ISaveContract(saveAddress).redeem(amount);
-        IERC20(asset).safeTransfer(symphony, receivedAmount);
+    function _withdraw(address asset, uint256 amount) internal {
+        // redeem mUSD for imUSD (IOU)
+        uint256 mAssetQuantity = savingContract.redeemUnderlying(amount);
+
+        if (asset != musdToken) {
+            uint256 minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
+                asset,
+                mAssetQuantity
+            );
+
+            // redeem mUSD for base asset
+            ImAsset(musdToken).redeem(
+                asset,
+                mAssetQuantity,
+                minOutputQuantity,
+                symphony
+            );
+        } else {
+            IERC20(asset).safeTransfer(symphony, mAssetQuantity);
+        }
     }
-
-    function updatePendingReward(address, uint256) external override {}
-}
-
-interface ISaveContract {
-    /** @dev Saver privs */
-    function depositSavings(uint256 _amount, address _beneficiary)
-        external
-        returns (uint256 creditsIssued);
-
-    function redeem(uint256 _amount) external returns (uint256 massetReturned);
-
-    /** @dev Getters */
-    function underlying() external view returns (address);
-
-    function balanceOfUnderlying(address _user)
-        external
-        view
-        returns (uint256 balance);
-}
-
-interface ISavingsManager {
-    function savingsContracts(address) external view returns (address);
 }

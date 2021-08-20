@@ -8,7 +8,8 @@
     "aaveProtocolDataProvider": "0xFA3bD19110d986c5e5E9DD5F69362d05035D045B",
     "aaveIncentivesController": "0xd41aE58e803Edf4304334acCE4DC4Ec34a63C644",
     "mstableYieldAddress": "0xD254f695E84F7FCb065998D9C9e7Fa482e6A344A",
-    "mstableSavingManager": "0x86818a2EACcDC6e1C2d7A301E4Ebb394a3c61b85",
+    "musdTokenAddress": "0x0f7a5734f208A356AB2e5Cf3d02129c17028F3cf",
+    "mstableSavingContract": "0x90fd23b712becEecF68B798e6d1174F43A4809C9",
     "wethAddress": "0x6aA61E359301b2E9a3c3118d409834BDc8b10dC4",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
     "chainlinkOracle": "0x0287A5ceC67fef6A9BddE8b10caE3f19661019ea",
@@ -18,6 +19,7 @@
     "quickswapHandlerAddress": "",
     "quickswapRouter": "",
     "quickswapCodeHash": "",
+    "balancerVault": "",
     "proxyAdmin": ""
   },
   "matic": {
@@ -29,7 +31,8 @@
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
     "aaveIncentivesController": "0x357D51124f59836DeD84c8a1730D72B749d8BC23",
     "mstableYieldAddress": "",
-    "mstableSavingManager": "0x10bFcCae079f31c451033798a4Fd9D2c33Ea5487",
+    "musdTokenAddress": "0xE840B73E5287865EEc17d250bFb1536704B43B21",
+    "mstableSavingContract": "0x5290Ad3d83476CA6A2b178Cd9727eE1EF72432af",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
     "chainlinkOracle": "",
@@ -39,6 +42,7 @@
     "quickswapHandlerAddress": "",
     "quickswapRouter": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
     "quickswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+    "balancerVault": "",
     "proxyAdmin": ""
   },
   "mainnet": {
@@ -49,7 +53,8 @@
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
     "aaveIncentivesController": "0xd784927Ff2f95ba542BfC824c8a8a98F3495f6b5",
-    "mstableSavingManager": "0x9781C4E9B9cc6Ac18405891DF20Ad3566FB6B301",
+    "musdTokenAddress": "0xe2f2a5C287993345a840Db3B0845fbC70f5935a5",
+    "mstableSavingContract": "0x30647a72Dc82d7Fbb1123EA74716aB8A317Eac19",
     "wethAddress": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     "wmaticAddress": "0x0000000000000000000000000000000000000000",
     "chainlinkOracle": "",
@@ -58,7 +63,8 @@
     "sushiswapCodeHash": "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
     "quickswapHandlerAddress": "",
     "quickswapRouter": "",
-    "quickswapCodeHash": ""
+    "quickswapCodeHash": "",
+    "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8"
   },
   "development": {
     "symphonyToken": "",
@@ -68,6 +74,8 @@
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
     "aaveIncentivesController": "",
+    "musdTokenAddress": "",
+    "mstableSavingContract": "",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
     "sushiswapRouter": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
@@ -76,6 +84,8 @@
     "treasury": "",
     "quickswapHandlerAddress": "",
     "quickswapRouter": "",
-    "quickswapCodeHash": ""
+    "quickswapCodeHash": "",
+    "balancerVault": ""
+
   }
 }

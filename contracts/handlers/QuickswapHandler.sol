@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
+pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
+import "../interfaces/IOracle.sol";
 import "../interfaces/IHandler.sol";
 import "../interfaces/IUniswapRouter.sol";
 import "../libraries/PercentageMath.sol";
@@ -66,15 +68,9 @@ contract QuickswapHandler is IHandler {
 
     /**
      * @notice Handle an order execution
-     * @param inputToken - Address of the input token
-     * @param outputToken - Address of the output token
      */
     function handle(
-        address inputToken,
-        address outputToken,
-        uint256 inputAmount,
-        uint256,
-        address recipient,
+        IOrderStructs.Order memory order,
         uint256 feePercent,
         uint256 protcolFeePercent,
         address executor,
@@ -82,16 +78,19 @@ contract QuickswapHandler is IHandler {
         bytes calldata
     ) external override onlySymphony {
         (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
-            inputToken,
-            outputToken,
-            inputAmount
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
         );
 
-        IERC20(inputToken).safeApprove(address(UniswapRouter), inputAmount);
+        IERC20(order.inputToken).safeApprove(
+            address(UniswapRouter),
+            order.inputAmount
+        );
 
         // Swap Tokens
         uint256[] memory returnAmount = UniswapRouter.swapExactTokensForTokens(
-            inputAmount,
+            order.inputAmount,
             amountOut.mul(98).div(100), // Slipage: 2%
             path,
             address(this),
@@ -99,9 +98,9 @@ contract QuickswapHandler is IHandler {
         );
 
         transferTokens(
-            outputToken,
+            order.outputToken,
             returnAmount[returnAmount.length - 1], // Output amount received
-            recipient,
+            order.recipient,
             executor,
             treasury,
             feePercent,
@@ -135,9 +134,12 @@ contract QuickswapHandler is IHandler {
 
         uint256 totalFee = bought.percentMul(_feePercent);
         uint256 amountOut = bought.sub(totalFee);
-        uint256 oracleAmount = 0;
 
-        oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
+        uint256 oracleAmount = oracle.get(
+            _inputToken,
+            _outputToken,
+            _inputAmount
+        );
 
         return
             (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
@@ -251,12 +253,4 @@ contract QuickswapHandler is IHandler {
 
         IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
     }
-}
-
-interface IOracle {
-    function get(
-        address inputToken,
-        address outputToken,
-        uint256 inputAmount
-    ) external view returns (uint256 answer);
 }

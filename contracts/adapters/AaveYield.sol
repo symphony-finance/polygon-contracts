@@ -11,8 +11,6 @@ import "../interfaces/IAaveToken.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
 import "../interfaces/IAaveIncentivesController.sol";
-import "../interfaces/IUniswapRouter.sol";
-import "../libraries/UniswapLibrary.sol";
 
 /**
  * @title Aave Yield contract
@@ -120,11 +118,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         bytes32 orderId
     ) external override onlySymphony {
         if (amount > 0) {
-            address aToken = _getATokenAddress(asset);
-
             emit Withdraw(asset, amount);
-
-            IERC20(aToken).safeTransferFrom(msg.sender, address(this), amount);
 
             uint256 underlyingAssetAmt = _withdrawERC20(asset, amount);
 
@@ -152,12 +146,34 @@ contract AaveYield is IYieldAdapter, Initializable {
     function withdrawAll(address asset) external override onlySymphony {
         address aToken = _getATokenAddress(asset);
 
-        uint256 amount = IERC20(aToken).balanceOf(symphony);
-
-        IERC20(aToken).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 amount = IERC20(aToken).balanceOf(address(this));
 
         if (amount > 0) {
             _withdrawERC20(asset, amount);
+        }
+    }
+
+    /**
+     * @notice Withdraw asset reward from Aave
+     * @param _asset underlying asset address
+     * @param _incentiveController address of the aave incentive controller
+     * @param _amount Amount to withdraw (check using getRewardsBalance)
+     */
+    function withdrawAaveReward(
+        address _incentiveController,
+        address _asset,
+        uint256 _amount
+    ) external {
+        address aToken = _getATokenAddress(_asset);
+
+        address[] memory assets = new address[](1);
+        assets[0] = aToken;
+
+        uint256 returnAmount = IAaveIncentivesController(_incentiveController)
+            .claimRewards(assets, _amount, address(this));
+
+        if (returnAmount > 0) {
+            _updatePendingReward(_asset, returnAmount);
         }
     }
 
@@ -188,19 +204,6 @@ contract AaveYield is IYieldAdapter, Initializable {
         }
 
         orderRewardDebt[orderId] = orderDebt;
-    }
-
-    function updatePendingReward(address asset, uint256 amount)
-        external
-        override
-        onlySymphony
-    {
-        uint256 currentPendingReward = pendingRewards[asset];
-        if (amount <= currentPendingReward) {
-            pendingRewards[asset] = currentPendingReward.sub(amount);
-        } else {
-            pendingRewards[asset] = 0;
-        }
     }
 
     /**
@@ -243,7 +246,7 @@ contract AaveYield is IYieldAdapter, Initializable {
     {
         address aToken = _getATokenAddress(asset);
 
-        amount = IERC20(aToken).balanceOf(symphony);
+        amount = IERC20(aToken).balanceOf(address(this));
     }
 
     /**
@@ -385,7 +388,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         IAaveLendingPool(lendingPool).deposit(
             _asset,
             _amount,
-            symphony,
+            address(this),
             referralCode
         );
     }
@@ -430,6 +433,15 @@ contract AaveYield is IYieldAdapter, Initializable {
         pendingRewards[_asset] = totalRewardBalance;
         previousAccRewardPerShare[_asset] = accRewardPerShare;
         userReward[_recipient] = userReward[_recipient].add(reward);
+    }
+
+    function _updatePendingReward(address asset, uint256 amount) internal {
+        uint256 currentPendingReward = pendingRewards[asset];
+        if (amount <= currentPendingReward) {
+            pendingRewards[asset] = currentPendingReward.sub(amount);
+        } else {
+            pendingRewards[asset] = 0;
+        }
     }
 
     receive() external payable {}

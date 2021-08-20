@@ -22,8 +22,9 @@ const main = () => {
         upgrades.deployProxy(
             MstableYield,
             [
+                configParams.musdTokenAddress,
+                configParams.mstableSavingContract,
                 configParams.symphonyAddress,
-                configParams.mstableSavingManager,
             ]
         ).then(async (mstableYield) => {
             await mstableYield.deployed();

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
 
-import "../interfaces/IERC20.sol";
+import "../interfaces/IERC20WithDecimal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract ChainlinkOracle {
@@ -58,8 +58,8 @@ contract ChainlinkOracle {
         oracleAmount = price.mul(inputAmount) / uint256(1e36);
 
         if (outputToken != address(0)) {
-            uint8 inputDecimal = IERC20(inputToken).decimals();
-            uint8 outputDecimal = IERC20(outputToken).decimals();
+            uint8 inputDecimal = IERC20WithDecimal(inputToken).decimals();
+            uint8 outputDecimal = IERC20WithDecimal(outputToken).decimals();
 
             if (inputDecimal != outputDecimal) {
                 oracleAmount = oracleAmount.mul(10**outputDecimal).div(

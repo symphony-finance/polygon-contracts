@@ -17,8 +17,8 @@ const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
-describe("Migrate Strategt Test", function () {
-    it.only("Should migrate strategy of asset", async function () {
+describe("Withdraw From Strategy Test", function () {
+    it("Should withdraw asset from strategy contract", async function () {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]

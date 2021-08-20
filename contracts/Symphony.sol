@@ -12,6 +12,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
 import "./libraries/PercentageMath.sol";
 import "./interfaces/IHandler.sol";
 import "./interfaces/IYieldAdapter.sol";
+import "./interfaces/IOrderStructs.sol";
 import "./interfaces/IAaveIncentivesController.sol";
 
 contract Symphony is
@@ -23,16 +24,6 @@ contract Symphony is
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
     using PercentageMath for uint256;
-
-    struct Order {
-        address recipient;
-        address inputToken;
-        address outputToken;
-        uint256 inputAmount;
-        uint256 minReturnAmount;
-        uint256 stoplossAmount;
-        uint256 shares;
-    }
 
     // Protocol treasury address
     address public treasury;
@@ -193,7 +184,7 @@ contract Symphony is
             "Symphony::updateOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         require(
             msg.sender == myOrder.recipient,
@@ -244,7 +235,7 @@ contract Symphony is
             "Symphony::cancelOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         require(
             msg.sender == myOrder.recipient,
@@ -299,7 +290,7 @@ contract Symphony is
             "Symphony::executeOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         require(
             IHandler(_handler).canHandle(
@@ -345,11 +336,7 @@ contract Symphony is
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
         IHandler(_handler).handle(
-            myOrder.inputToken,
-            myOrder.outputToken,
-            depositPlusYield,
-            0,
-            myOrder.recipient,
+            myOrder,
             BASE_FEE,
             PROTOCOL_FEE_PERCENT,
             msg.sender,
@@ -376,7 +363,7 @@ contract Symphony is
             "Symphony::fillOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
@@ -484,31 +471,6 @@ contract Symphony is
         }
     }
 
-    /**
-     * @notice Withdraw asset reward from Aave
-     * @param _asset underlying asset address
-     * @param _incentiveController address of the aave incentive controller
-     * @param _amount Amount to withdraw (check using getRewardsBalance)
-     */
-    function withdrawAaveReward(
-        address _incentiveController,
-        address _asset,
-        uint256 _amount
-    ) external {
-        address assetStrategy = strategy[_asset];
-        address aToken = IYieldAdapter(assetStrategy).getYieldTokenAddress(
-            _asset
-        );
-
-        address[] memory assets = new address[](1);
-        assets[0] = aToken;
-
-        uint256 returnAmount = IAaveIncentivesController(_incentiveController)
-            .claimRewards(assets, _amount, assetStrategy);
-
-        IYieldAdapter(assetStrategy).updatePendingReward(_asset, returnAmount);
-    }
-
     // *************** //
     // *** GETTERS *** //
     // *************** //
@@ -551,7 +513,7 @@ contract Symphony is
     function decodeOrder(bytes memory _data)
         public
         view
-        returns (Order memory order)
+        returns (IOrderStructs.Order memory order)
     {
         (
             address recipient,
@@ -566,7 +528,7 @@ contract Symphony is
                 (address, address, address, uint256, uint256, uint256, uint256)
             );
 
-        order = Order(
+        order = IOrderStructs.Order(
             recipient,
             inputToken,
             outputToken,
@@ -739,7 +701,7 @@ contract Symphony is
         _pause();
     }
 
-    /**
+    /*symphony*
      * @notice Unpause the contract
      */
     function unpause() external onlyEmergencyAdminOrOwner {
@@ -798,7 +760,7 @@ contract Symphony is
     }
 
     function _calcAndwithdrawFromStrategy(
-        Order memory myOrder,
+        IOrderStructs.Order memory myOrder,
         uint256 orderAmount,
         uint256 totalTokens,
         uint256 totalSharesInAsset,
