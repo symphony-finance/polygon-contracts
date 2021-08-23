@@ -12,7 +12,7 @@ const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
 const { AbiCoder } = require("ethers/lib/utils");
-const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -102,7 +102,7 @@ describe("Execute Order Test", function () {
             deployer
         );
 
-        const intermidiateAmount = "576609281777206271";
+        const intermidiateAmount = "0";
         const data = encodeData(balToken, intermidiateAmount, usdcBalPool, daiUsdcPool);
 
         console.log("Before Balance ", Number(await daiContract.balanceOf(deployer.address)));

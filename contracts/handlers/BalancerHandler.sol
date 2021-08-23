@@ -51,6 +51,13 @@ struct Order {
     uint256 shares;
 }
 
+struct HandlerDataParams {
+    bytes32 poolA;
+    bytes32 poolB;
+    address intermidiateToken;
+    uint256 intermidiateAmount;
+}
+
 /// @notice Balancer Handler used to execute an order
 contract BalancerHandler is IHandler {
     using SafeMath for uint256;
@@ -114,7 +121,7 @@ contract BalancerHandler is IHandler {
             "BalancerHandler: Amount mismatch !!"
         );
 
-        transferTokens(
+        _transferTokens(
             order.outputToken,
             returnAmount, // Output amount received
             order.recipient,
@@ -162,14 +169,9 @@ contract BalancerHandler is IHandler {
         address _inputToken,
         address _outputToken,
         uint256 _inputAmount,
-        bytes calldata data
+        bytes calldata _data
     ) internal returns (uint256 bought) {
-        (
-            address _intermidiate,
-            uint256 _intermidiateAmount,
-            bytes32 poolA,
-            bytes32 poolB
-        ) = abi.decode(data, (address, uint256, bytes32, bytes32));
+        HandlerDataParams memory data = _decodeData(_data);
 
         FundManagement memory funds = FundManagement(
             address(this),
@@ -178,75 +180,109 @@ contract BalancerHandler is IHandler {
             false
         );
 
-        console.logBytes32(poolA);
+        console.logBytes32(data.poolA);
 
-        if (_intermidiate != address(0)) {
-            IAsset[] memory assets = new IAsset[](3);
-            assets[0] = IAsset(_inputToken);
-            assets[1] = IAsset(_intermidiate);
-            assets[2] = IAsset(_outputToken);
-
-            BatchSwapStep memory batchSwap0 = BatchSwapStep(
-                poolA,
-                0,
-                1,
+        if (data.intermidiateToken != address(0)) {
+            bought = _multiSwap(
+                _inputToken,
+                _outputToken,
                 _inputAmount,
-                ""
-            );
-
-            BatchSwapStep memory batchSwap1 = BatchSwapStep(
-                poolB,
-                1,
-                2,
-                _intermidiateAmount,
-                ""
-            );
-
-            BatchSwapStep[] memory batchSwapSteps = new BatchSwapStep[](2);
-            batchSwapSteps[0] = batchSwap0;
-            batchSwapSteps[1] = batchSwap1;
-
-            int256[] memory limits = new int256[](3);
-            limits[0] = type(int256).max;
-            limits[1] = type(int256).max;
-            limits[2] = type(int256).max;
-
-            int256[] memory assetDeltas = IVault(vault).batchSwap(
-                SwapKind.GIVEN_IN,
-                batchSwapSteps,
-                assets,
                 funds,
-                limits,
-                block.timestamp.add(1800)
+                data
             );
-
-            bought = uint256(-assetDeltas[assetDeltas.length - 1]);
-
-            console.log("bought %s", uint256(assetDeltas[0]));
-            console.log("bought %s", uint256(-assetDeltas[1]));
-            console.log("bought %s", uint256(-assetDeltas[2]));
         } else {
-            SingleSwap memory singleSwap = SingleSwap(
-                poolA,
-                SwapKind.GIVEN_IN,
-                IAsset(_inputToken),
-                IAsset(_outputToken),
+            bought = _singleSwap(
+                data.poolA,
+                _inputToken,
+                _outputToken,
                 _inputAmount,
-                ""
+                funds
             );
-
-            bought = IVault(vault).swap(
-                singleSwap,
-                funds,
-                0, // minAmountOut
-                block.timestamp.add(1800)
-            );
-
-            console.log("bought %s", bought);
         }
     }
 
-    function transferTokens(
+    function _singleSwap(
+        bytes32 pool,
+        address _inputToken,
+        address _outputToken,
+        uint256 _inputAmount,
+        FundManagement memory funds
+    ) internal returns (uint256 bought) {
+        SingleSwap memory singleSwap = SingleSwap(
+            pool,
+            SwapKind.GIVEN_IN,
+            IAsset(_inputToken),
+            IAsset(_outputToken),
+            _inputAmount,
+            ""
+        );
+
+        bought = IVault(vault).swap(
+            singleSwap,
+            funds,
+            0, // minAmountOut
+            block.timestamp.add(1800)
+        );
+
+        console.log("bought %s", bought);
+    }
+
+    function _multiSwap(
+        address inputToken,
+        address outputToken,
+        uint256 inputAmount,
+        FundManagement memory funds,
+        HandlerDataParams memory data
+    ) internal returns (uint256 bought) {
+        uint256 hopLength = 2;
+
+        IAsset[] memory assets = new IAsset[](hopLength + 1);
+        assets[0] = IAsset(inputToken);
+        assets[1] = IAsset(data.intermidiateToken);
+        assets[2] = IAsset(outputToken);
+
+        BatchSwapStep memory batchSwap0 = BatchSwapStep(
+            data.poolA,
+            0,
+            1,
+            inputAmount,
+            ""
+        );
+
+        BatchSwapStep memory batchSwap1 = BatchSwapStep(
+            data.poolB,
+            1,
+            2,
+            data.intermidiateAmount,
+            ""
+        );
+
+        BatchSwapStep[] memory batchSwapSteps = new BatchSwapStep[](hopLength);
+        batchSwapSteps[0] = batchSwap0;
+        batchSwapSteps[1] = batchSwap1;
+
+        int256[] memory limits = new int256[](hopLength + 1);
+        limits[0] = type(int256).max;
+        limits[1] = type(int256).max;
+        limits[2] = type(int256).max;
+
+        int256[] memory assetDeltas = IVault(vault).batchSwap(
+            SwapKind.GIVEN_IN,
+            batchSwapSteps,
+            assets,
+            funds,
+            limits,
+            block.timestamp.add(1800)
+        );
+
+        bought = uint256(-assetDeltas[assetDeltas.length - 1]);
+
+        console.log("bought %s", uint256(assetDeltas[0]));
+        console.log("bought %s", uint256(-assetDeltas[1]));
+        console.log("bought %s", uint256(-assetDeltas[2]));
+    }
+
+    function _transferTokens(
         address token,
         uint256 amount,
         address recipient,
@@ -266,6 +302,26 @@ contract BalancerHandler is IHandler {
         }
 
         IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
+    }
+
+    function _decodeData(bytes memory _data)
+        internal
+        view
+        returns (HandlerDataParams memory data)
+    {
+        (
+            address intermidiateToken,
+            uint256 intermidiateAmount,
+            bytes32 poolA,
+            bytes32 poolB
+        ) = abi.decode(_data, (address, uint256, bytes32, bytes32));
+
+        data = HandlerDataParams(
+            poolA,
+            poolB,
+            intermidiateToken,
+            intermidiateAmount
+        );
     }
 }
 
