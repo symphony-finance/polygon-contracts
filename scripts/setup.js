@@ -9,6 +9,7 @@ const ChainlinkArtifacts = require(
 const { deploySymphony } = require('./deploySymphony');
 const { deployTreasury } = require('./deployTreasury');
 const { deployAaveYield } = require('./deployAaveYield');
+const { deployWmaticGateway } = require('./deployWmaticGateway');
 const { deployChainlinkOracle } = require('./deployChainlinkOracle');
 const { deploySushiswapHandler } = require('./deploySushiswapHandler');
 const executionFee = 40 // 0.4%
@@ -26,6 +27,9 @@ async function main() {
 
     console.log("\nDeploying Treasury..");
     await deployTreasury();
+
+    console.log("\nDeploying WMaticGateway..");
+    await deployWmaticGateway();
 
     console.log("\nDeploying AaveYield..");
     await deployAaveYield();
