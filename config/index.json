@@ -2,6 +2,7 @@
   "mumbai": {
     "symphonyToken": "",
     "symphonyAddress": "0xC21278e092383eD846f737Fad0D53c52CD8d704E",
+    "wmaticGateway": "",
     "treasury": "0xBeeb296beB9C78CA2F03CdEC621B1bb0735512a0",
     "aaveYieldAddress": "0xD34599eE640c7A4F5564d0D39a4385D5f4487463",
     "aaveLendingPool": "0x9198F13B08E299d85E096929fA9781A1E3d5d827",
@@ -25,6 +26,7 @@
   "matic": {
     "symphonyToken": "",
     "symphonyAddress": "",
+    "wmaticGateway": "",
     "treasury": "",
     "aaveYieldAddress": "",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
@@ -34,7 +36,7 @@
     "musdTokenAddress": "0xE840B73E5287865EEc17d250bFb1536704B43B21",
     "mstableSavingContract": "0x5290Ad3d83476CA6A2b178Cd9727eE1EF72432af",
     "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
+    "wmaticAddress": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
     "chainlinkOracle": "",
     "sushiswapHandlerAddress": "",
     "sushiswapRouter": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
@@ -48,6 +50,7 @@
   "mainnet": {
     "symphonyToken": "",
     "symphonyAddress": "",
+    "wmaticGateway": "",
     "treasury": "",
     "aaveYieldAddress": "",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
@@ -56,7 +59,7 @@
     "musdTokenAddress": "0xe2f2a5C287993345a840Db3B0845fbC70f5935a5",
     "mstableSavingContract": "0x30647a72Dc82d7Fbb1123EA74716aB8A317Eac19",
     "wethAddress": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    "wmaticAddress": "0x0000000000000000000000000000000000000000",
+    "wmaticAddress": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     "chainlinkOracle": "",
     "sushiswapHandlerAddress": "",
     "sushiswapRouter": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
@@ -69,6 +72,7 @@
   "development": {
     "symphonyToken": "",
     "symphonyAddress": "",
+    "wmaticGateway": "",
     "aaveYieldAddress": "",
     "sushiswapHandlerAddress": "",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
@@ -86,6 +90,5 @@
     "quickswapRouter": "",
     "quickswapCodeHash": "",
     "balancerVault": ""
-
   }
 }

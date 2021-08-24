@@ -15,7 +15,8 @@
     "deploy:mstable-yield": "hardhat run scripts/deployMstableYield.js --network",
     "deploy:chainlink-oracle": "hardhat run scripts/deployChainlinkOracle.js --network",
     "deploy:sushiswap-handler": "hardhat run scripts/deploySushiswapHandler.js --network",
-    "deploy:quickswap-handler": "hardhat run scripts/deployQuickswapHandler.js --network"
+    "deploy:quickswap-handler": "hardhat run scripts/deployQuickswapHandler.js --network",
+    "deploy:wmatic-gateway": "hardhat run scripts/deployWmaticGateway.js --network"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",

@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const hre = require("hardhat");
-const { network } = require("hardhat");
+const hre, { network } = require("hardhat");
 const config = require("../config/index.json");
 const file = require("../config/index.json");
 const fileName = "../config/index.json";
@@ -9,12 +8,8 @@ const fileName = "../config/index.json";
 const main = () => {
     return new Promise(async (resolve) => {
         const [deployer] = await ethers.getSigners();
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address
-        );
 
-        let configParams = config.development;
+        let configParams = config.mumbai;
         if (network.name === "matic") {
             configParams = config.matic;
         } else if (network.name === "mumbai") {
@@ -27,20 +22,20 @@ const main = () => {
         upgrades.deployProxy(
             WmaticGateway,
             [
-                configParams.wethAddress,
+                configParams.wmaticAddress,
                 deployer.address,
                 configParams.symphonyAddress,
             ]
         ).then(async (wmaticGateway) => {
             await wmaticGateway.deployed();
-            console.log("WETH Gateway deployed to:", wmaticGateway.address, "\n");
+            console.log("WMATIC Gateway deployed to:", wmaticGateway.address, "\n");
 
             if (network.name === "mumbai") {
-                file.mumbai.treasury = treasury.address;
+                file.mumbai.wmaticGateway = wmaticGateway.address;
             } else if (network.name === "matic") {
-                file.matic.treasury = treasury.address;
+                file.matic.wmaticGateway = wmaticGateway.address;
             } else {
-                file.development.treasury = treasury.address;
+                file.development.wmaticGateway = treasury.address;
             }
 
             fs.writeFileSync(

@@ -25,11 +25,11 @@ async function main() {
     console.log("\nDeploying Symphony..");
     await deploySymphony(executionFee);
 
-    console.log("\nDeploying Treasury..");
-    await deployTreasury();
-
     console.log("\nDeploying WMaticGateway..");
     await deployWmaticGateway();
+
+    console.log("\nDeploying Treasury..");
+    await deployTreasury();
 
     console.log("\nDeploying AaveYield..");
     await deployAaveYield();
