@@ -27,9 +27,25 @@ interface IYieldAdapter {
      * @dev Used to withdraw from available protocol
      * @param asset the address of underlying token
      * @param amount the amount of liquidity shares to unlock
+     * @param shares shares of the order (only for  external reward)
+     * @param totalShares total share for particular asset
+     * @param recipient address of reward receiever (if any)
+     * @param orderId bytes32 format orderId
      **/
-    function withdraw(address asset, uint256 amount)
-        external;
+    function withdraw(
+        address asset,
+        uint256 amount,
+        uint256 shares,
+        uint256 totalShares,
+        address recipient,
+        bytes32 orderId
+    ) external;
+
+    /**
+     * @dev Withdraw all tokens from the strategy
+     * @param asset the address of token
+     **/
+    function withdrawAll(address asset) external;
 
     /**
      * @dev Used to approve max token from yield provider contract
@@ -42,7 +58,7 @@ interface IYieldAdapter {
      * @param asset the address of token
      * @return tokensAmount amount of underlying tokens
      **/
-    function getTokensForShares(address asset)
+    function getTotalUnderlying(address asset)
         external
         view
         returns (uint256 tokensAmount);
@@ -56,4 +72,18 @@ interface IYieldAdapter {
         external
         view
         returns (address iouToken);
+
+    /**
+     * @dev Used to set order current external reward debt
+     * @param orderId the order Id
+     * @param asset the address of token
+     * @param shares shares of the order (only for  external reward)
+     * @param totalShares total share for particular asset
+     **/
+    function setOrderRewardDebt(
+        bytes32 orderId,
+        address asset,
+        uint256 shares,
+        uint256 totalShares
+    ) external;
 }

@@ -15,7 +15,8 @@ const BUIDLEREVM_CHAINID = 31337;
 
 const mainnetFork = MAINNET_FORK
     ? {
-        blockNumber: 12203580,
+        // blockNumber: 12317479,
+        blockNumber: 12721512,
         url: ALCHEMY_KEY
             ? `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_KEY}`
             : `https://mainnet.infura.io/v3/${INFURA_KEY}`,
@@ -70,6 +71,6 @@ module.exports = {
         artifacts: "./artifacts"
     },
     mocha: {
-        timeout: 20000
+        timeout: 100000000
     }
 }

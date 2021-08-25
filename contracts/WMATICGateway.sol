@@ -4,49 +4,45 @@ pragma solidity 0.7.4;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IWETH} from "./interfaces/IWETH.sol";
+import {IWETH as IWMATIC} from "./interfaces/IWETH.sol";
 import {ISymphony} from "./interfaces/ISymphony.sol";
 
-contract WETHGateway is Initializable, OwnableUpgradeable {
-    IWETH internal WETH;
+contract WMATICGateway is Initializable, OwnableUpgradeable {
+    IWMATIC internal WMATIC;
     ISymphony internal symphony;
 
     function initialize(
-        address _weth,
+        address _wmatic,
         address _owner,
         address _symphony
     ) external initializer {
-        WETH = IWETH(_weth);
+        WMATIC = IWMATIC(_wmatic);
         symphony = ISymphony(_symphony);
         __Ownable_init();
         super.transferOwnership(_owner);
         maxApproveSymphony();
     }
 
-    function createEthOrder(
+    function createMaticOrder(
         address recipient,
         address outputToken,
         uint256 minReturnAmount,
         uint256 stoplossAmount
     ) external payable returns (bytes32) {
-        WETH.deposit{value: msg.value}();
+        WMATIC.deposit{value: msg.value}();
 
-        return symphony.createOrder(
-            recipient,
-            address(WETH),
-            outputToken,
-            msg.value,
-            minReturnAmount,
-            stoplossAmount
-        );
-    }
-
-    function _safeTransferETH(address to, uint256 value) internal {
-        (bool success, ) = to.call{value: value}(new bytes(0));
-        require(success, "ETH transfer failed");
+        return
+            symphony.createOrder(
+                recipient,
+                address(WMATIC),
+                outputToken,
+                msg.value,
+                minReturnAmount,
+                stoplossAmount
+            );
     }
 
     function maxApproveSymphony() internal {
-        WETH.approve(address(symphony), uint256(-1));
+        WMATIC.approve(address(symphony), uint256(-1));
     }
 }

@@ -8,8 +8,8 @@ const SymphonyArtifacts = require(
     "../artifacts/contracts/Symphony.sol/Symphony.json"
 );
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
-const baseFeeInPercent = 1; // 0.01%
-const bufferPercent = 3000; // 30%
+const baseFeeInPercent = 40; // 0.04%
+const bufferPercent = 4000; // 30%
 
 describe("Rebalance Asset Test", function () {
     it("Should rebalance correctly", async function () {
@@ -28,13 +28,6 @@ describe("Rebalance Asset Test", function () {
             deployer.address, "\n"
         );
 
-        let configParams = config.development;
-        if (network.name === "mainnet") {
-            configParams = config.mainnet;
-        } else if (network.name === "mumbai") {
-            configParams = config.mumbai;
-        }
-
         // Create DAI contract instance
         const daiContract = new ethers.Contract(
             daiAddress,
@@ -49,7 +42,7 @@ describe("Rebalance Asset Test", function () {
             Symphony,
             [
                 deployer.address,
-                baseFeeInPercent,
+                deployer.address,
                 bufferPercent,
             ]
         );
@@ -66,18 +59,26 @@ describe("Rebalance Asset Test", function () {
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        aaveYield = await AaveYield.deploy(
-            symphony.address,
-            deployer.address,
-            configParams.aaveLendingPool,
-            configParams.aaveProtocolDataProvider,
+        const configParams = config.mainnet;
+        const aaveYield = await upgrades.deployProxy(
+            AaveYield,
+            [
+                symphony.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
         );
 
         await aaveYield.deployed();
         console.log("AaveYield contract deployed to:", aaveYield.address, "\n");
 
-        await symphony.updateTokenStrategy(daiAddress, aaveYield.address);
-        console.log("Updated Strategy: ", await symphony.strategy(daiAddress));
+        await symphony.updateStrategy(daiAddress, aaveYield.address);
+        expect(await symphony.strategy(daiAddress)).to.eq(aaveYield.address);
+
+        await symphony.updateBufferPercentage(daiAddress, 4000);
+        expect(await symphony.assetBuffer(daiAddress)).to.eq(4000);
 
         const aDAIAddress = await aaveYield.getYieldTokenAddress(daiAddress);
 

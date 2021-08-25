@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
 
+import "../interfaces/IERC20WithDecimal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract ChainlinkOracle {
-    using SafeMath for uint256; // Keep everything in uint256
+    using SafeMath for uint256;
 
     address owner;
     mapping(address => address) public oracleFeed;
 
-    modifier onlyOwner {
+    modifier onlyOwner() {
         require(
             msg.sender == owner,
             "ChainlinkOracle: Only owner contract can invoke this function"
@@ -27,13 +28,17 @@ contract ChainlinkOracle {
         address inputToken,
         address outputToken,
         uint256 inputAmount
-    ) public view returns (uint256) {
+    ) public view returns (uint256 oracleAmount) {
         uint256 price = uint256(1e36);
 
         require(
-            oracleFeed[inputToken] != address(0) &&
-                oracleFeed[outputToken] != address(0),
-            "Oracle does not exist for the token"
+            oracleFeed[inputToken] != address(0),
+            "Oracle feed doesn't exist for the input asset."
+        );
+
+        require(
+            oracleFeed[outputToken] != address(0),
+            "Oracle feed doesn't exist for the output asset."
         );
 
         if (inputToken != address(0)) {
@@ -41,8 +46,6 @@ contract ChainlinkOracle {
             price = price.mul(
                 uint256(IAggregator(inputFeedAddress).latestAnswer())
             );
-        } else {
-            price = price.mul(1e18);
         }
 
         if (outputToken != address(0)) {
@@ -52,7 +55,18 @@ contract ChainlinkOracle {
                 uint256(IAggregator(outputFeedAddress).latestAnswer());
         }
 
-        return price.mul(inputAmount) / uint256(1e36);
+        oracleAmount = price.mul(inputAmount) / uint256(1e36);
+
+        if (outputToken != address(0)) {
+            uint8 inputDecimal = IERC20WithDecimal(inputToken).decimals();
+            uint8 outputDecimal = IERC20WithDecimal(outputToken).decimals();
+
+            if (inputDecimal != outputDecimal) {
+                oracleAmount = oracleAmount.mul(10**outputDecimal).div(
+                    10**inputDecimal
+                );
+            }
+        }
     }
 
     function addTokenFeed(address asset, address feed) external onlyOwner {

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import "hardhat/console.sol";
 
+import "../interfaces/IERC20WithDecimal.sol";
 import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/ISavingsContract.sol";
-import "../interfaces/IERC20WithDecimal.sol";
 
-contract MstableYield is IYieldAdapter, Initializable {
+contract MockMstableYield is IYieldAdapter, Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -62,11 +62,7 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @param asset the address of token to invest
      * @param amount the amount of asset
      **/
-    function deposit(address asset, uint256 amount)
-        external
-        override
-        onlySymphony
-    {
+    function deposit(address asset, uint256 amount) external override {
         require(amount != 0, "MstableYield: zero amount");
 
         emit Deposit(asset, amount);
@@ -77,6 +73,7 @@ contract MstableYield is IYieldAdapter, Initializable {
         if (asset != musdToken) {
             // get minimum musd token to mint
             uint256 minOutput = ImAsset(musdToken).getMintOutput(asset, amount);
+            console.log("minOutput %s tokens", minOutput);
 
             // mint mUSD from base asset
             amount = ImAsset(musdToken).mint(
@@ -86,6 +83,9 @@ contract MstableYield is IYieldAdapter, Initializable {
                 address(this)
             );
         }
+
+        uint256 balance = IERC20(musdToken).balanceOf(address(this));
+        console.log("after %s tokens", balance);
 
         // Deposit amount to saving pool
         savingContract.depositSavings(amount);
@@ -103,19 +103,19 @@ contract MstableYield is IYieldAdapter, Initializable {
         uint256,
         address,
         bytes32
-    ) external override onlySymphony {
+    ) external override {
         emit Withdraw(asset, amount);
-        _withdraw(asset, amount);
+        _withdraw(asset, amount, msg.sender);
     }
 
     /**
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(address asset) external override onlySymphony {
+    function withdrawAll(address asset) external override {
         uint256 amount = savingContract.balanceOfUnderlying(symphony);
         emit Withdraw(asset, amount);
-        _withdraw(asset, amount);
+        _withdraw(asset, amount, msg.sender);
     }
 
     /**
@@ -164,20 +164,28 @@ contract MstableYield is IYieldAdapter, Initializable {
         uint256
     ) external override {}
 
-    function _withdraw(address asset, uint256 amount) internal {
+    function _withdraw(
+        address asset,
+        uint256 amount,
+        address recipient
+    ) internal {
         uint8 decimal = IERC20WithDecimal(asset).decimals();
         if (decimal < 18) {
             amount = amount.mul(10**(18 - decimal));
         }
+        console.log("amount %s tokens", amount);
 
         // redeem mUSD for imUSD (IOU)
         uint256 mAssetQuantity = savingContract.redeemUnderlying(amount);
+        console.log("mAssetQuantity %s tokens", mAssetQuantity);
 
         if (asset != musdToken) {
             uint256 minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
                 asset,
                 amount
             );
+
+            console.log("minOutputQuantity %s tokens", minOutputQuantity);
 
             // redeem mUSD for base asset
             ImAsset(musdToken).redeem(
@@ -187,7 +195,7 @@ contract MstableYield is IYieldAdapter, Initializable {
                 symphony
             );
         } else {
-            IERC20(asset).safeTransfer(symphony, mAssetQuantity);
+            IERC20(asset).safeTransfer(recipient, mAssetQuantity);
         }
     }
 }

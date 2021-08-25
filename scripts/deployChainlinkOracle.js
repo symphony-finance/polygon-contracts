@@ -4,45 +4,39 @@ const hre = require("hardhat");
 const file = require("../config/index.json");
 const fileName = "../config/index.json";
 
-async function main() {
-    const [deployer] = await ethers.getSigners();
-    console.log(
-        "Deploying contracts with the account:",
-        deployer.address
-    );
+const main = () => {
+    return new Promise(async (resolve) => {
+        const [deployer] = await ethers.getSigners();
 
-    // Deploy ChainlinkOracle Contract
-    const ChainlinkOracle = await hre.ethers
-        .getContractFactory("ChainlinkOracle");
+        // Deploy ChainlinkOracle Contract
+        const ChainlinkOracle = await hre.ethers
+            .getContractFactory("ChainlinkOracle");
 
-    const chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+        ChainlinkOracle.deploy(deployer.address)
+            .then(async (chainlinkOracle) => {
+                await chainlinkOracle.deployed();
 
-    await chainlinkOracle.deployed();
+                console.log(
+                    "Chainlink Oracle contract deployed to:",
+                    chainlinkOracle.address, "\n"
+                );
 
-    console.log(
-        "Chainlink Oracle contract deployed to:",
-        chainlinkOracle.address, "\n"
-    );
+                if (network.name === "mumbai") {
+                    file.mumbai.chainlinkOracle = chainlinkOracle.address;
+                } else if (network.name === "matic") {
+                    file.matic.chainlinkOracle = chainlinkOracle.address;
+                } else {
+                    file.development.chainlinkOracle = chainlinkOracle.address;
+                }
 
-    if (network.name === "mumbai") {
-        file.mumbai.chainlinkOracle = chainlinkOracle.address;
-    } else if (network.name === "mainnet") {
-        file.mainnet.chainlinkOracle = chainlinkOracle.address;
-    } else {
-        file.development.chainlinkOracle = chainlinkOracle.address;
-    }
+                fs.writeFileSync(
+                    path.join(__dirname, fileName),
+                    JSON.stringify(file, null, 2),
+                );
 
-    fs.writeFileSync(
-        path.join(__dirname, fileName),
-        JSON.stringify(file, null, 2),
-    );
+                resolve(true);
+            })
+    });
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main()
-    .then(() => process.exit(0))
-    .catch(error => {
-        console.error(error);
-        process.exit(1);
-    });
+module.exports = { deployChainlinkOracle: main }

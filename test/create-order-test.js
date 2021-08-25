@@ -1,10 +1,14 @@
 const { expect } = require("chai");
 const { default: BigNumber } = require("bignumber.js");
+const config = require("../config/index.json");
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
 const SymphonyArtifacts = require(
     "../artifacts/contracts/Symphony.sol/Symphony.json"
+);
+const AaveYieldArtifacts = require(
+    "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
 );
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
@@ -48,8 +52,8 @@ describe("Create Order Test", function () {
             Symphony,
             [
                 deployer.address,
-                1,
-                3000
+                deployer.address,
+                40, // 40 for 0.4 %
             ]
         );
 
@@ -72,29 +76,60 @@ describe("Create Order Test", function () {
         await daiContract.approve(symphony.address, approveAmount);
         await usdcContract.approve(symphony.address, approveAmount);
 
-        expect(await symphony.totalAssetShares(daiAddress)).to.eq(0);
+        expect(await symphony.totalAssetShares(usdcAddress)).to.eq(0);
 
         const inputAmount = new BigNumber(10).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
         const minReturnAmount = new BigNumber(15).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
         const stoplossAmount = new BigNumber(8).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
+
+        const AaveYield = await ethers.getContractFactory("AaveYield");
+
+        const configParams = config.mainnet;
+        const aaveYield = await upgrades.deployProxy(
+            AaveYield,
+            [
+                symphony.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
+        );
+
+        await aaveYield.deployed();
+        console.log("Aave Yield contract deployed to:", aaveYield.address, "\n");
+       
+        await symphony.updateStrategy(
+            usdcAddress,
+            aaveYield.address,
+        );
+
+        await symphony.updateBufferPercentage(
+            usdcAddress,
+            4000, // 40%
+        );
+
+        console.log("creating order...")
 
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
-            daiAddress,
             usdcAddress,
+            daiAddress,
             inputAmount,
             minReturnAmount,
             stoplossAmount
         );
+
+        console.log("order created.")
 
         const receipt = await tx.wait();
         const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
@@ -104,8 +139,8 @@ describe("Create Order Test", function () {
 
         const _orderId = await symphony.getOrderId(
             deployer.address,
-            daiAddress,
             usdcAddress,
+            daiAddress,
             inputAmount,
             minReturnAmount,
             stoplossAmount
@@ -113,7 +148,7 @@ describe("Create Order Test", function () {
 
         expect(orderId).to.eq(_orderId);
 
-        expect(await symphony.totalAssetShares(daiAddress)).to.eq(inputAmount);
+        expect(await symphony.totalAssetShares(usdcAddress)).to.eq(inputAmount);
 
         const abiCoder = new ethers.utils.AbiCoder();
         const abi = [
@@ -129,8 +164,8 @@ describe("Create Order Test", function () {
         const decodedData = abiCoder.decode(abi, orderData);
 
         expect(decodedData[0].toLowerCase()).to.eq(deployer.address.toLowerCase());
-        expect(decodedData[1].toLowerCase()).to.eq(daiAddress.toLowerCase());
-        expect(decodedData[2].toLowerCase()).to.eq(usdcAddress.toLowerCase());
+        expect(decodedData[1].toLowerCase()).to.eq(usdcAddress.toLowerCase());
+        expect(decodedData[2].toLowerCase()).to.eq(daiAddress.toLowerCase());
         expect(decodedData[3]).to.eq(inputAmount);
         expect(decodedData[4]).to.eq(minReturnAmount);
         expect(decodedData[5]).to.eq(stoplossAmount);
@@ -139,14 +174,14 @@ describe("Create Order Test", function () {
         await expect(
             symphony.createOrder(
                 deployer.address,
-                daiAddress,
                 usdcAddress,
+                daiAddress,
                 inputAmount,
                 minReturnAmount,
                 stoplossAmount
             )
         ).to.be.revertedWith(
-            'Symphony: depositToken:: There is already an existing order with same key'
+            'Symphony: createOrder:: There is already an existing order with same key'
         );
 
         // Create New Order
@@ -157,14 +192,14 @@ describe("Create Order Test", function () {
 
         await symphony.createOrder(
             deployer.address,
-            daiAddress,
             usdcAddress,
+            daiAddress,
             inputAmount,
             minReturnAmount,
             newstoploss
         );
 
-        expect(await symphony.totalAssetShares(daiAddress)).to.eq(
+        expect(await symphony.totalAssetShares(usdcAddress)).to.eq(
             new BigNumber(2).times(new BigNumber(inputAmount)).toString()
         );
     });

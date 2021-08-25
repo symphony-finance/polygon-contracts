@@ -1,0 +1,23 @@
+{
+  "mumbai": [
+    {
+      "token": "matic",
+      "address": "",
+      "chainlinkAddress": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+      "aaveAddress": "",
+      "feed": "0xd0D5e3DB44DE05E9F294BB0a3bEEaF030DE24Ada",
+      "strategy": "0x12b4Ee521dc8c0d6d9B91bc53f7847906d516129",
+      "buffer": 2000
+    },
+    {
+      "token": "usdc",
+      "address": "",
+      "aaveAddress": "0x2058a9d7613eee744279e3856ef0eada5fcbaa7e",
+      "chainlinkAddress": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+      "feed": "0x572dDec9087154dC5dfBB1546Bb62713147e0Ab0",
+      "strategy": "0x12b4Ee521dc8c0d6d9B91bc53f7847906d516129",
+      "buffer": 4000
+    }
+  ],
+  "matic": []
+}

@@ -4,8 +4,8 @@ const { default: BigNumber } = require("bignumber.js");
 
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
-describe("WETHGateway Test", function () {
-    it("Should create order with ETH", async () => {
+describe("WMATICGateway Test", function () {
+    it("Should create order with MATIC token", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -16,13 +16,7 @@ describe("WETHGateway Test", function () {
         );
         deployer.address = deployer._address;
 
-        let configParams = config.mainnet;
-        if (network.name === "mainnet") {
-            configParams = config.mainnet;
-        } else if (network.name === "mumbai") {
-            configParams = config.mumbai;
-        }
-
+        const configParams = config.mainnet;
         console.log(
             "Deploying contracts with the account:",
             deployer.address, "\n"
@@ -35,16 +29,16 @@ describe("WETHGateway Test", function () {
             Symphony,
             [
                 deployer.address,
-                1,
-                3000
+                deployer.address,
+                40, // 40 for 0.4 %
             ]
         );
 
         await symphony.deployed();
         console.log("Symphony contract deployed to:", symphony.address, "\n");
 
-        // Deploy WETHGateway Contract
-        const WETHGateway = await ethers.getContractFactory("WETHGateway");
+        // Deploy WMATICGateway Contract
+        const WETHGateway = await ethers.getContractFactory("WMATICGateway");
 
         let wethGateway = await upgrades.deployProxy(
             WETHGateway,
@@ -71,7 +65,7 @@ describe("WETHGateway Test", function () {
         ).toString();
 
         // Create Order
-        const tx = await wethGateway.createEthOrder(
+        const tx = await wethGateway.createMaticOrder(
             deployer.address,
             usdcAddress,
             minReturnAmount,

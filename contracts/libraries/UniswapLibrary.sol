@@ -110,14 +110,14 @@ library UniswapLibrary {
         uint256 _reserveIn,
         uint256 _reserveOut
     ) internal pure returns (uint256 amountOut) {
-        // require(
-        //     _inputAmount > 0,
-        //     "SushiswapUtils#getAmountOut: INSUFFICIENT_INPUT_AMOUNT"
-        // );
-        // require(
-        //     _reserveIn > 0 && _reserveOut > 0,
-        //     "SushiswapUtils#getAmountOut: INSUFFICIENT_LIQUIDITY"
-        // );
+        require(
+            _inputAmount > 0,
+            "UniswapUtils#getAmountOut: INSUFFICIENT_INPUT_AMOUNT"
+        );
+        require(
+            _reserveIn > 0 && _reserveOut > 0,
+            "UniswapUtils#getAmountOut: INSUFFICIENT_LIQUIDITY"
+        );
         uint256 inputAmountWithFee = _inputAmount.mul(997);
         uint256 numerator = inputAmountWithFee.mul(_reserveOut);
         uint256 denominator = _reserveIn.mul(1000).add(inputAmountWithFee);
@@ -137,8 +137,12 @@ library UniswapLibrary {
         amounts = new uint256[](path.length);
         amounts[0] = amountIn;
         for (uint256 i; i < path.length - 1; i++) {
-            (uint256 reserveIn, uint256 reserveOut) =
-                getReserves(factory, path[i], path[i + 1], initcodehash);
+            (uint256 reserveIn, uint256 reserveOut) = getReserves(
+                factory,
+                path[i],
+                path[i + 1],
+                initcodehash
+            );
             amounts[i + 1] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
     }

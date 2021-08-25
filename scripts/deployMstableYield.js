@@ -16,32 +16,30 @@ const main = () => {
             configParams = config.mumbai;
         }
 
-        // Deploy AaveYield Contract
-        const AaveYield = await hre.ethers.getContractFactory("AaveYield");
+        // Deploy MstableYield Contract
+        const MstableYield = await hre.ethers.getContractFactory("MstableYield");
 
         upgrades.deployProxy(
-            AaveYield,
+            MstableYield,
             [
+                configParams.musdTokenAddress,
+                configParams.mstableSavingContract,
                 configParams.symphonyAddress,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
             ]
-        ).then(async (aaveYield) => {
-            await aaveYield.deployed();
+        ).then(async (mstableYield) => {
+            await mstableYield.deployed();
 
             console.log(
-                "AaveYield contract deployed to:",
-                aaveYield.address, "\n"
+                "MstableYield contract deployed to:",
+                mstableYield.address, "\n"
             );
 
             if (network.name === "mumbai") {
-                file.mumbai.aaveYieldAddress = aaveYield.address;
+                file.mumbai.mstableYieldAddress = mstableYield.address;
             } else if (network.name === "matic") {
-                file.matic.aaveYieldAddress = aaveYield.address;
+                file.matic.mstableYieldAddress = mstableYield.address;
             } else {
-                file.development.aaveYieldAddress = aaveYield.address;
+                file.development.mstableYieldAddress = mstableYield.address;
             }
 
             fs.writeFileSync(
@@ -51,7 +49,7 @@ const main = () => {
 
             resolve(true);
         });
-    })
+    });
 }
 
-module.exports = { deployAaveYield: main }
+module.exports = { deployMstableYield: main }

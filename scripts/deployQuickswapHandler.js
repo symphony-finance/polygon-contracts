@@ -18,31 +18,31 @@ const main = () => {
             configParams = config.mumbai;
         }
 
-        // Deploy SushiswapHandler Contract
-        const SushiswapHandler = await hre.ethers
-            .getContractFactory("SushiswapHandler");
+        // Deploy QuickswapHandler Contract
+        const QuickswapHandler = await hre.ethers
+            .getContractFactory("QuickswapHandler");
 
-        SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
+        await QuickswapHandler.deploy(
+            configParams.quickswapRouter, // Router
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
+            configParams.quickswapCodeHash,
             configParams.chainlinkOracle,
             configParams.symphonyAddress
-        ).then(async (sushiswapHandler) => {
-            await sushiswapHandler.deployed();
+        ).then(async (quickswapHandler) => {
+            await quickswapHandler.deployed();
 
             console.log(
-                "Sushiswap Handler deployed to:",
-                sushiswapHandler.address, "\n"
+                "Quickswap Handler deployed to:",
+                quickswapHandler.address, "\n"
             );
 
             if (network.name === "mumbai") {
-                file.mumbai.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.mumbai.quickswapHandlerAddress = quickswapHandler.address;
             } else if (network.name === "matic") {
-                file.matic.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.matic.quickswapHandlerAddress = quickswapHandler.address;
             } else {
-                file.development.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.development.quickswapHandlerAddress = quickswapHandler.address;
             }
 
             fs.writeFileSync(
@@ -59,10 +59,10 @@ const main = () => {
                 deployer
             );
 
-            await symphony.addHandler(sushiswapHandler.address);
+            await symphony.addHandler(quickswapHandler.address);
             resolve(true);
         });
-    })
+    });
 }
 
-module.exports = { deploySushiswapHandler: main }
+module.exports = { deployQuickswapHandler: main }

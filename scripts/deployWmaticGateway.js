@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const hre = require("hardhat");
+const hre, { network } = require("hardhat");
 const config = require("../config/index.json");
 const file = require("../config/index.json");
 const fileName = "../config/index.json";
@@ -9,39 +9,33 @@ const main = () => {
     return new Promise(async (resolve) => {
         const [deployer] = await ethers.getSigners();
 
-        let configParams = config.development;
+        let configParams = config.mumbai;
         if (network.name === "matic") {
             configParams = config.matic;
         } else if (network.name === "mumbai") {
             configParams = config.mumbai;
         }
 
-        // Deploy AaveYield Contract
-        const AaveYield = await hre.ethers.getContractFactory("AaveYield");
+        // Deploy Symphony Contract
+        const WmaticGateway = await hre.ethers.getContractFactory("WMATICGateway");
 
         upgrades.deployProxy(
-            AaveYield,
+            WmaticGateway,
             [
-                configParams.symphonyAddress,
+                configParams.wmaticAddress,
                 deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
+                configParams.symphonyAddress,
             ]
-        ).then(async (aaveYield) => {
-            await aaveYield.deployed();
-
-            console.log(
-                "AaveYield contract deployed to:",
-                aaveYield.address, "\n"
-            );
+        ).then(async (wmaticGateway) => {
+            await wmaticGateway.deployed();
+            console.log("WMATIC Gateway deployed to:", wmaticGateway.address, "\n");
 
             if (network.name === "mumbai") {
-                file.mumbai.aaveYieldAddress = aaveYield.address;
+                file.mumbai.wmaticGateway = wmaticGateway.address;
             } else if (network.name === "matic") {
-                file.matic.aaveYieldAddress = aaveYield.address;
+                file.matic.wmaticGateway = wmaticGateway.address;
             } else {
-                file.development.aaveYieldAddress = aaveYield.address;
+                file.development.wmaticGateway = treasury.address;
             }
 
             fs.writeFileSync(
@@ -54,4 +48,4 @@ const main = () => {
     })
 }
 
-module.exports = { deployAaveYield: main }
+module.exports = { deployWmaticGateway: main }

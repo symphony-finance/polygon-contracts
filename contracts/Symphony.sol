@@ -2,50 +2,45 @@
 pragma solidity 0.7.4;
 pragma experimental ABIEncoderV2;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
+import "./libraries/PercentageMath.sol";
 import "./interfaces/IHandler.sol";
 import "./interfaces/IYieldAdapter.sol";
-import "./libraries/PercentageMath.sol";
+import "./interfaces/IOrderStructs.sol";
+import "./interfaces/IAaveIncentivesController.sol";
 
-// Deposit
-// totalAssetShares = totalShares = 0 ? share = inputAmount : (inputAmount * totalShares) / fundBalance
-// inputToken = 10 || shares = 10
-// inputToken = 10 || shares = 10 * 10 / 10 = 10 Without Strategy
-// inputToken = 10 || shares = 10 * 10 / 11 = 9.1 (approx) With Strategy
-// inputToken = 10 || shares = (10 * (10 + 9.1)) / (11 + 10 + 1) =  8.68
-
-// Withdraw
-// token = (share * fundBalance) / totalShares
-// share = 10 || token = (10 * 32) / 27.78 = 11.5 // User 1
-// share = 10 || token = (9.1 * 32) / 27.78 = 10.5 // User 2
-// share = 10 || token = (8.68 * 32) / 27.78 = 10 // User 2
-
-contract Symphony is Initializable, OwnableUpgradeable {
+contract Symphony is
+    Initializable,
+    OwnableUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable
+{
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
     using PercentageMath for uint256;
 
-    struct Order {
-        address recipient;
-        address inputToken;
-        address outputToken;
-        uint256 inputAmount;
-        uint256 minReturnAmount;
-        uint256 stoplossAmount;
-        uint256 shares;
-    }
+    // Protocol treasury address
+    address public treasury;
 
+    // Emergency admin address
+    address public emergencyAdmin;
+
+    /// Total fee (protocol_fee + relayer_fee)
     uint256 public BASE_FEE; // 1 for 0.01%
-    uint256 public bufferPercent; // 3000 for 30%;
+
+    /// Protocol fee: BASE_FEE - RELAYER_FEE
+    uint256 public PROTOCOL_FEE_PERCENT;
 
     mapping(address => address) public strategy;
     mapping(bytes32 => bytes32) public orderHash;
+    mapping(address => uint256) public assetBuffer;
 
-    mapping(address => uint256) public orderExecutionFee;
     mapping(address => bool) public isRegisteredHandler;
     mapping(address => uint256) public totalAssetShares;
     mapping(address => bool) public isWhitelistedForRewards;
@@ -61,21 +56,33 @@ contract Symphony is Initializable, OwnableUpgradeable {
     event AssetStrategyUpdated(address asset, address strategy);
     event HandlerAdded(address handler);
     event HandlerRemoved(address handler);
+    event UpdatedBaseFee(uint256 fee);
+    event UpdatedBufferPercentage(address asset, uint256 percent);
     event AddedAssetForReward(address asset);
     event RemovedAssetFromReward(address asset);
-    event UpdatedBaseFee(uint256 fee);
-    event UpdatedBufferPercentage(uint256 percent);
-    event UpdatedAssetFee(address asset, uint256 fee);
 
+    modifier onlyEmergencyAdminOrOwner() {
+        require(
+            _msgSender() == emergencyAdmin || _msgSender() == owner(),
+            "Symphony: Only emergency admin or owner can invoke this function"
+        );
+        _;
+    }
+
+    /**
+     * @notice To initalize the global variables
+     */
     function initialize(
         address _owner,
-        uint256 _baseFee,
-        uint256 _rebalancePercentage
+        address _emergencyAdmin,
+        uint256 _baseFee
     ) external initializer {
         BASE_FEE = _baseFee;
-        bufferPercent = _rebalancePercentage;
         __Ownable_init();
+        __Pausable_init();
+        __ReentrancyGuard_init();
         super.transferOwnership(_owner);
+        emergencyAdmin = _emergencyAdmin;
     }
 
     /**
@@ -88,18 +95,18 @@ contract Symphony is Initializable, OwnableUpgradeable {
         uint256 inputAmount,
         uint256 minReturnAmount,
         uint256 stoplossAmount
-    ) external returns (bytes32 orderId) {
+    ) external nonReentrant whenNotPaused returns (bytes32 orderId) {
         require(
             inputAmount > 0,
-            "Symphony: depositToken:: Input amoount can't be zero"
+            "Symphony::createOrder: Input amoount can't be zero"
         );
         require(
             minReturnAmount > 0,
-            "Symphony: depositToken:: Amount out can't be zero"
+            "Symphony::createOrder: Amount out can't be zero"
         );
         require(
             stoplossAmount < minReturnAmount,
-            "Symphony: depositToken:: StoplossAmount amount should be less than amount out"
+            "Symphony::createOrder: stoploss amount should be less than amount out"
         );
 
         orderId = getOrderId(
@@ -112,36 +119,52 @@ contract Symphony is Initializable, OwnableUpgradeable {
         );
 
         require(
-            orderHash[orderId] == 0x0,
-            "Symphony: depositToken:: There is already an existing order with same key"
+            orderHash[orderId] == bytes32(0),
+            "Symphony::createOrder: There is already an existing order with same id"
         );
 
-        uint256 shares = calculateShares(inputToken, inputAmount);
+        uint256 shares = _calculateShares(inputToken, inputAmount);
 
-        totalAssetShares[inputToken] = totalAssetShares[inputToken].add(shares);
-
-        bytes memory encodedOrder =
-            abi.encode(
-                recipient,
-                inputToken,
-                outputToken,
-                inputAmount,
-                minReturnAmount,
-                stoplossAmount,
-                shares
-            );
-
-        orderHash[orderId] = keccak256(encodedOrder);
-
-        emit OrderCreated(orderId, encodedOrder);
+        uint256 balanceBefore = IERC20(inputToken).balanceOf(address(this));
         IERC20(inputToken).safeTransferFrom(
             msg.sender,
             address(this),
             inputAmount
         );
+        require(
+            IERC20(inputToken).balanceOf(address(this)) ==
+                inputAmount + balanceBefore,
+            "Symphony::createOrder: tokens not transferred"
+        );
 
-        if (strategy[inputToken] != address(0)) {
+        uint256 previousAssetShares = totalAssetShares[inputToken];
+        totalAssetShares[inputToken] = previousAssetShares.add(shares);
+
+        bytes memory encodedOrder = abi.encode(
+            recipient,
+            inputToken,
+            outputToken,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount,
+            shares
+        );
+
+        orderHash[orderId] = keccak256(encodedOrder);
+
+        emit OrderCreated(orderId, encodedOrder);
+
+        address assetStrategy = strategy[inputToken];
+
+        if (assetStrategy != address(0)) {
             rebalanceAsset(inputToken);
+
+            IYieldAdapter(assetStrategy).setOrderRewardDebt(
+                orderId,
+                inputToken,
+                shares,
+                previousAssetShares
+            );
         }
     }
 
@@ -155,119 +178,119 @@ contract Symphony is Initializable, OwnableUpgradeable {
         address _outputToken,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount
-    ) external {
+    ) external nonReentrant whenNotPaused {
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: updateOrder:: Order doesn't match"
+            "Symphony::updateOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         require(
             msg.sender == myOrder.recipient,
-            "Symphony: updateOrder:: Only recipient can update the order"
+            "Symphony::updateOrder: Only recipient can update the order"
         );
 
         delete orderHash[orderId];
 
-        bytes32 newOrderId =
-            getOrderId(
-                _receiver,
-                myOrder.inputToken,
-                _outputToken,
-                myOrder.inputAmount,
-                _minReturnAmount,
-                _stoplossAmount
-            );
+        bytes32 newOrderId = getOrderId(
+            _receiver,
+            myOrder.inputToken,
+            _outputToken,
+            myOrder.inputAmount,
+            _minReturnAmount,
+            _stoplossAmount
+        );
 
-        bytes memory encodedOrder =
-            abi.encode(
-                _receiver,
-                myOrder.inputToken,
-                _outputToken,
-                myOrder.inputAmount,
-                _minReturnAmount,
-                _stoplossAmount,
-                myOrder.shares
-            );
+        require(
+            orderHash[newOrderId] == bytes32(0),
+            "Symphony::updateOrder: There is already an existing order with same id"
+        );
+
+        bytes memory encodedOrder = abi.encode(
+            _receiver,
+            myOrder.inputToken,
+            _outputToken,
+            myOrder.inputAmount,
+            _minReturnAmount,
+            _stoplossAmount,
+            myOrder.shares
+        );
 
         orderHash[newOrderId] = keccak256(encodedOrder);
 
         emit OrderUpdated(orderId, newOrderId, encodedOrder);
     }
 
-    // todo: make pausable
     /**
      * @notice Cancel an existing order
      */
     function cancelOrder(bytes32 orderId, bytes calldata _orderData)
         external
         payable
+        nonReentrant
     {
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: cancelOrder:: Order doesn't match"
+            "Symphony::cancelOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         require(
             msg.sender == myOrder.recipient,
-            "Symphony: cancelOrder:: Only recipient can cancel the order"
+            "Symphony::cancelOrder: Only recipient can cancel the order"
         );
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 bufferAmount =
-            IERC20(myOrder.inputToken).balanceOf(address(this));
-        uint256 depositPlusYield =
-            calculateTokenFromShares(
-                myOrder.inputToken,
-                myOrder.shares,
-                totalTokens
-            );
+        uint256 depositPlusYield = _calculateTokenFromShares(
+            myOrder.inputToken,
+            myOrder.shares,
+            totalTokens
+        );
 
-        totalAssetShares[myOrder.inputToken] = totalAssetShares[
-            myOrder.inputToken
-        ]
-            .sub(myOrder.shares);
+        uint256 totalSharesInAsset = totalAssetShares[myOrder.inputToken];
+
+        totalAssetShares[myOrder.inputToken] = totalSharesInAsset.sub(
+            myOrder.shares
+        );
 
         delete orderHash[orderId];
         emit OrderCancelled(orderId);
 
-        if (bufferAmount < depositPlusYield) {
-            calcAndwithdrawFromStrategy(
-                myOrder.inputToken,
+        if (strategy[myOrder.inputToken] != address(0)) {
+            _calcAndwithdrawFromStrategy(
+                myOrder,
                 depositPlusYield,
-                bufferAmount,
-                totalTokens
+                totalTokens,
+                totalSharesInAsset,
+                orderId
             );
         }
 
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
     }
 
-    // todo: make lockable/re-entrancy guard
-    // todo: make pausable
     /**
-     * @notice Execute the order
+     * @notice Execute the order using external DEX
      */
     function executeOrder(
         bytes32 orderId,
         bytes calldata _orderData,
         address payable _handler,
         bytes memory _handlerData
-    ) external {
+    ) external nonReentrant whenNotPaused {
         require(
             isRegisteredHandler[_handler],
-            "Symphony: executeOrder:: Handler doesn't exists"
+            "Symphony::executeOrder: Handler doesn't exists"
         );
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: executeOrder:: Order doesn't match"
+            "Symphony::executeOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         require(
             IHandler(_handler).canHandle(
@@ -276,56 +299,48 @@ contract Symphony is Initializable, OwnableUpgradeable {
                 myOrder.inputAmount,
                 myOrder.minReturnAmount,
                 myOrder.stoplossAmount,
-                orderExecutionFee[myOrder.inputToken] != 0
-                    ? orderExecutionFee[myOrder.inputToken]
-                    : BASE_FEE,
+                BASE_FEE,
                 _handlerData
             ),
-            "Symphony: executeOrder:: Handler Can't handle this tx"
+            "Symphony::executeOrder: Handler Can't handle this tx"
         );
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 bufferAmount =
-            IERC20(myOrder.inputToken).balanceOf(address(this));
+        uint256 depositPlusYield = _calculateTokenFromShares(
+            myOrder.inputToken,
+            myOrder.shares,
+            totalTokens
+        );
 
-        uint256 depositPlusYield =
-            calculateTokenFromShares(
-                myOrder.inputToken,
-                myOrder.shares,
-                totalTokens
-            );
+        uint256 totalSharesInAsset = totalAssetShares[myOrder.inputToken];
 
-        totalAssetShares[myOrder.inputToken] = totalAssetShares[
-            myOrder.inputToken
-        ]
-            .sub(myOrder.shares);
+        totalAssetShares[myOrder.inputToken] = totalSharesInAsset.sub(
+            myOrder.shares
+        );
 
         delete orderHash[orderId];
 
         emit OrderExecuted(orderId, msg.sender);
 
-        if (bufferAmount < depositPlusYield) {
-            calcAndwithdrawFromStrategy(
-                myOrder.inputToken,
+        if (strategy[myOrder.inputToken] != address(0)) {
+            _calcAndwithdrawFromStrategy(
+                myOrder,
                 depositPlusYield,
-                bufferAmount,
-                totalTokens
+                totalTokens,
+                totalSharesInAsset,
+                orderId
             );
         }
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
         IHandler(_handler).handle(
-            myOrder.inputToken,
-            myOrder.outputToken,
-            depositPlusYield,
-            0,
-            myOrder.recipient,
-            orderExecutionFee[myOrder.inputToken] != 0
-                ? orderExecutionFee[myOrder.inputToken]
-                : BASE_FEE,
+            myOrder,
+            BASE_FEE,
+            PROTOCOL_FEE_PERCENT,
             msg.sender,
+            treasury,
             _handlerData
         );
     }
@@ -338,111 +353,125 @@ contract Symphony is Initializable, OwnableUpgradeable {
         bytes calldata _orderData,
         address payable _handler,
         bytes memory _handlerData
-    ) external {
+    ) external nonReentrant whenNotPaused {
         require(
             isRegisteredHandler[_handler],
-            "Symphony: fillOrder:: Handler doesn't exists"
+            "Symphony::fillOrder: Handler doesn't exists"
         );
         require(
             orderHash[orderId] == keccak256(_orderData),
-            "Symphony: fillOrder:: Order doesn't match"
+            "Symphony::fillOrder: Order doesn't match"
         );
 
-        Order memory myOrder = decodeOrder(_orderData);
+        IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
-        uint256 bufferAmount =
-            IERC20(myOrder.inputToken).balanceOf(address(this));
-
-        uint256 depositPlusYield =
-            calculateTokenFromShares(
-                myOrder.inputToken,
-                myOrder.shares,
-                totalTokens
-            );
-
-        totalAssetShares[myOrder.inputToken] = totalAssetShares[
-            myOrder.inputToken
-        ]
-            .sub(myOrder.shares);
-
-        uint256 feePercent =
-            orderExecutionFee[myOrder.inputToken] != 0
-                ? orderExecutionFee[myOrder.inputToken]
-                : BASE_FEE;
-
-        (bool success, uint256 estimatedAmount) =
-            IHandler(_handler).simulate(
-                myOrder.inputToken,
-                myOrder.outputToken,
-                depositPlusYield,
-                myOrder.minReturnAmount,
-                myOrder.stoplossAmount,
-                feePercent,
-                _handlerData
-            );
-
-        require(
-            success,
-            "Symphony: fillOrder:: Fill condition doesn't satisfy"
+        uint256 depositPlusYield = _calculateTokenFromShares(
+            myOrder.inputToken,
+            myOrder.shares,
+            totalTokens
         );
+
+        uint256 totalSharesInAsset = totalAssetShares[myOrder.inputToken];
+
+        totalAssetShares[myOrder.inputToken] = totalSharesInAsset.sub(
+            myOrder.shares
+        );
+
+        (bool success, uint256 estimatedAmount) = IHandler(_handler).simulate(
+            myOrder.inputToken,
+            myOrder.outputToken,
+            depositPlusYield,
+            myOrder.minReturnAmount,
+            myOrder.stoplossAmount,
+            BASE_FEE,
+            _handlerData
+        );
+
+        require(success, "Symphony::fillOrder: Fill condition doesn't satisfy");
 
         delete orderHash[orderId];
 
         emit OrderExecuted(orderId, msg.sender);
 
-        if (bufferAmount < depositPlusYield) {
-            calcAndwithdrawFromStrategy(
-                myOrder.inputToken,
+        if (strategy[myOrder.inputToken] != address(0)) {
+            _calcAndwithdrawFromStrategy(
+                myOrder,
                 depositPlusYield,
-                bufferAmount,
-                totalTokens
+                totalTokens,
+                totalSharesInAsset,
+                orderId
             );
         }
+
+        uint256 totalFee = estimatedAmount.percentMul(BASE_FEE);
 
         // caution: external calls to unknown address
         IERC20(myOrder.outputToken).safeTransferFrom(
             msg.sender,
             myOrder.recipient,
-            estimatedAmount.sub(estimatedAmount.percentMul(feePercent))
+            estimatedAmount.sub(totalFee)
         );
+
+        if (PROTOCOL_FEE_PERCENT > 0 && treasury != address(0)) {
+            uint256 protocolFee = totalFee.percentMul(PROTOCOL_FEE_PERCENT);
+
+            IERC20(myOrder.outputToken).safeTransferFrom(
+                msg.sender,
+                treasury,
+                protocolFee
+            );
+        }
 
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
     }
 
-    function rebalanceAsset(address asset) public {
+    /**
+     * @notice rebalance asset according to buffer percent
+     */
+    function rebalanceAsset(address asset) public whenNotPaused {
         require(
             strategy[asset] != address(0),
-            "Symphony: rebalanceAsset:: Rebalance needs some strategy"
+            "Symphony::rebalanceAsset: Rebalance needs some strategy"
         );
 
-        uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
+        uint256 assetBufferPercent = assetBuffer[asset];
 
-        uint256 balanceInStrategy =
-            IYieldAdapter(strategy[asset]).getTokensForShares(asset);
+        if (assetBufferPercent != 10000) {
+            uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
-        uint256 totalBalance = balanceInContract.add(balanceInStrategy);
+            uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
+                .getTotalUnderlying(asset);
 
-        uint256 bufferBalanceNeeded = totalBalance.percentMul(bufferPercent);
+            uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
-        require(
-            balanceInContract != bufferBalanceNeeded,
-            "Symphony: rebalanceAsset:: Asset already balanced"
-        );
-
-        emit AssetRebalanced(asset);
-
-        if (balanceInContract > bufferBalanceNeeded) {
-            IYieldAdapter(strategy[asset]).deposit(
-                asset,
-                balanceInContract.sub(bufferBalanceNeeded)
+            uint256 bufferBalanceNeeded = totalBalance.percentMul(
+                assetBuffer[asset]
             );
-        } else if (balanceInContract < bufferBalanceNeeded) {
-            IYieldAdapter(strategy[asset]).withdraw(
-                asset,
-                bufferBalanceNeeded.sub(balanceInContract)
+
+            require(
+                balanceInContract != bufferBalanceNeeded,
+                "Symphony::rebalanceAsset: Asset already balanced"
             );
+
+            emit AssetRebalanced(asset);
+
+            if (balanceInContract > bufferBalanceNeeded) {
+                IYieldAdapter(strategy[asset]).deposit(
+                    asset,
+                    balanceInContract.sub(bufferBalanceNeeded)
+                );
+            } else if (balanceInContract < bufferBalanceNeeded) {
+                IYieldAdapter(strategy[asset]).withdraw(
+                    asset,
+                    bufferBalanceNeeded.sub(balanceInContract),
+                    0,
+                    0,
+                    address(0),
+                    bytes32(0)
+                );
+            }
         }
     }
 
@@ -471,10 +500,24 @@ contract Symphony is Initializable, OwnableUpgradeable {
             );
     }
 
+    function getTotalFunds(address asset)
+        public
+        view
+        returns (uint256 totalBalance)
+    {
+        totalBalance = IERC20(asset).balanceOf(address(this));
+
+        if (strategy[asset] != address(0)) {
+            totalBalance = totalBalance.add(
+                IYieldAdapter(strategy[asset]).getTotalUnderlying(asset)
+            );
+        }
+    }
+
     function decodeOrder(bytes memory _data)
         public
         view
-        returns (Order memory order)
+        returns (IOrderStructs.Order memory order)
     {
         (
             address recipient,
@@ -484,13 +527,12 @@ contract Symphony is Initializable, OwnableUpgradeable {
             uint256 minReturnAmount,
             uint256 stoplossAmount,
             uint256 shares
-        ) =
-            abi.decode(
+        ) = abi.decode(
                 _data,
                 (address, address, address, uint256, uint256, uint256, uint256)
             );
 
-        order = Order(
+        order = IOrderStructs.Order(
             recipient,
             inputToken,
             outputToken,
@@ -501,48 +543,15 @@ contract Symphony is Initializable, OwnableUpgradeable {
         );
     }
 
-    function getTotalFunds(address asset)
-        public
-        view
-        returns (uint256 totalBalance)
-    {
-        totalBalance = IERC20(asset).balanceOf(address(this));
-
-        if (strategy[asset] != address(0)) {
-            totalBalance = totalBalance.add(
-                IYieldAdapter(strategy[asset]).getTokensForShares(asset)
-            );
-        }
-    }
-
     // ************************** //
     // *** GOVERNANCE METHODS *** //
     // ************************** //
 
     /**
-     * @notice Update Strategy of a token
+     * @notice Update the treasury address
      */
-    function updateTokenStrategy(address _token, address _strategy)
-        external
-        onlyOwner
-    {
-        strategy[_token] = _strategy;
-
-        // max approve token
-        if (
-            _strategy != address(0) &&
-            IERC20(_token).allowance(address(this), address(_strategy)) == 0
-        ) {
-            emit AssetStrategyUpdated(_token, _strategy);
-
-            // caution: external call to unknown address
-            IERC20(_token).safeApprove(address(_strategy), uint256(-1));
-            IYieldAdapter(_strategy).maxApprove(_token);
-
-            address iouToken =
-                IYieldAdapter(_strategy).getYieldTokenAddress(_token);
-            IERC20(iouToken).safeApprove(address(_strategy), uint256(-1));
-        }
+    function updateTreasury(address _treasury) external onlyOwner {
+        treasury = _treasury;
     }
 
     /**
@@ -570,19 +579,21 @@ contract Symphony is Initializable, OwnableUpgradeable {
     }
 
     /**
-     * @notice Update buffer percentage
+     * @notice Update protocol fee
      */
-    function updateBufferPercentage(uint256 _value) external onlyOwner {
-        bufferPercent = _value;
-        emit UpdatedBufferPercentage(_value);
+    function updateProtocolFee(uint256 _feePercent) external onlyOwner {
+        PROTOCOL_FEE_PERCENT = _feePercent;
     }
 
     /**
-     * @notice Update token execution fee
+     * @notice Update asset buffer percentage
      */
-    function updateAssetFee(address _token, uint256 _fee) external onlyOwner {
-        orderExecutionFee[_token] = _fee;
-        emit UpdatedAssetFee(_token, _fee);
+    function updateBufferPercentage(address _asset, uint256 _value)
+        external
+        onlyOwner
+    {
+        assetBuffer[_asset] = _value;
+        emit UpdatedBufferPercentage(_asset, _value);
     }
 
     /**
@@ -601,11 +612,136 @@ contract Symphony is Initializable, OwnableUpgradeable {
         RemovedAssetFromReward(_token);
     }
 
+    /**
+     * @notice Update strategy
+     */
+    function updateStrategy(address _asset, address _strategy)
+        external
+        onlyOwner
+    {
+        require(
+            strategy[_asset] != _strategy,
+            "Symphony: updateStrategy:: Strategy shouldn't be same."
+        );
+        _updateAssetStrategy(_asset, _strategy);
+    }
+
+    /**
+     * @notice Withdraw tokens from contract, only in emergency case
+     */
+    function withdrawTokens(
+        address[] calldata assets,
+        uint256[] calldata amount,
+        address receiver
+    ) external onlyOwner {
+        for (uint256 i = 0; i < assets.length; i++) {
+            IERC20(assets[i]).safeTransfer(receiver, amount[i]);
+        }
+    }
+
+    /**
+     * @notice Migrate to new strategy
+     */
+    function migrateStrategy(address _asset, address _newStrategy)
+        external
+        onlyOwner
+    {
+        address previousStrategy = strategy[_asset];
+        require(
+            previousStrategy != address(0),
+            "Symphony::migrateStrategy: no strategy for asset exists!!"
+        );
+
+        IYieldAdapter(previousStrategy).withdrawAll(_asset);
+
+        if (_newStrategy != address(0)) {
+            _updateAssetStrategy(_asset, _newStrategy);
+        } else {
+            strategy[_asset] = _newStrategy;
+        }
+    }
+
+    /**
+     * @notice For executing any transaction from the contract
+     */
+    function executeTransaction(
+        address target,
+        uint256 value,
+        string memory signature,
+        bytes memory data
+    ) external payable onlyOwner returns (bytes memory) {
+        bytes memory callData;
+
+        if (bytes(signature).length == 0) {
+            callData = data;
+        } else {
+            callData = abi.encodePacked(
+                bytes4(keccak256(bytes(signature))),
+                data
+            );
+        }
+
+        // solium-disable-next-line security/no-call-value
+        (bool success, bytes memory returnData) = target.call{value: value}(
+            callData
+        );
+
+        require(
+            success,
+            "Symphony::executeTransaction: Transaction execution reverted."
+        );
+
+        return returnData;
+    }
+
+    // *************************** //
+    // **** EMERGENCY METHODS **** //
+    // *************************** //
+
+    /**
+     * @notice Pause the contract
+     */
+    function pause() external onlyEmergencyAdminOrOwner {
+        _pause();
+    }
+
+    /*symphony*
+     * @notice Unpause the contract
+     */
+    function unpause() external onlyEmergencyAdminOrOwner {
+        _unpause();
+    }
+
+    /**
+     * @notice Withdraw all assets from strategies including rewards
+     * @dev Only in emergency case. Transfer rewards to symphony contract
+     */
+    function emergencyWithdrawFromStrategy(address[] calldata assets)
+        external
+        onlyEmergencyAdminOrOwner
+    {
+        for (uint256 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            _withdrawFromStrategy(asset);
+        }
+    }
+
+    /**
+     * @notice Update emergency admin address
+     */
+    function updateEmergencyAdmin(address _emergencyAdmin) external {
+        require(
+            _msgSender() == emergencyAdmin,
+            "Symphony: Only emergency admin can invoke this function"
+        );
+        emergencyAdmin = _emergencyAdmin;
+    }
+
     // ************************** //
     // *** INTERNAL FUNCTIONS *** //
     // ************************** //
 
-    function calculateShares(address _token, uint256 _amount)
+    function _calculateShares(address _token, uint256 _amount)
         internal
         view
         returns (uint256 shares)
@@ -619,7 +755,7 @@ contract Symphony is Initializable, OwnableUpgradeable {
         }
     }
 
-    function calculateTokenFromShares(
+    function _calculateTokenFromShares(
         address _token,
         uint256 _shares,
         uint256 totalTokens
@@ -627,21 +763,84 @@ contract Symphony is Initializable, OwnableUpgradeable {
         amount = _shares.mul(totalTokens).div(totalAssetShares[_token]);
     }
 
-    function calcAndwithdrawFromStrategy(
-        address asset,
+    function _calcAndwithdrawFromStrategy(
+        IOrderStructs.Order memory myOrder,
         uint256 orderAmount,
-        uint256 bufferAmount,
-        uint256 totalTokens
+        uint256 totalTokens,
+        uint256 totalSharesInAsset,
+        bytes32 orderId
     ) internal {
+        address asset = myOrder.inputToken;
         uint256 leftBalanceAfterOrder = totalTokens.sub(orderAmount);
 
-        uint256 neededAmountInBuffer =
-            leftBalanceAfterOrder.percentMul(bufferPercent);
+        uint256 neededAmountInBuffer = leftBalanceAfterOrder.percentMul(
+            assetBuffer[asset]
+        );
 
-        uint256 amountToWithdraw =
-            orderAmount.sub(bufferAmount).add(neededAmountInBuffer);
+        uint256 bufferAmount = IERC20(asset).balanceOf(address(this));
 
-        emit AssetRebalanced(asset);
-        IYieldAdapter(strategy[asset]).withdraw(asset, amountToWithdraw);
+        uint256 amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
+            bufferAmount
+        );
+
+        if (amountToWithdraw > 0) {
+            emit AssetRebalanced(asset);
+            IYieldAdapter(strategy[asset]).withdraw(
+                asset,
+                amountToWithdraw,
+                myOrder.shares,
+                totalSharesInAsset,
+                myOrder.recipient,
+                orderId
+            );
+        }
+    }
+
+    function _withdrawFromStrategy(address asset) internal {
+        uint256 amount = IYieldAdapter(strategy[asset]).getTotalUnderlying(
+            asset
+        );
+        uint256 totalSharesInAsset = totalAssetShares[asset];
+
+        IYieldAdapter(strategy[asset]).withdraw(
+            asset,
+            amount,
+            totalSharesInAsset,
+            totalSharesInAsset,
+            address(this),
+            bytes32(0)
+        );
+    }
+
+    /**
+     * @notice Update Strategy of a token
+     */
+    function _updateAssetStrategy(address _asset, address _strategy) internal {
+        address previousStrategy = strategy[_asset];
+
+        // max approve token
+        if (
+            _strategy != address(0) &&
+            IERC20(_asset).allowance(address(this), _strategy) == 0
+        ) {
+            emit AssetStrategyUpdated(_asset, _strategy);
+
+            if (
+                previousStrategy != _strategy && previousStrategy != address(0)
+            ) {
+                rebalanceAsset(_asset);
+            }
+
+            // caution: external call to unknown address
+            IERC20(_asset).safeApprove(_strategy, uint256(-1));
+            IYieldAdapter(_strategy).maxApprove(_asset);
+
+            address iouToken = IYieldAdapter(_strategy).getYieldTokenAddress(
+                _asset
+            );
+            IERC20(iouToken).safeApprove(_strategy, uint256(-1));
+
+            strategy[_asset] = _strategy;
+        }
     }
 }

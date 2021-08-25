@@ -12,8 +12,8 @@ import "../interfaces/IUniswapRouter.sol";
 import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
 
-/// @notice Sushiswap Handler used to execute an order
-contract SushiswapHandler is IHandler {
+/// @notice Quickswap Handler used to execute an order
+contract QuickswapHandler is IHandler {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
@@ -28,10 +28,10 @@ contract SushiswapHandler is IHandler {
 
     /**
      * @notice Creates the handler
-     * @param _router - Address of the Sushiswap router contract
+     * @param _router - Address of the Quickswap router contract
      * @param _weth - Address of WETH contract
      * @param _wmatic - Address of WMATIC contract
-     * @param _codeHash - Bytes32 of the Sushiswap v2 pair contract unit code hash
+     * @param _codeHash - Bytes32 of the Quickswap v2 pair contract unit code hash
      */
     constructor(
         IUniswapRouter _router,
@@ -53,7 +53,7 @@ contract SushiswapHandler is IHandler {
     modifier onlySymphony() {
         require(
             msg.sender == symphony,
-            "SushiswapHandler: Only symphony contract can invoke this function"
+            "QuickswapHandler: Only symphony contract can invoke this function"
         );
         _;
     }
@@ -62,7 +62,7 @@ contract SushiswapHandler is IHandler {
     receive() external payable override {
         require(
             msg.sender != tx.origin,
-            "SushiswapHandler#receive: NO_SEND_MATIC_PLEASE"
+            "QuickswapHandler#receive: NO_SEND_MATIC_PLEASE"
         );
     }
 
@@ -143,7 +143,7 @@ contract SushiswapHandler is IHandler {
 
         return
             (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
-            (amountOut <= _stoplossAmount && amountOut <= oracleAmount);
+            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
     }
 
     /**
@@ -176,7 +176,9 @@ contract SushiswapHandler is IHandler {
         uint256 amountOut = bought.sub(fee);
         uint256 oracleAmount = 0;
 
-        oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
+        if (_stoplossAmount > 0) {
+            oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
+        }
 
         return (
             (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
