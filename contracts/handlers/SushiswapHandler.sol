@@ -62,7 +62,7 @@ contract SushiswapHandler is IHandler {
     receive() external payable override {
         require(
             msg.sender != tx.origin,
-            "UniswapV2Handler#receive: NO_SEND_ETH_PLEASE"
+            "SushiswapHandler#receive: NO_SEND_MATIC_PLEASE"
         );
     }
 

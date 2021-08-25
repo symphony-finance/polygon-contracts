@@ -130,7 +130,7 @@ contract MockMstableYield is IYieldAdapter, Initializable {
      * @dev Used to get amount of underlying tokens
      * @return amount amount of underlying tokens
      **/
-    function getTokensForShares(address asset)
+    function getTotalUnderlying(address asset)
         external
         view
         override

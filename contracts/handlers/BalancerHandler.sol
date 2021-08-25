@@ -5,7 +5,6 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "hardhat/console.sol";
 
 import "../interfaces/IWETH.sol";
 import "../interfaces/IOracle.sol";
@@ -67,8 +66,6 @@ contract BalancerHandler is IHandler {
     IOracle public oracle;
     IVault public immutable vault;
 
-    uint256 private constant never = uint256(-1);
-
     /**
      * @notice Creates the handler
      * @param _vault - Address of V2 vault
@@ -82,7 +79,7 @@ contract BalancerHandler is IHandler {
     receive() external payable override {
         require(
             msg.sender != tx.origin,
-            "UniswapV1Handler#receive: NO_SEND_ETH_PLEASE"
+            "BalancerHandler#receive: NO_SEND_MATIC_PLEASE"
         );
     }
 
@@ -180,8 +177,6 @@ contract BalancerHandler is IHandler {
             false
         );
 
-        console.logBytes32(data.poolA);
-
         if (data.intermidiateToken != address(0)) {
             bought = _multiSwap(
                 _inputToken,
@@ -223,8 +218,6 @@ contract BalancerHandler is IHandler {
             0, // minAmountOut
             block.timestamp.add(1800)
         );
-
-        console.log("bought %s", bought);
     }
 
     function _multiSwap(
@@ -276,10 +269,6 @@ contract BalancerHandler is IHandler {
         );
 
         bought = uint256(-assetDeltas[assetDeltas.length - 1]);
-
-        console.log("bought %s", uint256(assetDeltas[0]));
-        console.log("bought %s", uint256(-assetDeltas[1]));
-        console.log("bought %s", uint256(-assetDeltas[2]));
     }
 
     function _transferTokens(

@@ -154,7 +154,7 @@ contract AaveYield is IYieldAdapter, Initializable {
     }
 
     /**
-     * @notice Withdraw asset reward from Aave
+     * @notice Withdraw WMATIC reward from Aave
      * @param _asset underlying asset address
      * @param _incentiveController address of the aave incentive controller
      * @param _amount Amount to withdraw (check using getRewardsBalance)
@@ -238,7 +238,7 @@ contract AaveYield is IYieldAdapter, Initializable {
      * @param asset the address of asset
      * @return amount amount of underlying tokens
      **/
-    function getTokensForShares(address asset)
+    function getTotalUnderlying(address asset)
         public
         view
         override
@@ -277,7 +277,10 @@ contract AaveYield is IYieldAdapter, Initializable {
             address[] memory assets = new address[](1);
             assets[0] = aToken;
 
-            amount = incentivesController.getRewardsBalance(assets, symphony);
+            amount = incentivesController.getRewardsBalance(
+                assets,
+                address(this)
+            );
         }
     }
 

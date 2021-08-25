@@ -62,7 +62,7 @@ contract QuickswapHandler is IHandler {
     receive() external payable override {
         require(
             msg.sender != tx.origin,
-            "UniswapV2Handler#receive: NO_SEND_ETH_PLEASE"
+            "QuickswapHandler#receive: NO_SEND_MATIC_PLEASE"
         );
     }
 

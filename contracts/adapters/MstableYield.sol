@@ -9,6 +9,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/ISavingsContract.sol";
+import "../interfaces/IERC20WithDecimal.sol";
 
 contract MstableYield is IYieldAdapter, Initializable {
     using SafeERC20 for IERC20;
@@ -129,13 +130,18 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @dev Used to get amount of underlying tokens
      * @return amount amount of underlying tokens
      **/
-    function getTokensForShares(address)
+    function getTotalUnderlying(address asset)
         external
         view
         override
         returns (uint256 amount)
     {
         amount = savingContract.balanceOfUnderlying(address(this));
+
+        uint8 decimal = IERC20WithDecimal(asset).decimals();
+        if (decimal < 18) {
+            amount = amount.div(10**(18 - decimal));
+        }
     }
 
     /**
@@ -159,19 +165,24 @@ contract MstableYield is IYieldAdapter, Initializable {
     ) external override {}
 
     function _withdraw(address asset, uint256 amount) internal {
+        uint8 decimal = IERC20WithDecimal(asset).decimals();
+        if (decimal < 18) {
+            amount = amount.mul(10**(18 - decimal));
+        }
+
         // redeem mUSD for imUSD (IOU)
         uint256 mAssetQuantity = savingContract.redeemUnderlying(amount);
 
         if (asset != musdToken) {
             uint256 minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
                 asset,
-                mAssetQuantity
+                amount
             );
 
             // redeem mUSD for base asset
             ImAsset(musdToken).redeem(
                 asset,
-                mAssetQuantity,
+                amount,
                 minOutputQuantity,
                 symphony
             );

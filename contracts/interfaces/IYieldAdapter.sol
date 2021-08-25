@@ -58,7 +58,7 @@ interface IYieldAdapter {
      * @param asset the address of token
      * @return tokensAmount amount of underlying tokens
      **/
-    function getTokensForShares(address asset)
+    function getTotalUnderlying(address asset)
         external
         view
         returns (uint256 tokensAmount);

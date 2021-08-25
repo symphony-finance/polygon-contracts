@@ -436,38 +436,42 @@ contract Symphony is
             "Symphony::rebalanceAsset: Rebalance needs some strategy"
         );
 
-        uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
+        uint256 assetBufferPercent = assetBuffer[asset];
 
-        uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
-            .getTokensForShares(asset);
+        if (assetBufferPercent != 10000) {
+            uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
-        uint256 totalBalance = balanceInContract.add(balanceInStrategy);
+            uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
+                .getTotalUnderlying(asset);
 
-        uint256 bufferBalanceNeeded = totalBalance.percentMul(
-            assetBuffer[asset]
-        );
+            uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
-        require(
-            balanceInContract != bufferBalanceNeeded,
-            "Symphony::rebalanceAsset: Asset already balanced"
-        );
-
-        emit AssetRebalanced(asset);
-
-        if (balanceInContract > bufferBalanceNeeded) {
-            IYieldAdapter(strategy[asset]).deposit(
-                asset,
-                balanceInContract.sub(bufferBalanceNeeded)
+            uint256 bufferBalanceNeeded = totalBalance.percentMul(
+                assetBuffer[asset]
             );
-        } else if (balanceInContract < bufferBalanceNeeded) {
-            IYieldAdapter(strategy[asset]).withdraw(
-                asset,
-                bufferBalanceNeeded.sub(balanceInContract),
-                0,
-                0,
-                address(0),
-                bytes32(0)
+
+            require(
+                balanceInContract != bufferBalanceNeeded,
+                "Symphony::rebalanceAsset: Asset already balanced"
             );
+
+            emit AssetRebalanced(asset);
+
+            if (balanceInContract > bufferBalanceNeeded) {
+                IYieldAdapter(strategy[asset]).deposit(
+                    asset,
+                    balanceInContract.sub(bufferBalanceNeeded)
+                );
+            } else if (balanceInContract < bufferBalanceNeeded) {
+                IYieldAdapter(strategy[asset]).withdraw(
+                    asset,
+                    bufferBalanceNeeded.sub(balanceInContract),
+                    0,
+                    0,
+                    address(0),
+                    bytes32(0)
+                );
+            }
         }
     }
 
@@ -505,7 +509,7 @@ contract Symphony is
 
         if (strategy[asset] != address(0)) {
             totalBalance = totalBalance.add(
-                IYieldAdapter(strategy[asset]).getTokensForShares(asset)
+                IYieldAdapter(strategy[asset]).getTotalUnderlying(asset)
             );
         }
     }
@@ -779,19 +783,21 @@ contract Symphony is
             bufferAmount
         );
 
-        emit AssetRebalanced(asset);
-        IYieldAdapter(strategy[asset]).withdraw(
-            asset,
-            amountToWithdraw,
-            myOrder.shares,
-            totalSharesInAsset,
-            myOrder.recipient,
-            orderId
-        );
+        if (amountToWithdraw > 0) {
+            emit AssetRebalanced(asset);
+            IYieldAdapter(strategy[asset]).withdraw(
+                asset,
+                amountToWithdraw,
+                myOrder.shares,
+                totalSharesInAsset,
+                myOrder.recipient,
+                orderId
+            );
+        }
     }
 
     function _withdrawFromStrategy(address asset) internal {
-        uint256 amount = IYieldAdapter(strategy[asset]).getTokensForShares(
+        uint256 amount = IYieldAdapter(strategy[asset]).getTotalUnderlying(
             asset
         );
         uint256 totalSharesInAsset = totalAssetShares[asset];
