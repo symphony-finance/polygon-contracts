@@ -11,8 +11,15 @@ const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const baseFeeInPercent = 40; // 0.04%
 const bufferPercent = 4000; // 30%
 
-describe("Rebalance Asset Test", function () {
-    it("Should rebalance correctly", async function () {
+const depositAmount = (
+    new BigNumber(10).
+        times(
+            new BigNumber(10)
+                .exponentiatedBy(new BigNumber(18))
+        )).toString();
+
+describe("Rebalance Asset Test", () => {
+    it("Should rebalance correctly", async () => {
         await hre.network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -22,11 +29,6 @@ describe("Rebalance Asset Test", function () {
             "0xAb7677859331f95F25A3e7799176f7239feb5C44"
         );
         deployer.address = deployer._address;
-
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
 
         // Create DAI contract instance
         const daiContract = new ethers.Contract(
@@ -43,12 +45,11 @@ describe("Rebalance Asset Test", function () {
             [
                 deployer.address,
                 deployer.address,
-                bufferPercent,
+                baseFeeInPercent,
             ]
         );
 
         await symphony.deployed();
-        console.log("Symphony contract deployed to:", symphony.address, "\n");
 
         symphony = new ethers.Contract(
             symphony.address,
@@ -72,7 +73,6 @@ describe("Rebalance Asset Test", function () {
         );
 
         await aaveYield.deployed();
-        console.log("AaveYield contract deployed to:", aaveYield.address, "\n");
 
         await symphony.updateStrategy(daiAddress, aaveYield.address);
         expect(await symphony.strategy(daiAddress)).to.eq(aaveYield.address);
@@ -91,13 +91,6 @@ describe("Rebalance Asset Test", function () {
 
         expect(await daiContract.balanceOf(symphony.address)).to.eq(0);
 
-        const depositAmount = (
-            new BigNumber(10).
-                times(
-                    new BigNumber(10)
-                        .exponentiatedBy(new BigNumber(18))
-                )).toString();
-
         // Transfer Token
         await daiContract.transfer(symphony.address, depositAmount);
 
@@ -106,12 +99,12 @@ describe("Rebalance Asset Test", function () {
         // Rebalance asset
         await symphony.rebalanceAsset(daiAddress);
 
-        const bufferBalance = getBufferBalance(depositAmount);
+        const bufferBalance = getBufferBalance(depositAmount, bufferPercent);
         const yieldBalance = getYieldBalance(depositAmount, bufferBalance);
 
         expect(await daiContract.balanceOf(symphony.address)).to.eq(bufferBalance);
         expect(
-            Number(await adaiContract.balanceOf(symphony.address))
+            Number(await adaiContract.balanceOf(aaveYield.address))
         ).to.greaterThanOrEqual(Number(yieldBalance));
 
         const depositAmountNew = (
@@ -127,22 +120,83 @@ describe("Rebalance Asset Test", function () {
         await symphony.rebalanceAsset(daiAddress);
 
         const bufferBalanceNew = getBufferBalance(
-            new BigNumber(depositAmount).plus(depositAmountNew)
+            new BigNumber(depositAmount).plus(depositAmountNew),
+            bufferPercent
         );
 
         expect(
             Number(await daiContract.balanceOf(symphony.address))
         ).to.greaterThanOrEqual(Number(bufferBalanceNew));
+
+        // Decrease buffer percent
+        const newBufferPercent = 3000;
+        await symphony.updateBufferPercentage(daiAddress, newBufferPercent);
+        expect(await symphony.assetBuffer(daiAddress)).to.eq(newBufferPercent);
+
+        await symphony.rebalanceAsset(daiAddress);
+
+        const updatedBufferBalance = getBufferBalance(
+            new BigNumber(depositAmount).plus(depositAmountNew),
+            newBufferPercent,
+        );
+
+        const contractBufferBalance = Number(
+            await daiContract.balanceOf(symphony.address)
+        );
+
+        expect(
+            contractBufferBalance
+        ).to.greaterThanOrEqual(Number(updatedBufferBalance));
+
+        expect(contractBufferBalance).to.lessThan(Number(bufferBalanceNew));
+    });
+
+    it("Should revert for no strategy", async () => {
+        await hre.network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Deploy Symphony Contract
+        const Symphony = await ethers.getContractFactory("Symphony");
+
+        symphony = await upgrades.deployProxy(
+            Symphony,
+            [
+                deployer.address,
+                deployer.address,
+                baseFeeInPercent,
+            ]
+        );
+
+        await symphony.deployed();
+
+        symphony = new ethers.Contract(
+            symphony.address,
+            SymphonyArtifacts.abi,
+            deployer
+        );
+
+        await expect(
+            symphony.rebalanceAsset(daiAddress)
+        ).to.be.revertedWith(
+            'Symphony::rebalanceAsset: Rebalance needs some strategy'
+        );
     });
 });
 
-const getBufferBalance = (amount) => {
+const getBufferBalance = (_amount, _bufferPercent) => {
     return (
-        new BigNumber(amount).dividedBy(
+        new BigNumber(_amount).dividedBy(
             new BigNumber(100)
         )
     ).times(
-        new BigNumber(bufferPercent).dividedBy(
+        new BigNumber(_bufferPercent).dividedBy(
             new BigNumber(100)
         )
     ).toString();

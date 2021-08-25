@@ -642,22 +642,26 @@ contract Symphony is
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(address _asset, address _newStrategy)
+    function migrateStrategy(address asset, address newStrategy)
         external
         onlyOwner
     {
-        address previousStrategy = strategy[_asset];
+        address previousStrategy = strategy[asset];
         require(
             previousStrategy != address(0),
             "Symphony::migrateStrategy: no strategy for asset exists!!"
         );
+        require(
+            previousStrategy != newStrategy,
+            "Symphony::migrateStrategy: new startegy shouldn't be same!!"
+        );
 
-        IYieldAdapter(previousStrategy).withdrawAll(_asset);
+        IYieldAdapter(previousStrategy).withdrawAll(asset);
 
-        if (_newStrategy != address(0)) {
-            _updateAssetStrategy(_asset, _newStrategy);
+        if (newStrategy != address(0)) {
+            _updateAssetStrategy(asset, newStrategy);
         } else {
-            strategy[_asset] = _newStrategy;
+            strategy[asset] = newStrategy;
         }
     }
 
@@ -825,12 +829,6 @@ contract Symphony is
         ) {
             emit AssetStrategyUpdated(_asset, _strategy);
 
-            if (
-                previousStrategy != _strategy && previousStrategy != address(0)
-            ) {
-                rebalanceAsset(_asset);
-            }
-
             // caution: external call to unknown address
             IERC20(_asset).safeApprove(_strategy, uint256(-1));
             IYieldAdapter(_strategy).maxApprove(_asset);
@@ -841,6 +839,12 @@ contract Symphony is
             IERC20(iouToken).safeApprove(_strategy, uint256(-1));
 
             strategy[_asset] = _strategy;
+
+            if (
+                previousStrategy != _strategy && previousStrategy != address(0)
+            ) {
+                rebalanceAsset(_asset);
+            }
         }
     }
 }

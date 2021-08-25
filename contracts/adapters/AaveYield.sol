@@ -156,21 +156,19 @@ contract AaveYield is IYieldAdapter, Initializable {
     /**
      * @notice Withdraw WMATIC reward from Aave
      * @param _asset underlying asset address
-     * @param _incentiveController address of the aave incentive controller
      * @param _amount Amount to withdraw (check using getRewardsBalance)
      */
-    function withdrawAaveReward(
-        address _incentiveController,
-        address _asset,
-        uint256 _amount
-    ) external {
+    function withdrawAaveReward(address _asset, uint256 _amount) external {
         address aToken = _getATokenAddress(_asset);
 
         address[] memory assets = new address[](1);
         assets[0] = aToken;
 
-        uint256 returnAmount = IAaveIncentivesController(_incentiveController)
-            .claimRewards(assets, _amount, address(this));
+        uint256 returnAmount = incentivesController.claimRewards(
+            assets,
+            _amount,
+            address(this)
+        );
 
         if (returnAmount > 0) {
             _updatePendingReward(_asset, returnAmount);
