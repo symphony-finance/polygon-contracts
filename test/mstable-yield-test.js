@@ -22,12 +22,6 @@ describe("Mstable Yield Test", function () {
         );
         deployer.address = deployer._address;
 
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
-
-
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
 
@@ -75,7 +69,7 @@ describe("Mstable Yield Test", function () {
 
         await mstableYield.deposit(usdcAddress, amount);
 
-        const iouTokenBalance = await mstableYield.getTokensForShares(usdcAddress);
+        const iouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
         const outputAmount = new BigNumber(0.99).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
@@ -84,7 +78,7 @@ describe("Mstable Yield Test", function () {
 
         await mstableYield.withdraw(usdcAddress, outputAmount, 0, 0, ZERO_ADDRESS, ZERO_BYTES32);
 
-        const newIouTokenBalance = await mstableYield.getTokensForShares(usdcAddress);
+        const newIouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
         const remainingAmount = new BigNumber(0.01).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();

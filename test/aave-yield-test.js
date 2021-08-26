@@ -10,9 +10,10 @@ const mockOrderId2 = "0x5def443a23a192eb926fc873821e4a238172fc8ae0dedf7849e1c4f7
 const mockOrderId3 = "0x7ec48076ae6f278fe1f2de1c992213a9e388749bca78c4ea150f0f4d0f92d3c8";
 
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const recipient = "0xEcE66059152428D526A966C1A86165EB81543633"
 
-describe("Aave Yield Test", function () {
-    it("Should Work", async function () {
+describe("Aave Yield Test", () => {
+    it("should work for large reward", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -23,14 +24,9 @@ describe("Aave Yield Test", function () {
         );
         deployer.address = deployer._address;
 
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
-
         const AaveYield = await ethers.getContractFactory("MockAaveYield");
 
-        const configParams = config.mumbai;
+        const configParams = config.mainnet;
         let aaveYield = await upgrades.deployProxy(
             AaveYield,
             [
@@ -105,7 +101,7 @@ describe("Aave Yield Test", function () {
             mockOrderId2, // order id
             4000000 // total reward balance
         );
-        expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(3000000);
+        expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(4000000);
         expect(await aaveYield.userReward(deployer.address)).to.eq(1000000);
 
         // Withraw Alice's Order
@@ -116,13 +112,13 @@ describe("Aave Yield Test", function () {
             20000000,
             deployer.address,
             mockOrderId1,
-            3000000
+            4000000
         );
-        expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(0);
+        expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(4000000);
         expect(await aaveYield.userReward(deployer.address)).to.eq(4000000);
     });
 
-    it("Should work", async function () {
+    it("should work for small reward", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -132,11 +128,6 @@ describe("Aave Yield Test", function () {
             "0xAb7677859331f95F25A3e7799176f7239feb5C44"
         );
         deployer.address = deployer._address;
-
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
 
         const AaveYield = await ethers.getContractFactory("MockAaveYield");
 
@@ -197,8 +188,6 @@ describe("Aave Yield Test", function () {
         expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(5);
         expect(await aaveYield.previousAccRewardPerShare(usdcAddress)).to.eq(3000000000000);
 
-        const recipient = "0xEcE66059152428D526A966C1A86165EB81543633"
-
         // Withraw Bob's Order
         await aaveYield.withdraw(
             usdcAddress, // underlying asset
@@ -240,5 +229,84 @@ describe("Aave Yield Test", function () {
         );
 
         expect(await aaveYield.userReward(recipient)).to.eq(8);
+    });
+
+    it("should claim user reward", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        const AaveYield = await ethers.getContractFactory("MockAaveYield");
+
+        const configParams = config.mainnet;
+        let aaveYield = await upgrades.deployProxy(
+            AaveYield,
+            [
+                deployer.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
+        );
+
+        aaveYield = new ethers.Contract(
+            aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
+
+        // Alice's Order
+        await aaveYield.setOrderRewardDebt(
+            mockOrderId1,
+            usdcAddress,
+            10000000,
+            0,
+            0
+        );
+
+        // Bob's Order
+        await aaveYield.setOrderRewardDebt(
+            mockOrderId2,
+            usdcAddress,
+            10000000,
+            10000000,
+            2000000
+        );
+
+        // Charlie's Order
+        await aaveYield.setOrderRewardDebt(
+            mockOrderId3,
+            usdcAddress,
+            10000000,
+            20000000,
+            4000000
+        );
+
+        // Withraw Bob's Order
+        await aaveYield.withdraw(
+            usdcAddress, // underlying asset
+            0,  // asset withdraw amount
+            10000000, // order shares
+            30000000, // total shares
+            deployer.address, // recipient
+            mockOrderId2, // order id
+            4000000 // total reward balance
+        );
+        expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(4000000);
+        expect(await aaveYield.userReward(deployer.address)).to.eq(1000000);
+
+        await aaveYield.withdrawAaveReward(usdcAddress, 1000000);
+        expect(await aaveYield.pendingRewards(usdcAddress)).to.eq(3000000);
+
+        await aaveYield.claimReward(1000000);
+
+        expect(await aaveYield.userReward(deployer.address)).to.eq(0);
     });
 });

@@ -30,21 +30,9 @@ describe("Balancer Handler Test", function () {
         deployer.address = deployer._address;
         configParams = config.mainnet;
 
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
-
         // Create USDC contract instance
         const usdcContract = new ethers.Contract(
             usdcAddress,
-            IERC20Artifacts.abi,
-            deployer
-        );
-
-        // Create DAI contract instance
-        const daiContract = new ethers.Contract(
-            daiAddress,
             IERC20Artifacts.abi,
             deployer
         );
@@ -54,7 +42,6 @@ describe("Balancer Handler Test", function () {
         let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
 
         await chainlinkOracle.deployed();
-        console.log("Chainlink Oracle deployed to:", chainlinkOracle.address, "\n");
 
         chainlinkOracle = new ethers.Contract(
             chainlinkOracle.address,
@@ -80,7 +67,6 @@ describe("Balancer Handler Test", function () {
         );
 
         await balancerHandler.deployed();
-        console.log("Balancer Handler deployed to:", balancerHandler.address, "\n");
 
         balancerHandler = new ethers.Contract(
             balancerHandler.address,
@@ -104,8 +90,6 @@ describe("Balancer Handler Test", function () {
 
         const intermidiateAmount = "0";
         const data = encodeData(balToken, intermidiateAmount, usdcBalPool, daiUsdcPool);
-
-        console.log("Before Balance ", Number(await daiContract.balanceOf(deployer.address)));
 
         await usdcContract.transfer(balancerHandler.address, inputAmount);
 
@@ -131,8 +115,6 @@ describe("Balancer Handler Test", function () {
             deployer.address,
             data
         );
-
-        console.log("After Balance ", Number(await daiContract.balanceOf(deployer.address)));
     });
 });
 
