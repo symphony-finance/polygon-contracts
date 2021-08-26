@@ -31,6 +31,8 @@ contract AaveYield is IYieldAdapter, Initializable {
     address public REWARD_TOKEN;
     uint16 public referralCode;
     bool public isExternalRewardEnabled;
+    address[] public aAssets;
+    address[] public underlyingAssets;
 
     mapping(bytes32 => uint256) public orderRewardDebt;
     mapping(address => uint256) public pendingRewards;
@@ -205,11 +207,15 @@ contract AaveYield is IYieldAdapter, Initializable {
     }
 
     /**
-     * @dev Used to approve max token from yield provider contract
+     * @dev Used to approve max token and add token for reward
      * @param asset the address of token
      **/
     function maxApprove(address asset) external override {
         address aToken = _getATokenAddress(asset);
+
+        aAssets.push(aToken);
+        underlyingAssets.push(asset);
+
         IERC20(asset).safeApprove(lendingPool, uint256(-1));
         IERC20(aToken).safeApprove(lendingPool, uint256(-1));
     }
@@ -222,6 +228,11 @@ contract AaveYield is IYieldAdapter, Initializable {
             amount <= userReward[msg.sender],
             "AaveYield::claimReward: Amount shouldn't execeed total reward"
         );
+
+        uint256 contractBal = IERC20(REWARD_TOKEN).balanceOf(address(this));
+        if (contractBal <= amount) {
+            _withdrawTotalReward();
+        }
 
         userReward[msg.sender] = userReward[msg.sender].sub(amount);
         IERC20(REWARD_TOKEN).safeTransfer(msg.sender, amount);
@@ -243,7 +254,6 @@ contract AaveYield is IYieldAdapter, Initializable {
         returns (uint256 amount)
     {
         address aToken = _getATokenAddress(asset);
-
         amount = IERC20(aToken).balanceOf(address(this));
     }
 
@@ -318,7 +328,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         isExternalRewardEnabled = _status;
     }
 
-    function updateIncetivizedController(address _incetivizedController)
+    function updateIncetivizesController(address _incetivizedController)
         external
         onlyGovernance
     {
@@ -329,6 +339,16 @@ contract AaveYield is IYieldAdapter, Initializable {
 
     function updateRewardToken(address _token) external onlyGovernance {
         REWARD_TOKEN = _token;
+    }
+
+    function removeRewardAsset(uint256 _assetIndex) external onlyGovernance {
+        aAssets[_assetIndex] = aAssets[aAssets.length - 1];
+        underlyingAssets[_assetIndex] = underlyingAssets[
+            underlyingAssets.length - 1
+        ];
+
+        aAssets.pop();
+        underlyingAssets.pop();
     }
 
     function updateAaveAddresses(
@@ -442,6 +462,33 @@ contract AaveYield is IYieldAdapter, Initializable {
             pendingRewards[asset] = currentPendingReward.sub(amount);
         } else {
             pendingRewards[asset] = 0;
+        }
+    }
+
+    /**
+     * @notice Withdraw all WMATIC reward
+     */
+    function _withdrawTotalReward() internal {
+        uint256 amount = incentivesController.getRewardsBalance(
+            aAssets,
+            address(this)
+        );
+
+        require(
+            amount > 0,
+            "AaveYield::_withdrawTotalReward: No reward to wthdraw!!"
+        );
+
+        uint256 returnAmount = incentivesController.claimRewards(
+            aAssets,
+            amount,
+            address(this)
+        );
+
+        if (returnAmount > 0) {
+            for (uint256 i = 0; i < underlyingAssets.length; i++) {
+                pendingRewards[underlyingAssets[i]] = 0;
+            }
         }
     }
 

@@ -148,10 +148,7 @@ describe("Migrate Strategy Test", () => {
         expect(Number(rewardBalance)).to.be.greaterThan(0);
 
         // withdrawing reward from Aave
-        await aaveYield.withdrawAaveReward(
-            usdcAddress,
-            rewardBalance
-        );
+        await aaveYield.withdrawAaveReward(usdcAddress);
 
         // Create reward token contract instance
         const rewardContract = new ethers.Contract(
@@ -277,7 +274,7 @@ describe("Migrate Strategy Test", () => {
         await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS);
 
         expect(Number(await usdcContract.balanceOf(symphony.address)))
-            .to.be.greaterThanOrEqual(Number(inputAmount));
+            .to.be.greaterThanOrEqual(Number(inputAmount) - 1);
     });
 
     it("Should revert if no existing strategy", async () => {
