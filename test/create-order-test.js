@@ -1,6 +1,8 @@
 const { expect } = require("chai");
 const { default: BigNumber } = require("bignumber.js");
 const config = require("../config/index.json");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
@@ -67,7 +69,8 @@ describe("Create Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
+                40, // 40 for 0.4 %,
+                ZERO_ADDRESS
             ]
         );
 
@@ -137,6 +140,7 @@ describe("Create Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -234,6 +238,7 @@ describe("Create Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -323,6 +328,7 @@ describe("Create Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -414,6 +420,7 @@ describe("Create Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -478,6 +485,7 @@ describe("Create Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -562,6 +570,7 @@ describe("Create Order Test", () => {
     //             deployer.address,
     //             deployer.address,
     //             40, // 40 for 0.4 %
+    //             ZERO_ADDRESS,
     //         ]
     //     );
 

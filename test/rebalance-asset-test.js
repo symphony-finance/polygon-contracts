@@ -1,12 +1,15 @@
 const { expect } = require("chai");
 const config = require("../config/index.json");
 const { default: BigNumber } = require("bignumber.js");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
 const SymphonyArtifacts = require(
     "../artifacts/contracts/Symphony.sol/Symphony.json"
 );
+
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const baseFeeInPercent = 40; // 0.04%
 const bufferPercent = 4000; // 30%
@@ -46,6 +49,7 @@ describe("Rebalance Asset Test", () => {
                 deployer.address,
                 deployer.address,
                 baseFeeInPercent,
+                ZERO_ADDRESS,
             ]
         );
 
@@ -171,6 +175,7 @@ describe("Rebalance Asset Test", () => {
                 deployer.address,
                 deployer.address,
                 baseFeeInPercent,
+                ZERO_ADDRESS,
             ]
         );
 

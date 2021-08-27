@@ -77,7 +77,8 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40
+                40,
+                ZERO_ADDRESS,
             ]
         );
 
@@ -135,6 +136,8 @@ describe("Execute Order Test", () => {
             daiAddress,
             "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
         );
+
+        await chainlinkOracle.updatePriceSlippage(100);
 
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
@@ -222,7 +225,8 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40
+                40,
+                ZERO_ADDRESS,
             ]
         );
 
@@ -278,6 +282,8 @@ describe("Execute Order Test", () => {
             daiAddress,
             "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
         );
+
+        await chainlinkOracle.updatePriceSlippage(100);
 
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");

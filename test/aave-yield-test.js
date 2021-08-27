@@ -2,6 +2,7 @@ const { expect } = require("chai");
 const { default: BigNumber } = require("bignumber.js");
 const config = require("../config/index.json");
 const { time } = require("@openzeppelin/test-helpers");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/mocks/MockAaveYield.sol/MockAaveYield.json"
@@ -295,6 +296,7 @@ describe("Aave Yield Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS
             ]
         );
 

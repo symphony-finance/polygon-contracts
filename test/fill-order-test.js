@@ -15,6 +15,7 @@ const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
 
+const totalFeePercent = 40;
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0x641fb9877b73823f41f0f25de666275e6e846e75";
@@ -38,9 +39,8 @@ const approveAmount = new BigNumber(100)
     )
     .toString();
 
-
-describe("Fill Order Test", function () {
-    it("Should fill order with own liquidity", async function () {
+describe("Fill Order Test", () => {
+    it("Should fill order with own liquidity", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -60,6 +60,29 @@ describe("Fill Order Test", function () {
             deployer
         );
 
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.addTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.addTokenFeed(
+            daiAddress,
+            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        );
+
+        await chainlinkOracle.updatePriceSlippage(100);
+
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
 
@@ -68,7 +91,8 @@ describe("Fill Order Test", function () {
             [
                 deployer.address,
                 deployer.address,
-                40
+                40,
+                chainlinkOracle.address
             ]
         );
 
@@ -104,43 +128,6 @@ describe("Fill Order Test", function () {
 
         await symphony.updateStrategy(daiAddress, aaveYield.address);
         await symphony.updateBufferPercentage(daiAddress, 4000);
-
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.addTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.addTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
-
-        sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
-            symphony.address
-        );
-
-        await sushiswapHandler.deployed();
-
-        // Add Handler
-        await symphony.addHandler(sushiswapHandler.address);
 
         await daiContract.approve(symphony.address, approveAmount);
 
@@ -186,11 +173,29 @@ describe("Fill Order Test", function () {
             newDeployer
         );
 
+        const quoteAmount = new BigNumber(16).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
         // Execute Order
-        await symphony.fillOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        await symphony.fillOrder(orderId, orderData, quoteAmount);
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(recipient);
+        const recipientReturn = getRecipientReturn(quoteAmount);
 
-        expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(Number(usdcBalBeforeExecute));
+        expect(Number(usdcBalAfterExecute))
+            .to.be.greaterThanOrEqual(
+                Number(usdcBalBeforeExecute) + Number(recipientReturn)
+            );
     });
 });
+
+
+const getRecipientReturn = (quoteAmount) => {
+    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
+
+    const recipientAmount = new BigNumber(quoteAmount)
+        .times(100 - _totalFeePercent).dividedBy(100);
+
+    return recipientAmount;
+}

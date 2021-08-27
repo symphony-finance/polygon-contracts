@@ -58,7 +58,7 @@ struct HandlerDataParams {
 }
 
 /// @notice Balancer Handler used to execute an order
-contract BalancerHandler is IHandler {
+contract MockBalancerHandler is IHandler {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
@@ -106,7 +106,7 @@ contract BalancerHandler is IHandler {
         address executor,
         address treasury,
         bytes calldata handlerdata
-    ) external override onlySymphony {
+    ) external override {
         IERC20(order.inputToken).safeApprove(address(vault), order.inputAmount);
 
         // Swap Tokens

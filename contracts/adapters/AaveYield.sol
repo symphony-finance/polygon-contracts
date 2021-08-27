@@ -157,23 +157,27 @@ contract AaveYield is IYieldAdapter, Initializable {
 
     /**
      * @notice Withdraw WMATIC reward from Aave
-     * @param _asset underlying asset address
-     * @param _amount Amount to withdraw (check using getRewardsBalance)
+     * @param asset underlying asset address
      */
-    function withdrawAaveReward(address _asset, uint256 _amount) external {
-        address aToken = _getATokenAddress(_asset);
+    function withdrawAaveReward(address asset) external {
+        address aToken = _getATokenAddress(asset);
 
         address[] memory assets = new address[](1);
         assets[0] = aToken;
 
+        uint256 amount = incentivesController.getRewardsBalance(
+            assets,
+            address(this)
+        );
+
         uint256 returnAmount = incentivesController.claimRewards(
             assets,
-            _amount,
+            amount,
             address(this)
         );
 
         if (returnAmount > 0) {
-            _updatePendingReward(_asset, returnAmount);
+            pendingRewards[asset] = 0;
         }
     }
 
@@ -454,15 +458,6 @@ contract AaveYield is IYieldAdapter, Initializable {
         pendingRewards[_asset] = totalRewardBalance;
         previousAccRewardPerShare[_asset] = accRewardPerShare;
         userReward[_recipient] = userReward[_recipient].add(reward);
-    }
-
-    function _updatePendingReward(address asset, uint256 amount) internal {
-        uint256 currentPendingReward = pendingRewards[asset];
-        if (amount <= currentPendingReward) {
-            pendingRewards[asset] = currentPendingReward.sub(amount);
-        } else {
-            pendingRewards[asset] = 0;
-        }
     }
 
     /**

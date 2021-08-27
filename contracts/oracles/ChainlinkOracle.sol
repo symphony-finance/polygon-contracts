@@ -1,25 +1,22 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.7.4;
 
-import "../interfaces/IERC20WithDecimal.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ChainlinkOracle {
+import "../libraries/PercentageMath.sol";
+import "../interfaces/IERC20WithDecimal.sol";
+
+contract ChainlinkOracle is Ownable {
     using SafeMath for uint256;
+    using PercentageMath for uint256;
 
-    address owner;
+    uint256 priceSlippage = 50; // 0.5%
+
     mapping(address => address) public oracleFeed;
 
-    modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "ChainlinkOracle: Only owner contract can invoke this function"
-        );
-        _;
-    }
-
     constructor(address _owner) {
-        owner = _owner;
+        transferOwnership(_owner);
     }
 
     // Calculates the lastest exchange rate
@@ -67,10 +64,18 @@ contract ChainlinkOracle {
                 );
             }
         }
+
+        oracleAmount = oracleAmount.percentMul(
+            uint256(10000).sub(priceSlippage)
+        );
     }
 
     function addTokenFeed(address asset, address feed) external onlyOwner {
         oracleFeed[asset] = feed;
+    }
+
+    function updatePriceSlippage(uint256 newSlippage) external onlyOwner {
+        priceSlippage = newSlippage;
     }
 }
 

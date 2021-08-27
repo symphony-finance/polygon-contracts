@@ -34,7 +34,6 @@ interface IHandler {
      * @param _inputAmount - uint256 of the input token amount
      * @param _minReturnAmount - uint256 minimum return output token
      * @param _stoplossAmount - uint256 stoploss amount
-     * @param _feePercent - uint256 total execution fee percent
      * @param _data - Bytes of arbitrary data
      * @return bool - Whether the execution can be handled or not
      */
@@ -44,7 +43,6 @@ interface IHandler {
         uint256 _inputAmount,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount,
-        uint256 _feePercent,
         bytes calldata _data
     ) external view returns (bool);
 
@@ -55,10 +53,9 @@ interface IHandler {
      * @param _inputAmount - uint256 of the input token amount
      * @param _minReturnAmount - uint256 minimum return output token
      * @param _stoplossAmount - uint256 stoploss amount
-     * @param _feePercent - uint256 execution fee percent
      * @param _data - Bytes of arbitrary data
      * @return success - Whether the execution can be handled or not
-     * @return bought - Amount of output token bought
+     * @return amountOut - Amount of output token bought
      */
     function simulate(
         address _inputToken,
@@ -66,7 +63,6 @@ interface IHandler {
         uint256 _inputAmount,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount,
-        uint256 _feePercent,
         bytes calldata _data
-    ) external view returns (bool success, uint256 bought);
+    ) external view returns (bool success, uint256 amountOut);
 }

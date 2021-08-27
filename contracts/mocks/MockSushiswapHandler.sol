@@ -13,7 +13,7 @@ import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
 
 /// @notice Sushiswap Handler used to execute an order
-contract SushiswapHandler is IHandler {
+contract MockSushiswapHandler is IHandler {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
@@ -76,7 +76,7 @@ contract SushiswapHandler is IHandler {
         address executor,
         address treasury,
         bytes calldata
-    ) external override onlySymphony {
+    ) external override {
         (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
             order.inputToken,
             order.outputToken,
@@ -131,6 +131,9 @@ contract SushiswapHandler is IHandler {
             _inputAmount
         );
 
+        // uint256 fee = bought.percentMul(_feePercent);
+        // uint256 amountOut = bought.sub(fee);
+
         uint256 oracleAmount = oracle.get(
             _inputToken,
             _outputToken,
@@ -164,6 +167,9 @@ contract SushiswapHandler is IHandler {
             _outputToken,
             _inputAmount
         );
+
+        // uint256 totalFee = amountOut.percentMul(_feePercent);
+        // amountOut = amountOut.sub(totalFee);
 
         uint256 oracleAmount = oracle.get(
             _inputToken,
@@ -231,7 +237,7 @@ contract SushiswapHandler is IHandler {
         address treasury,
         uint256 feePercent,
         uint256 protcolFeePercent
-    ) internal {
+    ) public {
         uint256 protocolFee;
         uint256 totalFee = amount.percentMul(feePercent);
 
@@ -239,6 +245,7 @@ contract SushiswapHandler is IHandler {
 
         if (treasury != address(0)) {
             protocolFee = totalFee.percentMul(protcolFeePercent);
+
             IERC20(token).safeTransfer(treasury, protocolFee);
         }
 

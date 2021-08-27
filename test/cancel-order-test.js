@@ -3,6 +3,8 @@ const { default: BigNumber } = require("bignumber.js");
 const { BigNumber: EthersBN } = require('ethers');
 const config = require("../config/index.json");
 const { time } = require("@openzeppelin/test-helpers");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
@@ -60,6 +62,7 @@ describe("Cancel Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS
             ]
         );
 
@@ -142,6 +145,7 @@ describe("Cancel Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -271,7 +275,8 @@ describe("Cancel Order Test", () => {
     //         [
     //             deployer.address,
     //             deployer.address,
-    //             40, // 40 for 0.4 %
+    //             40, // 40 for 0.4 %,
+    //             ZERO_ADDRESS
     //         ]
     //     );
 
