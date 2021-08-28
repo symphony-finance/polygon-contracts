@@ -11,6 +11,9 @@ const IERC20Artifacts = require(
 const SymphonyArtifacts = require(
     "../artifacts/contracts/Symphony.sol/Symphony.json"
 );
+const AaveYieldArtifacts = require(
+    "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
+);
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -238,8 +241,248 @@ describe("Cancel Order Test", () => {
             orderId1,
             orderData1
         );
+    });
 
-        // console.log(Number(await aaveYield.userReward(deployer.address)));
+    it("Should cancel order when strategy removed after creating the order", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Symphony Contract
+        const Symphony = await ethers.getContractFactory("Symphony");
+
+        let symphony = await upgrades.deployProxy(
+            Symphony,
+            [
+                deployer.address,
+                deployer.address,
+                40,
+                ZERO_ADDRESS,
+            ]
+        );
+
+        await symphony.deployed();
+        symphony = new ethers.Contract(
+            symphony.address,
+            SymphonyArtifacts.abi,
+            deployer
+        );
+
+        // Deploy AaveYield Contract
+        const AaveYield = await hre.ethers.getContractFactory("AaveYield");
+
+        const configParams = config.mainnet;
+        let aaveYield = await upgrades.deployProxy(
+            AaveYield,
+            [
+                symphony.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
+        );
+
+        await aaveYield.deployed();
+        aaveYield = new ethers.Contract(
+            aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
+
+        const bufferPercent = 40;
+
+        await symphony.updateStrategy(usdcAddress, aaveYield.address);
+        await symphony.updateBufferPercentage(usdcAddress, bufferPercent * 100);
+
+        await usdcContract.approve(symphony.address, approveAmount);
+
+        // Create Order
+        const tx = await symphony.createOrder(
+            deployer.address,
+            usdcAddress,
+            daiAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount
+        );
+
+        const receipt = await tx.wait();
+        const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
+
+        const orderId = events[0].args[0];
+        const orderData = events[0].args[1];
+
+        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber(bufferPercent / 100)
+            ))
+        );
+        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber((100 - bufferPercent) / 100)
+            ))
+        );
+
+        // Remove yield strategy
+        await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS);
+
+        expect(await usdcContract.balanceOf(symphony.address)).to.eq(inputAmount);
+        expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
+
+        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
+
+        // Execute Order
+        await symphony.cancelOrder(orderId, orderData);
+
+        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
+
+        expect(usdcBalAfterExecute).to.be.eq(usdcBalBeforeExecute.add(inputAmount));
+    });
+
+    it("Should cancel order when strategy migrated after creating the order", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Symphony Contract
+        const Symphony = await ethers.getContractFactory("Symphony");
+
+        let symphony = await upgrades.deployProxy(
+            Symphony,
+            [
+                deployer.address,
+                deployer.address,
+                40,
+                ZERO_ADDRESS,
+            ]
+        );
+
+        await symphony.deployed();
+        symphony = new ethers.Contract(
+            symphony.address,
+            SymphonyArtifacts.abi,
+            deployer
+        );
+
+        // Deploy AaveYield Contract
+        const AaveYield = await hre.ethers.getContractFactory("AaveYield");
+
+        const configParams = config.mainnet;
+        let aaveYield = await upgrades.deployProxy(
+            AaveYield,
+            [
+                symphony.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
+        );
+
+        await aaveYield.deployed();
+        aaveYield = new ethers.Contract(
+            aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
+
+        const bufferPercent = 40;
+
+        await symphony.updateStrategy(usdcAddress, aaveYield.address);
+        await symphony.updateBufferPercentage(usdcAddress, bufferPercent * 100);
+
+        await usdcContract.approve(symphony.address, approveAmount);
+
+        // Create Order
+        const tx = await symphony.createOrder(
+            deployer.address,
+            usdcAddress,
+            daiAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount
+        );
+
+        const receipt = await tx.wait();
+        const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
+
+        const orderId = events[0].args[0];
+        const orderData = events[0].args[1];
+
+        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber(bufferPercent / 100)
+            ))
+        );
+        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber((100 - bufferPercent) / 100)
+            ))
+        );
+
+        const aaveYieldNew = await upgrades.deployProxy(
+            AaveYield,
+            [
+                symphony.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
+        );
+
+        await aaveYield.deployed();
+
+        // Migrate startegy to new contract
+        await symphony.migrateStrategy(usdcAddress, aaveYieldNew.address);
+
+        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber(bufferPercent / 100)
+            ))
+        );
+        expect(Number(await aaveYieldNew.getTotalUnderlying(usdcAddress))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber((100 - bufferPercent) / 100)
+            ))
+        );
+        expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
+
+        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
+
+        // Execute Order
+        await symphony.cancelOrder(orderId, orderData);
+
+        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
+
+        expect(usdcBalAfterExecute).to.be.eq(usdcBalBeforeExecute.add(inputAmount));
     });
 
     // it("Should cancel order with Mstable yield strategy", async () => {

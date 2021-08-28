@@ -208,7 +208,8 @@ describe("Create Order Test", () => {
             deployer
         );
 
-        expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(inputAmount);
+        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress)))
+            .to.greaterThanOrEqual(Number(inputAmount) - 1);
     });
 
     it("Should create order with yield strategy & 100% buffer", async () => {
@@ -365,9 +366,11 @@ describe("Create Order Test", () => {
             aaveYield.address,
         );
 
+        const bufferPercent = 40; // 40%
+
         await symphony.updateBufferPercentage(
             usdcAddress,
-            4000, // 40%
+            bufferPercent * 100, // 4000
         );
 
         // Create Order
@@ -391,6 +394,18 @@ describe("Create Order Test", () => {
         );
 
         expect(orderStatus).to.be.true;
+
+        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+            Number(new BigNumber(inputAmount).times(
+                new BigNumber(bufferPercent / 100)
+            ))
+        );
+        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress)))
+            .to.greaterThanOrEqual(
+                Number(new BigNumber(inputAmount).times(
+                    new BigNumber((100 - bufferPercent) / 100)
+                ))
+            );
     });
 
     it("Shouldn't create order with same order id", async () => {

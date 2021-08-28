@@ -332,13 +332,11 @@ contract AaveYield is IYieldAdapter, Initializable {
         isExternalRewardEnabled = _status;
     }
 
-    function updateIncetivizesController(address _incetivizedController)
+    function updateIncentivesController(address _incetivesController)
         external
         onlyGovernance
     {
-        incentivesController = IAaveIncentivesController(
-            _incetivizedController
-        );
+        incentivesController = IAaveIncentivesController(_incetivesController);
     }
 
     function updateRewardToken(address _token) external onlyGovernance {

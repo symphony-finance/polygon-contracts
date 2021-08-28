@@ -21,12 +21,19 @@ const balAddress = "0xba100000625a3754423978a60c9317c58a424e3D";
 const daiUsdcPool = "0x148ce9b50be946a96e94a4f5479b771bab9b1c59000100000000000000000054";
 const usdcBalPool = "0x9c08c7a7a89cfd671c79eacdc6f07c1996277ed5000200000000000000000025";
 
+const configParams = config.mainnet;
+const totalFeePercent = 40; // 0.4%;
+const protocolFeePercent = 2500; // 0.1%
+const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
+const executor = "0x86A2EE8FAf9A840F7a2c64CA3d51209F9A02081D";
+const treasury = "0x49fd2BE640DB2910c2fAb69bB8531Ab6E76127ff";
+
 const inputAmount = new BigNumber(1).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
 ).toString();
 
 describe("Balancer Handler Test", () => {
-    it("Should swap with one hop", async () => {
+    it("Should swap with no hop", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -36,7 +43,6 @@ describe("Balancer Handler Test", () => {
             "0xAb7677859331f95F25A3e7799176f7239feb5C44"
         );
         deployer.address = deployer._address;
-        configParams = config.mainnet;
 
         // Create USDC contract instance
         const usdcContract = new ethers.Contract(
@@ -96,10 +102,10 @@ describe("Balancer Handler Test", () => {
         ).toString();
 
         const order = {
-            recipient: deployer.address,
+            recipient,
             inputToken: usdcAddress,
             outputToken: balAddress,
-            inputAmount: inputAmount,
+            inputAmount,
             minReturnAmount,
             stoplossAmount: 0,
             shares: 0,
@@ -112,21 +118,41 @@ describe("Balancer Handler Test", () => {
             deployer
         );
 
-        const balBalanceBefore = await balContract.balanceOf(deployer.address);
+        const recipientBalBefore = await balContract.balanceOf(recipient);
+        const executorBalBefore = await balContract.balanceOf(executor);
+        const treasuryBalBefore = await balContract.balanceOf(treasury);
 
         await balancerHandler.handle(
             order,
-            40,
-            2500,
-            deployer.address, // false executor
-            deployer.address, // false treasury
+            totalFeePercent,
+            protocolFeePercent,
+            executor,
+            treasury,
             data
         );
 
-        const balBalanceAfter = await balContract.balanceOf(deployer.address);
+        const recipientBalAfter = await balContract.balanceOf(recipient);
+        const executorBalAfter = await balContract.balanceOf(executor);
+        const treasuryBalAfter = await balContract.balanceOf(treasury);
 
-        expect(Number(balBalanceAfter)).to.be
-            .greaterThan(Number(balBalanceBefore.add(minReturnAmount)));
+        const result = getParticipantsDividend(minReturnAmount);
+
+        expect(Number(recipientBalAfter)).to.be.greaterThanOrEqual(
+            Number(result.recipientAmount.plus(
+                new BigNumber(recipientBalBefore.toString()))
+            )
+        );
+
+        expect(Number(executorBalAfter)).to.be.greaterThanOrEqual(
+            Number(result.executorFee.plus(
+                new BigNumber(executorBalBefore.toString()))
+            )
+        );
+        expect(Number(treasuryBalAfter)).to.be.greaterThanOrEqual(
+            Number(result.protocolFee.plus(
+                new BigNumber(treasuryBalBefore.toString()))
+            )
+        );
     });
 
     it("Should swap token with two hop", async () => {
@@ -139,7 +165,6 @@ describe("Balancer Handler Test", () => {
             "0xAb7677859331f95F25A3e7799176f7239feb5C44"
         );
         deployer.address = deployer._address;
-        configParams = config.mainnet;
 
         // Create USDC contract instance
         const usdcContract = new ethers.Contract(
@@ -201,11 +226,22 @@ describe("Balancer Handler Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        const recipientBalBefore = await daiContract.balanceOf(recipient);
+        const executorBalBefore = await daiContract.balanceOf(executor);
+        const treasuryBalBefore = await daiContract.balanceOf(treasury);
+
         const order = {
-            recipient: deployer.address,
+            recipient,
             inputToken: usdcAddress,
             outputToken: daiAddress,
-            inputAmount: inputAmount,
+            inputAmount,
             minReturnAmount,
             stoplossAmount,
             shares: 0,
@@ -213,11 +249,44 @@ describe("Balancer Handler Test", () => {
 
         await balancerHandler.handle(
             order,
-            40,
-            2500,
-            deployer.address,
-            deployer.address,
+            totalFeePercent,
+            protocolFeePercent,
+            executor,
+            treasury,
             data
+        );
+
+        const recipientBalAfter = await daiContract.balanceOf(recipient);
+        const executorBalAfter = await daiContract.balanceOf(executor);
+        const treasuryBalAfter = await daiContract.balanceOf(treasury);
+
+        const result = getParticipantsDividend(stoplossAmount);
+
+        expect(Number(recipientBalAfter)).to.be
+            .greaterThan(Number(recipientBalBefore));
+
+        expect(Number(recipientBalAfter)).to.be.lessThan(
+            Number(result.recipientAmount.plus(
+                new BigNumber(recipientBalBefore.toString()))
+            )
+        );
+
+        expect(Number(recipientBalAfter)).to.be
+            .greaterThan(Number(recipientBalBefore));
+
+        expect(Number(executorBalAfter)).to.be.lessThan(
+            Number(result.executorFee.plus(
+                new BigNumber(executorBalBefore.toString()))
+            )
+        );
+
+        expect(Number(recipientBalAfter)).to.be
+            .greaterThan(Number(recipientBalBefore));
+
+        expect(Number(treasuryBalAfter)).to.be.lessThan(
+            Number(result.protocolFee.plus(
+                new BigNumber(treasuryBalBefore.toString()))
+            )
         );
     });
 });
@@ -229,4 +298,24 @@ const encodeData = (intermidiate, intermidiateAmount, poolA, poolB) => {
         ['address', 'uint256', 'bytes32', 'bytes32'],
         [intermidiate, intermidiateAmount, poolA, poolB]
     )
+}
+
+const getParticipantsDividend = (amount) => {
+    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
+
+    const _protocolFeePercent = _totalFeePercent.times(
+        protocolFeePercent / 10000
+    );
+    const _executorFeePercent = _totalFeePercent.minus(
+        _protocolFeePercent
+    );
+
+    const recipientAmount = new BigNumber(amount)
+        .times(100 - _totalFeePercent).dividedBy(100);
+    const executorFee = new BigNumber(amount)
+        .times(_executorFeePercent).dividedBy(100);
+    const protocolFee = new BigNumber(amount)
+        .times(_protocolFeePercent).dividedBy(100);
+
+    return { recipientAmount, executorFee, protocolFee };
 }

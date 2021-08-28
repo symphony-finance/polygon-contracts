@@ -165,4 +165,12 @@ describe("Chainlink Oracle Test", () => {
             "Oracle feed doesn't exist for the output asset."
         );
     });
+
+    // TODO: Complete this test
+    it("should work for small value", async () => {
+    });
+
+    // TODO: Complete this test
+    it("should work for large value", async () => {
+    });
 });

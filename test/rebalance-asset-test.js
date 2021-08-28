@@ -47,7 +47,7 @@ describe("Rebalance Asset Test", () => {
             Symphony,
             [
                 deployer.address,
-                deployer.address,
+                ZERO_ADDRESS,
                 baseFeeInPercent,
                 ZERO_ADDRESS,
             ]
@@ -92,8 +92,6 @@ describe("Rebalance Asset Test", () => {
             IERC20Artifacts.abi,
             deployer
         );
-
-        expect(await daiContract.balanceOf(symphony.address)).to.eq(0);
 
         // Transfer Token
         await daiContract.transfer(symphony.address, depositAmount);
@@ -144,15 +142,15 @@ describe("Rebalance Asset Test", () => {
             newBufferPercent,
         );
 
-        const contractBufferBalance = Number(
+        const balanceInContract = Number(
             await daiContract.balanceOf(symphony.address)
         );
 
         expect(
-            contractBufferBalance
+            balanceInContract
         ).to.greaterThanOrEqual(Number(updatedBufferBalance));
 
-        expect(contractBufferBalance).to.lessThan(Number(bufferBalanceNew));
+        expect(balanceInContract).to.lessThan(Number(bufferBalanceNew));
     });
 
     it("Should revert for no strategy", async () => {

@@ -192,6 +192,10 @@ describe("Execute Order Test", () => {
         );
     });
 
+    // TODO: Complete this test
+    it("Should execute order with Balancer Handler & Aave Yield", async () => {
+    });
+
     it("Should execute existing order if strategy removed", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",

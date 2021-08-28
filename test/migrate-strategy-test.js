@@ -41,7 +41,7 @@ const approveAmount = new BigNumber(100)
     .toString();
 
 describe("Migrate Strategy Test", () => {
-    it("Should migrate existing strategy to new strategy", async () => {
+    it("Should migrate existing strategy to new strategy and transfer assets to new stratregy", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -133,12 +133,12 @@ describe("Migrate Strategy Test", () => {
             stoplossAmount
         );
 
-        const requiredMinBufferBal = Number(inputAmount) * (
+        const strategyBal = Number(inputAmount) * (
             (10000 - bufferPercent) / 10000
         );
 
         expect(Number(await aUsdcInstance.balanceOf(aaveYield.address)))
-            .to.eq(requiredMinBufferBal);
+            .to.eq(strategyBal);
 
         for (let i = 0; i < 100; ++i) {
             await time.advanceBlock();
@@ -185,7 +185,11 @@ describe("Migrate Strategy Test", () => {
 
         expect(await aUsdcInstance.balanceOf(aaveYield.address)).to.eq(0);
         expect(Number(await aUsdcInstance.balanceOf(aaveYieldNew.address)))
-            .to.be.greaterThanOrEqual(requiredMinBufferBal);
+            .to.be.greaterThanOrEqual(strategyBal);
+
+        expect(
+            Number(await rewardContract.balanceOf(aaveYield.address))
+        ).greaterThanOrEqual(Number(rewardBalance));
     });
 
     it("Should remove strategy of an asset", async () => {
