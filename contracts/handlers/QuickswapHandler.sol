@@ -123,17 +123,13 @@ contract QuickswapHandler is IHandler {
         uint256 _inputAmount,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount,
-        uint256 _feePercent,
         bytes calldata
     ) external view override returns (bool) {
-        (uint256 bought, ) = getPathAndAmountOut(
+        (uint256 amountOut, ) = getPathAndAmountOut(
             _inputToken,
             _outputToken,
             _inputAmount
         );
-
-        uint256 totalFee = bought.percentMul(_feePercent);
-        uint256 amountOut = bought.sub(totalFee);
 
         uint256 oracleAmount = oracle.get(
             _inputToken,
@@ -141,9 +137,8 @@ contract QuickswapHandler is IHandler {
             _inputAmount
         );
 
-        return
-            (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
-            (amountOut <= _stoplossAmount && oracleAmount <= _stoplossAmount);
+        return ((amountOut >= _minReturnAmount ||
+            amountOut <= _stoplossAmount) && amountOut >= oracleAmount);
     }
 
     /**
@@ -153,9 +148,8 @@ contract QuickswapHandler is IHandler {
      * @param _inputAmount - uint256 of the input token amount
      * @param _minReturnAmount - uint256 of the max return amount of output token
      * @param _stoplossAmount - uint256 stoploss amount
-     * @param _feePercent - uint256 execution fee percent
      * @return success - Whether the execution can be handled or not
-     * @return bought - Amount of output token bought
+     * @return amountOut - Amount of output token bought
      */
     function simulate(
         address _inputToken,
@@ -163,26 +157,23 @@ contract QuickswapHandler is IHandler {
         uint256 _inputAmount,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount,
-        uint256 _feePercent,
         bytes calldata
-    ) external view override returns (bool success, uint256 bought) {
-        (bought, ) = getPathAndAmountOut(
+    ) external view override returns (bool success, uint256 amountOut) {
+        (amountOut, ) = getPathAndAmountOut(
             _inputToken,
             _outputToken,
             _inputAmount
         );
 
-        uint256 fee = bought.percentMul(_feePercent);
-        uint256 amountOut = bought.sub(fee);
-        uint256 oracleAmount = 0;
-
-        if (_stoplossAmount > 0) {
-            oracleAmount = oracle.get(_inputToken, _outputToken, _inputAmount);
-        }
+        uint256 oracleAmount = oracle.get(
+            _inputToken,
+            _outputToken,
+            _inputAmount
+        );
 
         return (
-            (amountOut >= _minReturnAmount && amountOut >= oracleAmount) ||
-                (amountOut <= _stoplossAmount && amountOut <= oracleAmount),
+            ((amountOut >= _minReturnAmount || amountOut <= _stoplossAmount) &&
+                amountOut >= oracleAmount),
             amountOut
         );
     }

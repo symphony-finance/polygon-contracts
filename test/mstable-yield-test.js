@@ -1,13 +1,17 @@
 const { expect } = require("chai");
 const { default: BigNumber } = require("bignumber.js");
 const config = require("../config/index.json");
+const {
+    ZERO_ADDRESS,
+    ZERO_BYTES32,
+} = require("@openzeppelin/test-helpers/src/constants");
+
 const MstableYieldArtifacts = require(
     "../artifacts/contracts/mocks/MockMstableYield.sol/MockMstableYield.json"
 );
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
-const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
 describe("Mstable Yield Test", function () {
@@ -22,12 +26,6 @@ describe("Mstable Yield Test", function () {
         );
         deployer.address = deployer._address;
 
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
-
-
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
 
@@ -37,6 +35,7 @@ describe("Mstable Yield Test", function () {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
@@ -75,7 +74,7 @@ describe("Mstable Yield Test", function () {
 
         await mstableYield.deposit(usdcAddress, amount);
 
-        const iouTokenBalance = await mstableYield.getTokensForShares(usdcAddress);
+        const iouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
         const outputAmount = new BigNumber(0.99).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
@@ -84,7 +83,7 @@ describe("Mstable Yield Test", function () {
 
         await mstableYield.withdraw(usdcAddress, outputAmount, 0, 0, ZERO_ADDRESS, ZERO_BYTES32);
 
-        const newIouTokenBalance = await mstableYield.getTokensForShares(usdcAddress);
+        const newIouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
         const remainingAmount = new BigNumber(0.01).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();

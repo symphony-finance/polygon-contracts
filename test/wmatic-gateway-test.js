@@ -1,10 +1,11 @@
 const { expect } = require("chai");
 const config = require("../config/index.json");
 const { default: BigNumber } = require("bignumber.js");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
-describe("WMATICGateway Test", function () {
+describe("WMATIC Gateway Test", function () {
     it("Should create order with MATIC token", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
@@ -17,10 +18,6 @@ describe("WMATICGateway Test", function () {
         deployer.address = deployer._address;
 
         const configParams = config.mainnet;
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
 
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
@@ -31,11 +28,11 @@ describe("WMATICGateway Test", function () {
                 deployer.address,
                 deployer.address,
                 40, // 40 for 0.4 %
+                ZERO_ADDRESS,
             ]
         );
 
         await symphony.deployed();
-        console.log("Symphony contract deployed to:", symphony.address, "\n");
 
         // Deploy WMATICGateway Contract
         const WETHGateway = await ethers.getContractFactory("WMATICGateway");
@@ -50,7 +47,6 @@ describe("WMATICGateway Test", function () {
         );
 
         await wethGateway.deployed();
-        console.log("WETHGateway deployed to:", wethGateway.address, "\n");
 
         const depositAmount = new BigNumber(10).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
@@ -65,7 +61,7 @@ describe("WMATICGateway Test", function () {
         ).toString();
 
         // Create Order
-        const tx = await wethGateway.createMaticOrder(
+        await wethGateway.createMaticOrder(
             deployer.address,
             usdcAddress,
             minReturnAmount,

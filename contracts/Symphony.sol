@@ -10,6 +10,7 @@ import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import "./libraries/PercentageMath.sol";
+import "./interfaces/IOracle.sol";
 import "./interfaces/IHandler.sol";
 import "./interfaces/IYieldAdapter.sol";
 import "./interfaces/IOrderStructs.sol";
@@ -36,6 +37,9 @@ contract Symphony is
 
     /// Protocol fee: BASE_FEE - RELAYER_FEE
     uint256 public PROTOCOL_FEE_PERCENT;
+
+    /// Oracle
+    IOracle public oracle;
 
     mapping(address => address) public strategy;
     mapping(bytes32 => bytes32) public orderHash;
@@ -75,7 +79,8 @@ contract Symphony is
     function initialize(
         address _owner,
         address _emergencyAdmin,
-        uint256 _baseFee
+        uint256 _baseFee,
+        IOracle _oracle
     ) external initializer {
         BASE_FEE = _baseFee;
         __Ownable_init();
@@ -83,6 +88,7 @@ contract Symphony is
         __ReentrancyGuard_init();
         super.transferOwnership(_owner);
         emergencyAdmin = _emergencyAdmin;
+        oracle = _oracle;
     }
 
     /**
@@ -299,7 +305,6 @@ contract Symphony is
                 myOrder.inputAmount,
                 myOrder.minReturnAmount,
                 myOrder.stoplossAmount,
-                BASE_FEE,
                 _handlerData
             ),
             "Symphony::executeOrder: Handler Can't handle this tx"
@@ -351,13 +356,8 @@ contract Symphony is
     function fillOrder(
         bytes32 orderId,
         bytes calldata _orderData,
-        address payable _handler,
-        bytes memory _handlerData
+        uint256 quoteAmount
     ) external nonReentrant whenNotPaused {
-        require(
-            isRegisteredHandler[_handler],
-            "Symphony::fillOrder: Handler doesn't exists"
-        );
         require(
             orderHash[orderId] == keccak256(_orderData),
             "Symphony::fillOrder: Order doesn't match"
@@ -379,15 +379,15 @@ contract Symphony is
             myOrder.shares
         );
 
-        (bool success, uint256 estimatedAmount) = IHandler(_handler).simulate(
+        uint256 oracleAmount = oracle.get(
             myOrder.inputToken,
             myOrder.outputToken,
-            depositPlusYield,
-            myOrder.minReturnAmount,
-            myOrder.stoplossAmount,
-            BASE_FEE,
-            _handlerData
+            depositPlusYield
         );
+
+        bool success = ((quoteAmount >= myOrder.minReturnAmount ||
+            quoteAmount <= myOrder.stoplossAmount) &&
+            quoteAmount >= oracleAmount);
 
         require(success, "Symphony::fillOrder: Fill condition doesn't satisfy");
 
@@ -405,13 +405,13 @@ contract Symphony is
             );
         }
 
-        uint256 totalFee = estimatedAmount.percentMul(BASE_FEE);
+        uint256 totalFee = quoteAmount.percentMul(BASE_FEE);
 
         // caution: external calls to unknown address
         IERC20(myOrder.outputToken).safeTransferFrom(
             msg.sender,
             myOrder.recipient,
-            estimatedAmount.sub(totalFee)
+            quoteAmount.sub(totalFee)
         );
 
         if (PROTOCOL_FEE_PERCENT > 0 && treasury != address(0)) {
@@ -597,6 +597,13 @@ contract Symphony is
     }
 
     /**
+     * @notice Update the oracle
+     */
+    function updateOracle(IOracle _oracle) external onlyOwner {
+        oracle = _oracle;
+    }
+
+    /**
      * @notice Add a token for rewards earning
      */
     function addTokenForReward(address _token) external onlyOwner {
@@ -642,22 +649,26 @@ contract Symphony is
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(address _asset, address _newStrategy)
+    function migrateStrategy(address asset, address newStrategy)
         external
         onlyOwner
     {
-        address previousStrategy = strategy[_asset];
+        address previousStrategy = strategy[asset];
         require(
             previousStrategy != address(0),
             "Symphony::migrateStrategy: no strategy for asset exists!!"
         );
+        require(
+            previousStrategy != newStrategy,
+            "Symphony::migrateStrategy: new startegy shouldn't be same!!"
+        );
 
-        IYieldAdapter(previousStrategy).withdrawAll(_asset);
+        IYieldAdapter(previousStrategy).withdrawAll(asset);
 
-        if (_newStrategy != address(0)) {
-            _updateAssetStrategy(_asset, _newStrategy);
+        if (newStrategy != address(0)) {
+            _updateAssetStrategy(asset, newStrategy);
         } else {
-            strategy[_asset] = _newStrategy;
+            strategy[asset] = newStrategy;
         }
     }
 
@@ -825,12 +836,6 @@ contract Symphony is
         ) {
             emit AssetStrategyUpdated(_asset, _strategy);
 
-            if (
-                previousStrategy != _strategy && previousStrategy != address(0)
-            ) {
-                rebalanceAsset(_asset);
-            }
-
             // caution: external call to unknown address
             IERC20(_asset).safeApprove(_strategy, uint256(-1));
             IYieldAdapter(_strategy).maxApprove(_asset);
@@ -841,6 +846,12 @@ contract Symphony is
             IERC20(iouToken).safeApprove(_strategy, uint256(-1));
 
             strategy[_asset] = _strategy;
+
+            if (
+                previousStrategy != _strategy && previousStrategy != address(0)
+            ) {
+                rebalanceAsset(_asset);
+            }
         }
     }
 }

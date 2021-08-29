@@ -11,33 +11,47 @@ const SymphonyArtifacts = require(
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
 );
+const ChainlinkArtifacts = require(
+    "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
+);
 
+const totalFeePercent = 40;
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const recipient = "0x641fb9877b73823f41f0f25de666275e6e846e75";
 
-describe("Fill Order Test", function () {
-    it("Should fill order with own liquidity", async function () {
+const inputAmount = new BigNumber(10).times(
+    new BigNumber(10).exponentiatedBy(new BigNumber(18))
+).toString();
+
+const minReturnAmount = new BigNumber(15).times(
+    new BigNumber(10).exponentiatedBy(new BigNumber(6))
+).toString();
+
+const stoplossAmount = new BigNumber(9.99).times(
+    new BigNumber(10).exponentiatedBy(new BigNumber(6))
+).toString();
+
+const approveAmount = new BigNumber(100)
+    .times(
+        new BigNumber(10)
+            .exponentiatedBy(new BigNumber(18))
+    )
+    .toString();
+
+describe("Fill Order Test", () => {
+    it("Should fill order with own liquidity", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
-            params: ["0x641fb9877b73823f41f0f25de666275e6e846e75"]
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
         });
 
         const deployer = await ethers.provider.getSigner(
-            "0x641fb9877b73823f41f0f25de666275e6e846e75"
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
         );
         deployer.address = deployer._address;
 
-        console.log(
-            "Deploying contracts with the account:",
-            deployer.address, "\n"
-        );
-
         let configParams = config.mainnet;
-        if (network.name === "mainnet") {
-            configParams = config.mainnet;
-        } else if (network.name === "mumbai") {
-            configParams = config.mumbai;
-        }
 
         // Create DAI contract instance
         const daiContract = new ethers.Contract(
@@ -46,6 +60,29 @@ describe("Fill Order Test", function () {
             deployer
         );
 
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.addTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.addTokenFeed(
+            daiAddress,
+            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        );
+
+        await chainlinkOracle.updatePriceSlippage(100);
+
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
 
@@ -53,13 +90,13 @@ describe("Fill Order Test", function () {
             Symphony,
             [
                 deployer.address,
-                1,
-                3000
+                deployer.address,
+                40,
+                chainlinkOracle.address
             ]
         );
 
         await symphony.deployed();
-        console.log("Symphony contract deployed to:", symphony.address, "\n");
 
         symphony = new ethers.Contract(
             symphony.address,
@@ -70,15 +107,18 @@ describe("Fill Order Test", function () {
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        let aaveYield = await AaveYield.deploy(
-            symphony.address,
-            deployer.address,
-            configParams.aaveLendingPool,
-            configParams.aaveProtocolDataProvider,
+        let aaveYield = await upgrades.deployProxy(
+            AaveYield,
+            [
+                symphony.address,
+                deployer.address,
+                configParams.aaveLendingPool,
+                configParams.aaveProtocolDataProvider,
+                configParams.aaveIncentivesController
+            ]
         );
 
         await aaveYield.deployed();
-        console.log("AaveYield contract deployed to:", aaveYield.address, "\n");
 
         aaveYield = new ethers.Contract(
             aaveYield.address,
@@ -86,47 +126,14 @@ describe("Fill Order Test", function () {
             deployer
         );
 
-        await symphony.updateTokenStrategy(daiAddress, aaveYield.address);
-        console.log("Updated Strategy: ", await symphony.strategy(daiAddress));
-
-        const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
-
-        sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapFactory,
-            configParams.wethAddress,
-            configParams.sushiswapCodeHash,
-        );
-
-        await sushiswapHandler.deployed();
-        console.log("Sushiswap Handler deployed to:", sushiswapHandler.address, "\n");
-
-        // Add Handler
-        await symphony.addHandler(sushiswapHandler.address);
-
-        const approveAmount = new BigNumber(100)
-            .times(
-                new BigNumber(10)
-                    .exponentiatedBy(new BigNumber(18))
-            )
-            .toString();
+        await symphony.updateStrategy(daiAddress, aaveYield.address);
+        await symphony.updateBufferPercentage(daiAddress, 4000);
 
         await daiContract.approve(symphony.address, approveAmount);
 
-        const inputAmount = new BigNumber(10).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(18))
-        ).toString();
-
-        const minReturnAmount = new BigNumber(15).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
-        ).toString();
-
-        const stoplossAmount = new BigNumber(9.99).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
-        ).toString();
-
         // Create Order
         const tx = await symphony.createOrder(
-            deployer.address,
+            recipient,
             daiAddress,
             usdcAddress,
             inputAmount,
@@ -158,8 +165,7 @@ describe("Fill Order Test", function () {
 
         await usdcContract.approve(symphony.address, approveAmount);
 
-        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
-        expect("USDC Balance Before Execution: ", usdcBalBeforeExecute.toString());
+        const usdcBalBeforeExecute = await usdcContract.balanceOf(recipient);
 
         symphony = new ethers.Contract(
             symphony.address,
@@ -167,14 +173,29 @@ describe("Fill Order Test", function () {
             newDeployer
         );
 
+        const quoteAmount = new BigNumber(16).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
         // Execute Order
-        await symphony.fillOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        await symphony.fillOrder(orderId, orderData, quoteAmount);
 
-        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
+        const usdcBalAfterExecute = await usdcContract.balanceOf(recipient);
+        const recipientReturn = getRecipientReturn(quoteAmount);
 
-        console.log("USDC Balance After Execution: ", usdcBalAfterExecute.toString());
-        console.log("Balance Received After Swap: ", usdcBalAfterExecute - usdcBalBeforeExecute);
-
-        expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(Number(usdcBalBeforeExecute));
+        expect(Number(usdcBalAfterExecute))
+            .to.be.greaterThanOrEqual(
+                Number(usdcBalBeforeExecute) + Number(recipientReturn)
+            );
     });
 });
+
+
+const getRecipientReturn = (quoteAmount) => {
+    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
+
+    const recipientAmount = new BigNumber(quoteAmount)
+        .times(100 - _totalFeePercent).dividedBy(100);
+
+    return recipientAmount;
+}
