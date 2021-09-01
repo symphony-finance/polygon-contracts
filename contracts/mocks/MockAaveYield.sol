@@ -5,16 +5,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
-import "hardhat/console.sol";
 
-import "../interfaces/IYieldAdapter.sol";
+import "../interfaces/ISymphony.sol";
 import "../interfaces/IAaveToken.sol";
-import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
+import "../interfaces/IYieldAdapter.sol";
+import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAaveIncentivesController.sol";
 
 /**
- * @title MockAave Yield contract
+ * @title Aave Yield contract
+ * @notice Implements the functions to deposit/withdraw into Aave
  * @author Symphony Finance
  **/
 contract MockAaveYield is Initializable {
@@ -22,6 +23,7 @@ contract MockAaveYield is Initializable {
     using SafeMath for uint256;
 
     // Addresses related to aave
+    address public aAsset;
     address public lendingPool;
     address public protocolDataProvider;
     IAaveIncentivesController public incentivesController;
@@ -31,11 +33,10 @@ contract MockAaveYield is Initializable {
     address public REWARD_TOKEN;
     uint16 public referralCode;
     bool public isExternalRewardEnabled;
+    uint256 public pendingRewards;
+    uint256 public previousAccRewardPerShare;
 
     mapping(bytes32 => uint256) public orderRewardDebt;
-    mapping(address => uint256) public pendingRewards;
-    mapping(address => uint256) public previousAccRewardPerShare;
-    mapping(address => uint256) public userReward;
 
     modifier onlySymphony() {
         require(
@@ -113,14 +114,12 @@ contract MockAaveYield is Initializable {
         uint256 totalRewardBalance
     ) external {
         if (amount > 0) {
-            address aToken = _getATokenAddress(asset);
-
-            IERC20(aToken).safeTransferFrom(msg.sender, address(this), amount);
+            IERC20(aAsset).safeTransferFrom(msg.sender, address(this), amount);
 
             uint256 underlyingAssetAmt = _withdrawERC20(
                 asset,
                 amount,
-                msg.sender
+                recipient
             );
 
             require(
@@ -130,8 +129,7 @@ contract MockAaveYield is Initializable {
         }
 
         if (isExternalRewardEnabled && shares > 0 && recipient != address(0)) {
-            _calculateAndStoreReward(
-                asset,
+            _calculateAndTransferReward(
                 shares,
                 totalShares,
                 orderRewardDebt[orderId],
@@ -146,90 +144,45 @@ contract MockAaveYield is Initializable {
      * @param asset the address of token
      **/
     function withdrawAll(address asset) external {
-        address aToken = _getATokenAddress(asset);
-
-        uint256 amount = IERC20(aToken).balanceOf(address(this));
+        uint256 amount = IERC20(aAsset).balanceOf(address(this));
 
         if (amount > 0) {
-            _withdrawERC20(asset, amount, address(this));
-        }
-    }
-
-    /**
-     * @notice Withdraw WMATIC reward from Aave
-     * @param _asset underlying asset address
-     * @param _amount Amount to withdraw (check using getRewardsBalance)
-     */
-    function withdrawAaveReward(address _asset, uint256 _amount) external {
-        // address aToken = _getATokenAddress(_asset);
-
-        // address[] memory assets = new address[](1);
-        // assets[0] = aToken;
-
-        // uint256 returnAmount = incentivesController.claimRewards(
-        //     assets,
-        //     _amount,
-        //     address(this)
-        // );
-
-        uint256 returnAmount = _amount;
-
-        if (returnAmount > 0) {
-            updatePendingReward(_asset, returnAmount);
+            _withdrawERC20(asset, amount, msg.sender);
         }
     }
 
     /**
      * @dev Used to set external reward debt at the time of order creation
      * @param orderId the id of the order
-     * @param asset the address of token
      **/
     function setOrderRewardDebt(
         bytes32 orderId,
-        address asset,
+        address,
         uint256 shares,
         uint256 totalShares,
         uint256 totalRewardBalance
-    ) external onlySymphony {
-        uint256 orderDebt;
-        // uint256 totalRewardBalance = getRewardBalance(asset);
+    ) external {
+        // uint256 totalRewardBalance = getRewardBalance();
+        uint256 accRewardPerShare = getAccumulatedRewardPerShare(
+            totalShares,
+            totalRewardBalance
+        );
 
-        if (totalRewardBalance > 0 && totalShares > 0) {
-            uint256 accRewardPerShare = getAccumulatedRewardPerShare(
-                asset,
-                totalShares,
-                totalRewardBalance
-            );
-            orderDebt = calculateOrderDebt(shares, accRewardPerShare);
-
-            pendingRewards[asset] = totalRewardBalance;
-            previousAccRewardPerShare[asset] = accRewardPerShare;
-        }
-
-        orderRewardDebt[orderId] = orderDebt;
+        pendingRewards = totalRewardBalance;
+        previousAccRewardPerShare = accRewardPerShare;
+        orderRewardDebt[orderId] = shares.mul(accRewardPerShare).div(10**18);
     }
 
     /**
-     * @dev Used to approve max token from yield provider contract
+     * @dev Used to approve max token and add token for reward
      * @param asset the address of token
      **/
     function maxApprove(address asset) external {
-        address aToken = _getATokenAddress(asset);
+        address aToken = getYieldTokenAddress(asset);
+        aAsset = aToken;
+
         IERC20(asset).safeApprove(lendingPool, uint256(-1));
         IERC20(aToken).safeApprove(lendingPool, uint256(-1));
-    }
-
-    /**
-     * @dev Used to claim reward
-     **/
-    function claimReward(uint256 amount) external {
-        require(
-            amount <= userReward[msg.sender],
-            "AaveYield::claimReward: Amount shouldn't execeed total reward"
-        );
-
-        userReward[msg.sender] = userReward[msg.sender].sub(amount);
-        // IERC20(REWARD_TOKEN).safeTransfer(msg.sender, amount);
     }
 
     // *************** //
@@ -238,17 +191,10 @@ contract MockAaveYield is Initializable {
 
     /**
      * @dev Used to get amount of underlying tokens
-     * @param asset the address of asset
      * @return amount amount of underlying tokens
      **/
-    function getTotalUnderlying(address asset)
-        public
-        view
-        returns (uint256 amount)
-    {
-        address aToken = _getATokenAddress(asset);
-
-        amount = IERC20(aToken).balanceOf(address(this));
+    function getTotalUnderlying(address) public view returns (uint256 amount) {
+        amount = IERC20(aAsset).balanceOf(address(this));
     }
 
     /**
@@ -257,7 +203,7 @@ contract MockAaveYield is Initializable {
      * @return iouToken address of IOU token
      **/
     function getYieldTokenAddress(address asset)
-        external
+        public
         view
         returns (address iouToken)
     {
@@ -266,17 +212,12 @@ contract MockAaveYield is Initializable {
     }
 
     /**
-     * @dev Used to get asset external reward balance
+     * @dev Used to get external reward balance
      **/
-    function getRewardBalance(address asset)
-        public
-        view
-        returns (uint256 amount)
-    {
+    function getRewardBalance() public view returns (uint256 amount) {
         if (isExternalRewardEnabled) {
-            address aToken = _getATokenAddress(asset);
             address[] memory assets = new address[](1);
-            assets[0] = aToken;
+            assets[0] = aAsset;
 
             amount = incentivesController.getRewardsBalance(
                 assets,
@@ -286,24 +227,19 @@ contract MockAaveYield is Initializable {
     }
 
     function getAccumulatedRewardPerShare(
-        address asset,
         uint256 totalShares,
         uint256 rewardBalance
     ) public view returns (uint256 result) {
         // ARPS = previous_APRS + (new_reward / total_shares)
-        uint256 newReward = rewardBalance.sub(pendingRewards[asset]);
+        uint256 newReward = rewardBalance.sub(pendingRewards);
 
         // ARPS stored in 10^18 denomination.
-        uint256 newRewardPerShare = newReward.mul(10**18).div(totalShares);
-        result = previousAccRewardPerShare[asset].add(newRewardPerShare);
-    }
+        uint256 newRewardPerShare;
+        if (totalShares > 0) {
+            newRewardPerShare = newReward.mul(10**18).div(totalShares);
+        }
 
-    function calculateOrderDebt(uint256 shares, uint256 accRewardPerShare)
-        public
-        view
-        returns (uint256 rewardDebt)
-    {
-        rewardDebt = shares.mul(accRewardPerShare).div(10**18);
+        result = previousAccRewardPerShare.add(newRewardPerShare);
     }
 
     // ************************** //
@@ -398,36 +334,24 @@ contract MockAaveYield is Initializable {
     function _withdrawERC20(
         address _asset,
         uint256 _amount,
-        address recipient
-    ) internal returns (uint256) {
-        uint256 underlyingAsssetAmt = IAaveLendingPool(lendingPool).withdraw(
+        address _recipient
+    ) internal returns (uint256 amount) {
+        amount = IAaveLendingPool(lendingPool).withdraw(
             _asset,
             _amount,
-            recipient
+            _recipient
         );
-        return underlyingAsssetAmt;
     }
 
-    function _getATokenAddress(address _asset)
-        internal
-        view
-        returns (address aToken)
-    {
-        (aToken, , ) = IAavePoolCore(protocolDataProvider)
-            .getReserveTokensAddresses(_asset);
-    }
-
-    function _calculateAndStoreReward(
-        address _asset,
+    function _calculateAndTransferReward(
         uint256 _shares,
         uint256 _totalShares,
         uint256 _rewardDebt,
         address _recipient,
         uint256 totalRewardBalance
-    ) public returns (uint256 reward) {
-        // uint256 totalRewardBalance = getRewardBalance(_asset);
+    ) internal returns (uint256 reward) {
+        // uint256 totalRewardBalance = getRewardBalance();
         uint256 accRewardPerShare = getAccumulatedRewardPerShare(
-            _asset,
             _totalShares,
             totalRewardBalance
         );
@@ -435,18 +359,20 @@ contract MockAaveYield is Initializable {
         // reward_amount = shares x (ARPS) - (reward_debt)
         reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
 
-        pendingRewards[_asset] = totalRewardBalance;
-        previousAccRewardPerShare[_asset] = accRewardPerShare;
-        userReward[_recipient] = userReward[_recipient].add(reward);
+        pendingRewards = totalRewardBalance;
+        previousAccRewardPerShare = accRewardPerShare;
+        _transferReward(reward, _recipient);
     }
 
-    function updatePendingReward(address asset, uint256 amount) public {
-        uint256 currentPendingReward = pendingRewards[asset];
-        console.log("currentPendingReward %s", currentPendingReward);
-        if (amount <= currentPendingReward) {
-            pendingRewards[asset] = currentPendingReward.sub(amount);
-        } else {
-            pendingRewards[asset] = 0;
+    /**
+     * @notice Transfer WMATIC reward to order recipient
+     */
+    function _transferReward(uint256 _reward, address _recipient) internal {
+        if (_reward > 0) {
+            address[] memory assets = new address[](1);
+            assets[0] = aAsset;
+
+            incentivesController.claimRewards(assets, _reward, _recipient);
         }
     }
 
