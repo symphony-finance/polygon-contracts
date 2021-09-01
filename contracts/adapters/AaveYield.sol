@@ -6,10 +6,11 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
-import "../interfaces/IYieldAdapter.sol";
+import "../interfaces/ISymphony.sol";
 import "../interfaces/IAaveToken.sol";
-import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAavePoolCore.sol";
+import "../interfaces/IYieldAdapter.sol";
+import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAaveIncentivesController.sol";
 
 /**
@@ -22,6 +23,7 @@ contract AaveYield is IYieldAdapter, Initializable {
     using SafeMath for uint256;
 
     // Addresses related to aave
+    address public aAsset;
     address public lendingPool;
     address public protocolDataProvider;
     IAaveIncentivesController public incentivesController;
@@ -31,13 +33,10 @@ contract AaveYield is IYieldAdapter, Initializable {
     address public REWARD_TOKEN;
     uint16 public referralCode;
     bool public isExternalRewardEnabled;
-    address[] public aAssets;
-    address[] public underlyingAssets;
+    uint256 public pendingRewards;
+    uint256 public previousAccRewardPerShare;
 
     mapping(bytes32 => uint256) public orderRewardDebt;
-    mapping(address => uint256) public pendingRewards;
-    mapping(address => uint256) public previousAccRewardPerShare;
-    mapping(address => uint256) public userReward;
 
     modifier onlySymphony() {
         require(
@@ -131,8 +130,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         }
 
         if (isExternalRewardEnabled && shares > 0 && recipient != address(0)) {
-            _calculateAndStoreReward(
-                asset,
+            _calculateAndTransferReward(
                 shares,
                 totalShares,
                 orderRewardDebt[orderId],
@@ -146,9 +144,7 @@ contract AaveYield is IYieldAdapter, Initializable {
      * @param asset the address of token
      **/
     function withdrawAll(address asset) external override onlySymphony {
-        address aToken = _getATokenAddress(asset);
-
-        uint256 amount = IERC20(aToken).balanceOf(address(this));
+        uint256 amount = IERC20(aAsset).balanceOf(address(this));
 
         if (amount > 0) {
             _withdrawERC20(asset, amount);
@@ -156,90 +152,36 @@ contract AaveYield is IYieldAdapter, Initializable {
     }
 
     /**
-     * @notice Withdraw WMATIC reward from Aave
-     * @param asset underlying asset address
-     */
-    function withdrawAaveReward(address asset) external {
-        address aToken = _getATokenAddress(asset);
-
-        address[] memory assets = new address[](1);
-        assets[0] = aToken;
-
-        uint256 amount = incentivesController.getRewardsBalance(
-            assets,
-            address(this)
-        );
-
-        uint256 returnAmount = incentivesController.claimRewards(
-            assets,
-            amount,
-            address(this)
-        );
-
-        if (returnAmount > 0) {
-            pendingRewards[asset] = 0;
-        }
-    }
-
-    /**
      * @dev Used to set external reward debt at the time of order creation
      * @param orderId the id of the order
-     * @param asset the address of token
      **/
     function setOrderRewardDebt(
         bytes32 orderId,
-        address asset,
+        address,
         uint256 shares,
         uint256 totalShares
     ) external override onlySymphony {
-        uint256 orderDebt;
-        uint256 totalRewardBalance = getRewardBalance(asset);
+        uint256 totalRewardBalance = getRewardBalance();
+        uint256 accRewardPerShare = getAccumulatedRewardPerShare(
+            totalShares,
+            totalRewardBalance
+        );
 
-        if (totalRewardBalance > 0 && totalShares > 0) {
-            uint256 accRewardPerShare = getAccumulatedRewardPerShare(
-                asset,
-                totalShares,
-                totalRewardBalance
-            );
-            orderDebt = calculateOrderDebt(shares, accRewardPerShare);
-
-            pendingRewards[asset] = totalRewardBalance;
-            previousAccRewardPerShare[asset] = accRewardPerShare;
-        }
-
-        orderRewardDebt[orderId] = orderDebt;
+        pendingRewards = totalRewardBalance;
+        previousAccRewardPerShare = accRewardPerShare;
+        orderRewardDebt[orderId] = shares.mul(accRewardPerShare).div(10**18);
     }
 
     /**
      * @dev Used to approve max token and add token for reward
      * @param asset the address of token
      **/
-    function maxApprove(address asset) external override {
-        address aToken = _getATokenAddress(asset);
-
-        aAssets.push(aToken);
-        underlyingAssets.push(asset);
+    function maxApprove(address asset) external override onlySymphony {
+        address aToken = getYieldTokenAddress(asset);
+        aAsset = aToken;
 
         IERC20(asset).safeApprove(lendingPool, uint256(-1));
         IERC20(aToken).safeApprove(lendingPool, uint256(-1));
-    }
-
-    /**
-     * @dev Used to claim reward
-     **/
-    function claimReward(uint256 amount) external {
-        require(
-            amount <= userReward[msg.sender],
-            "AaveYield::claimReward: Amount shouldn't execeed total reward"
-        );
-
-        uint256 contractBal = IERC20(REWARD_TOKEN).balanceOf(address(this));
-        if (contractBal <= amount) {
-            _withdrawTotalReward();
-        }
-
-        userReward[msg.sender] = userReward[msg.sender].sub(amount);
-        IERC20(REWARD_TOKEN).safeTransfer(msg.sender, amount);
     }
 
     // *************** //
@@ -248,17 +190,15 @@ contract AaveYield is IYieldAdapter, Initializable {
 
     /**
      * @dev Used to get amount of underlying tokens
-     * @param asset the address of asset
      * @return amount amount of underlying tokens
      **/
-    function getTotalUnderlying(address asset)
+    function getTotalUnderlying(address)
         public
         view
         override
         returns (uint256 amount)
     {
-        address aToken = _getATokenAddress(asset);
-        amount = IERC20(aToken).balanceOf(address(this));
+        amount = IERC20(aAsset).balanceOf(address(this));
     }
 
     /**
@@ -267,7 +207,7 @@ contract AaveYield is IYieldAdapter, Initializable {
      * @return iouToken address of IOU token
      **/
     function getYieldTokenAddress(address asset)
-        external
+        public
         view
         override
         returns (address iouToken)
@@ -277,17 +217,12 @@ contract AaveYield is IYieldAdapter, Initializable {
     }
 
     /**
-     * @dev Used to get asset external reward balance
+     * @dev Used to get external reward balance
      **/
-    function getRewardBalance(address asset)
-        public
-        view
-        returns (uint256 amount)
-    {
+    function getRewardBalance() public view returns (uint256 amount) {
         if (isExternalRewardEnabled) {
-            address aToken = _getATokenAddress(asset);
             address[] memory assets = new address[](1);
-            assets[0] = aToken;
+            assets[0] = aAsset;
 
             amount = incentivesController.getRewardsBalance(
                 assets,
@@ -297,24 +232,19 @@ contract AaveYield is IYieldAdapter, Initializable {
     }
 
     function getAccumulatedRewardPerShare(
-        address asset,
         uint256 totalShares,
         uint256 rewardBalance
     ) public view returns (uint256 result) {
         // ARPS = previous_APRS + (new_reward / total_shares)
-        uint256 newReward = rewardBalance.sub(pendingRewards[asset]);
+        uint256 newReward = rewardBalance.sub(pendingRewards);
 
         // ARPS stored in 10^18 denomination.
-        uint256 newRewardPerShare = newReward.mul(10**18).div(totalShares);
-        result = previousAccRewardPerShare[asset].add(newRewardPerShare);
-    }
+        uint256 newRewardPerShare;
+        if (totalShares > 0) {
+            newRewardPerShare = newReward.mul(10**18).div(totalShares);
+        }
 
-    function calculateOrderDebt(uint256 shares, uint256 accRewardPerShare)
-        public
-        view
-        returns (uint256 rewardDebt)
-    {
-        rewardDebt = shares.mul(accRewardPerShare).div(10**18);
+        result = previousAccRewardPerShare.add(newRewardPerShare);
     }
 
     // ************************** //
@@ -341,16 +271,6 @@ contract AaveYield is IYieldAdapter, Initializable {
 
     function updateRewardToken(address _token) external onlyGovernance {
         REWARD_TOKEN = _token;
-    }
-
-    function removeRewardAsset(uint256 _assetIndex) external onlyGovernance {
-        aAssets[_assetIndex] = aAssets[aAssets.length - 1];
-        underlyingAssets[_assetIndex] = underlyingAssets[
-            underlyingAssets.length - 1
-        ];
-
-        aAssets.pop();
-        underlyingAssets.pop();
     }
 
     function updateAaveAddresses(
@@ -427,25 +347,14 @@ contract AaveYield is IYieldAdapter, Initializable {
         );
     }
 
-    function _getATokenAddress(address _asset)
-        internal
-        view
-        returns (address aToken)
-    {
-        (aToken, , ) = IAavePoolCore(protocolDataProvider)
-            .getReserveTokensAddresses(_asset);
-    }
-
-    function _calculateAndStoreReward(
-        address _asset,
+    function _calculateAndTransferReward(
         uint256 _shares,
         uint256 _totalShares,
         uint256 _rewardDebt,
         address _recipient
     ) internal returns (uint256 reward) {
-        uint256 totalRewardBalance = getRewardBalance(_asset);
+        uint256 totalRewardBalance = getRewardBalance();
         uint256 accRewardPerShare = getAccumulatedRewardPerShare(
-            _asset,
             _totalShares,
             totalRewardBalance
         );
@@ -453,35 +362,25 @@ contract AaveYield is IYieldAdapter, Initializable {
         // reward_amount = shares x (ARPS) - (reward_debt)
         reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
 
-        pendingRewards[_asset] = totalRewardBalance;
-        previousAccRewardPerShare[_asset] = accRewardPerShare;
-        userReward[_recipient] = userReward[_recipient].add(reward);
+        require(
+            totalRewardBalance >= reward,
+            "AaveYield:CATR:: total reward exceeds rewards"
+        );
+
+        pendingRewards = totalRewardBalance.sub(reward);
+        previousAccRewardPerShare = accRewardPerShare;
+        _transferReward(reward, _recipient);
     }
 
     /**
-     * @notice Withdraw all WMATIC reward
+     * @notice Transfer WMATIC reward to order recipient
      */
-    function _withdrawTotalReward() internal {
-        uint256 amount = incentivesController.getRewardsBalance(
-            aAssets,
-            address(this)
-        );
+    function _transferReward(uint256 _reward, address _recipient) internal {
+        if (_reward > 0) {
+            address[] memory assets = new address[](1);
+            assets[0] = aAsset;
 
-        require(
-            amount > 0,
-            "AaveYield::_withdrawTotalReward: No reward to wthdraw!!"
-        );
-
-        uint256 returnAmount = incentivesController.claimRewards(
-            aAssets,
-            amount,
-            address(this)
-        );
-
-        if (returnAmount > 0) {
-            for (uint256 i = 0; i < underlyingAssets.length; i++) {
-                pendingRewards[underlyingAssets[i]] = 0;
-            }
+            incentivesController.claimRewards(assets, _reward, _recipient);
         }
     }
 
