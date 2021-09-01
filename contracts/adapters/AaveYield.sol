@@ -35,7 +35,7 @@ contract AaveYield is IYieldAdapter, Initializable {
     bool public isExternalRewardEnabled;
     uint256 public pendingRewards;
     uint256 public previousAccRewardPerShare;
-    
+
     mapping(bytes32 => uint256) public orderRewardDebt;
 
     modifier onlySymphony() {
@@ -362,7 +362,12 @@ contract AaveYield is IYieldAdapter, Initializable {
         // reward_amount = shares x (ARPS) - (reward_debt)
         reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
 
-        pendingRewards = totalRewardBalance;
+        require(
+            totalRewardBalance >= reward,
+            "AaveYield:CATR:: total reward exceeds rewards"
+        );
+
+        pendingRewards = totalRewardBalance.sub(reward);
         previousAccRewardPerShare = accRewardPerShare;
         _transferReward(reward, _recipient);
     }

@@ -37,6 +37,7 @@ contract MockAaveYield is Initializable {
     uint256 public previousAccRewardPerShare;
 
     mapping(bytes32 => uint256) public orderRewardDebt;
+    mapping(address => uint256) public userReward;
 
     modifier onlySymphony() {
         require(
@@ -359,9 +360,14 @@ contract MockAaveYield is Initializable {
         // reward_amount = shares x (ARPS) - (reward_debt)
         reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
 
-        pendingRewards = totalRewardBalance;
+        require(
+            totalRewardBalance >= reward,
+            "AaveYield:CATR:: total reward exceeds rewards"
+        );
+
+        pendingRewards = totalRewardBalance.sub(reward);
         previousAccRewardPerShare = accRewardPerShare;
-        _transferReward(reward, _recipient);
+        userReward[_recipient] = userReward[_recipient].add(reward);
     }
 
     /**
