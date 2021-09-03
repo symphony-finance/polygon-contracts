@@ -11,7 +11,7 @@ import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/ISavingsContract.sol";
 
-contract MockMstableYield is IYieldAdapter, Initializable {
+contract MockMstableYield is Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -62,10 +62,8 @@ contract MockMstableYield is IYieldAdapter, Initializable {
      * @param asset the address of token to invest
      * @param amount the amount of asset
      **/
-    function deposit(address asset, uint256 amount) external override {
+    function deposit(address asset, uint256 amount) external {
         require(amount != 0, "MstableYield: zero amount");
-
-        emit Deposit(asset, amount);
 
         // transfer token from symphony
         IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
@@ -103,8 +101,7 @@ contract MockMstableYield is IYieldAdapter, Initializable {
         uint256,
         address,
         bytes32
-    ) external override {
-        emit Withdraw(asset, amount);
+    ) external {
         _withdraw(asset, amount, msg.sender);
     }
 
@@ -112,9 +109,8 @@ contract MockMstableYield is IYieldAdapter, Initializable {
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(address asset) external override {
+    function withdrawAll(address asset, bytes calldata) external {
         uint256 amount = savingContract.balanceOfUnderlying(symphony);
-        emit Withdraw(asset, amount);
         _withdraw(asset, amount, msg.sender);
     }
 
@@ -122,7 +118,7 @@ contract MockMstableYield is IYieldAdapter, Initializable {
      * @dev Used to approve max token from yield provider contract
      * @param asset the address of token
      **/
-    function maxApprove(address asset) external override {
+    function maxApprove(address asset) external {
         IERC20(asset).safeApprove(address(musdToken), uint256(-1));
     }
 
@@ -133,7 +129,6 @@ contract MockMstableYield is IYieldAdapter, Initializable {
     function getTotalUnderlying(address asset)
         external
         view
-        override
         returns (uint256 amount)
     {
         amount = savingContract.balanceOfUnderlying(address(this));
@@ -151,7 +146,6 @@ contract MockMstableYield is IYieldAdapter, Initializable {
     function getYieldTokenAddress(address)
         public
         view
-        override
         returns (address iouToken)
     {
         iouToken = savingContract.underlying();
@@ -162,7 +156,7 @@ contract MockMstableYield is IYieldAdapter, Initializable {
         address,
         uint256,
         uint256
-    ) external override {}
+    ) external {}
 
     function _withdraw(
         address asset,

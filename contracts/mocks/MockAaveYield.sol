@@ -12,6 +12,8 @@ import "../interfaces/IAavePoolCore.sol";
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAaveIncentivesController.sol";
+import "../interfaces/IUniswapRouter.sol";
+import "../libraries/UniswapLibrary.sol";
 
 /**
  * @title Aave Yield contract
@@ -144,11 +146,43 @@ contract MockAaveYield is Initializable {
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(address asset) external {
+    function withdrawAll(
+        address asset,
+        uint256 totalRewardBalance,
+        bytes calldata data
+    ) external {
         uint256 amount = IERC20(aAsset).balanceOf(address(this));
 
         if (amount > 0) {
             _withdrawERC20(asset, amount, msg.sender);
+
+            if (isExternalRewardEnabled) {
+                uint256 rewardAmount = _calculateAndTransferReward(
+                    100,
+                    100,
+                    0,
+                    address(this),
+                    totalRewardBalance
+                );
+
+                (
+                    address router,
+                    uint256 slippage,
+                    bytes32 codeHash,
+                    address[] memory path
+                ) = abi.decode(data, (address, uint256, bytes32, address[]));
+
+                if (router != address(0)) {
+                    _swap(
+                        incentivesController.REWARD_TOKEN(),
+                        rewardAmount,
+                        router,
+                        slippage,
+                        codeHash,
+                        path
+                    );
+                }
+            }
         }
     }
 
@@ -379,6 +413,51 @@ contract MockAaveYield is Initializable {
 
             incentivesController.claimRewards(assets, _reward, _recipient);
         }
+    }
+
+    function _swap(
+        address _inputToken,
+        uint256 _inputAmount,
+        address _router,
+        uint256 _slippage,
+        bytes32 _codeHash,
+        address[] memory _path
+    ) internal {
+        IERC20(_inputToken).safeApprove(_router, _inputAmount);
+
+        uint256 amountOut = _getAmountOut(
+            _inputAmount,
+            _router,
+            _codeHash,
+            _path
+        );
+
+        // Swap Tokens
+        IUniswapRouter(_router).swapExactTokensForTokens(
+            _inputAmount,
+            amountOut.mul(uint256(100).sub(_slippage)).div(100), // Slipage: 2 for 2%
+            _path,
+            symphony,
+            block.timestamp.add(1800)
+        );
+    }
+
+    function _getAmountOut(
+        uint256 _inputAmount,
+        address _router,
+        bytes32 _codeHash,
+        address[] memory _path
+    ) internal view returns (uint256 amountOut) {
+        address factory = IUniswapRouter(_router).factory();
+
+        uint256[] memory _amounts = UniswapLibrary.getAmountsOut(
+            factory,
+            _inputAmount,
+            _path,
+            _codeHash
+        );
+
+        amountOut = _amounts[_amounts.length - 1];
     }
 
     receive() external payable {}

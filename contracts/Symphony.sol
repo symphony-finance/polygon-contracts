@@ -643,10 +643,11 @@ contract Symphony is
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(address asset, address newStrategy)
-        external
-        onlyOwner
-    {
+    function migrateStrategy(
+        address asset,
+        address newStrategy,
+        bytes calldata data
+    ) external onlyOwner {
         address previousStrategy = strategy[asset];
         require(
             previousStrategy != address(0),
@@ -657,7 +658,7 @@ contract Symphony is
             "Symphony::migrateStrategy: new startegy shouldn't be same!!"
         );
 
-        IYieldAdapter(previousStrategy).withdrawAll(asset);
+        IYieldAdapter(previousStrategy).withdrawAll(asset, data);
 
         if (newStrategy != address(0)) {
             _updateAssetStrategy(asset, newStrategy);
@@ -721,15 +722,15 @@ contract Symphony is
      * @notice Withdraw all assets from strategies including rewards
      * @dev Only in emergency case. Transfer rewards to symphony contract
      */
-    function emergencyWithdrawFromStrategy(address[] calldata assets)
-        external
-        onlyEmergencyAdminOrOwner
-    {
+    function emergencyWithdrawFromStrategy(
+        address[] calldata assets,
+        bytes calldata data
+    ) external onlyEmergencyAdminOrOwner {
         for (uint256 i = 0; i < assets.length; i++) {
             address asset = assets[i];
             address assetStrategy = strategy[asset];
 
-            IYieldAdapter(assetStrategy).withdrawAll(asset);
+            IYieldAdapter(assetStrategy).withdrawAll(asset, data);
         }
     }
 

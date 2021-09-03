@@ -44,8 +44,9 @@ interface IYieldAdapter {
     /**
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
+     * @param data bytes of extra data
      **/
-    function withdrawAll(address asset) external;
+    function withdrawAll(address asset, bytes calldata data) external;
 
     /**
      * @dev Used to approve max token from yield provider contract
