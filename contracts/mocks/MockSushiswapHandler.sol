@@ -109,42 +109,6 @@ contract MockSushiswapHandler is IHandler {
     }
 
     /**
-     * @notice Check whether can handle an order execution
-     * @param _inputToken - Address of the input token
-     * @param _outputToken - Address of the output token
-     * @param _inputAmount - uint256 of the input token amount
-     * @param _minReturnAmount - uint256 minimum return output token
-     * @param _stoplossAmount - uint256 stoploss amount
-     * @return bool - Whether the execution can be handled or not
-     */
-    function canHandle(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        bytes calldata
-    ) external view override returns (bool) {
-        (uint256 amountOut, ) = getPathAndAmountOut(
-            _inputToken,
-            _outputToken,
-            _inputAmount
-        );
-
-        // uint256 fee = bought.percentMul(_feePercent);
-        // uint256 amountOut = bought.sub(fee);
-
-        uint256 oracleAmount = oracle.get(
-            _inputToken,
-            _outputToken,
-            _inputAmount
-        );
-
-        return ((amountOut >= _minReturnAmount ||
-            amountOut <= _stoplossAmount) && amountOut >= oracleAmount);
-    }
-
-    /**
      * @notice Simulate an order execution
      * @param _inputToken - Address of the input token
      * @param _outputToken - Address of the output token

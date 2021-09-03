@@ -58,7 +58,7 @@ contract SushiswapHandler is IHandler {
         _;
     }
 
-    /// @notice receive ETH
+    /// @notice receive MATIC
     receive() external payable override {
         require(
             msg.sender != tx.origin,
@@ -81,6 +81,18 @@ contract SushiswapHandler is IHandler {
             order.inputToken,
             order.outputToken,
             order.inputAmount
+        );
+
+        uint256 oracleAmount = oracle.get(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
+        );
+
+        require(
+            (amountOut >= order.minReturnAmount ||
+                amountOut <= order.stoplossAmount) && amountOut >= oracleAmount,
+            "SushiswapHandler: Amount mismatch !!"
         );
 
         IERC20(order.inputToken).safeApprove(
@@ -106,39 +118,6 @@ contract SushiswapHandler is IHandler {
             feePercent,
             protcolFeePercent
         );
-    }
-
-    /**
-     * @notice Check whether can handle an order execution
-     * @param _inputToken - Address of the input token
-     * @param _outputToken - Address of the output token
-     * @param _inputAmount - uint256 of the input token amount
-     * @param _minReturnAmount - uint256 minimum return output token
-     * @param _stoplossAmount - uint256 stoploss amount
-     * @return bool - Whether the execution can be handled or not
-     */
-    function canHandle(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        bytes calldata
-    ) external view override returns (bool) {
-        (uint256 amountOut, ) = getPathAndAmountOut(
-            _inputToken,
-            _outputToken,
-            _inputAmount
-        );
-
-        uint256 oracleAmount = oracle.get(
-            _inputToken,
-            _outputToken,
-            _inputAmount
-        );
-
-        return ((amountOut >= _minReturnAmount ||
-            amountOut <= _stoplossAmount) && amountOut >= oracleAmount);
     }
 
     /**

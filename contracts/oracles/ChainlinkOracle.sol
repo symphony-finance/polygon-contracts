@@ -54,7 +54,7 @@ contract ChainlinkOracle is Ownable {
 
         oracleAmount = price.mul(inputAmount) / uint256(1e36);
 
-        if (outputToken != address(0)) {
+        if (inputToken != address(0) && outputToken != address(0)) {
             uint8 inputDecimal = IERC20WithDecimal(inputToken).decimals();
             uint8 outputDecimal = IERC20WithDecimal(outputToken).decimals();
 

@@ -45,9 +45,9 @@ contract Symphony is
     mapping(bytes32 => bytes32) public orderHash;
     mapping(address => uint256) public assetBuffer;
 
+    mapping(address => bool) public isWhitelistAsset;
     mapping(address => bool) public isRegisteredHandler;
     mapping(address => uint256) public totalAssetShares;
-    mapping(address => bool) public isWhitelistedForRewards;
 
     // ************** //
     // *** EVENTS *** //
@@ -62,8 +62,8 @@ contract Symphony is
     event HandlerRemoved(address handler);
     event UpdatedBaseFee(uint256 fee);
     event UpdatedBufferPercentage(address asset, uint256 percent);
-    event AddedAssetForReward(address asset);
-    event RemovedAssetFromReward(address asset);
+    event AddedWhitelistAsset(address asset);
+    event RemovedWhitelistAsset(address asset);
 
     modifier onlyEmergencyAdminOrOwner() {
         require(
@@ -111,6 +111,10 @@ contract Symphony is
             "Symphony::createOrder: Amount out can't be zero"
         );
         require(
+            isWhitelistAsset[inputToken],
+            "Symphony::createOrder: Input asset not in whitelist"
+        );
+        require(
             stoplossAmount < minReturnAmount,
             "Symphony::createOrder: stoploss amount should be less than amount out"
         );
@@ -143,8 +147,8 @@ contract Symphony is
             "Symphony::createOrder: tokens not transferred"
         );
 
-        uint256 previousAssetShares = totalAssetShares[inputToken];
-        totalAssetShares[inputToken] = previousAssetShares.add(shares);
+        uint256 prevTotalAssetShares = totalAssetShares[inputToken];
+        totalAssetShares[inputToken] = prevTotalAssetShares.add(shares);
 
         bytes memory encodedOrder = abi.encode(
             recipient,
@@ -169,7 +173,7 @@ contract Symphony is
                 orderId,
                 inputToken,
                 shares,
-                previousAssetShares
+                prevTotalAssetShares
             );
         }
     }
@@ -297,18 +301,6 @@ contract Symphony is
         );
 
         IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
-
-        require(
-            IHandler(_handler).canHandle(
-                myOrder.inputToken,
-                myOrder.outputToken,
-                myOrder.inputAmount,
-                myOrder.minReturnAmount,
-                myOrder.stoplossAmount,
-                _handlerData
-            ),
-            "Symphony::executeOrder: Handler Can't handle this tx"
-        );
 
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
@@ -450,11 +442,6 @@ contract Symphony is
                 assetBuffer[asset]
             );
 
-            require(
-                balanceInContract != bufferBalanceNeeded,
-                "Symphony::rebalanceAsset: Asset already balanced"
-            );
-
             emit AssetRebalanced(asset);
 
             if (balanceInContract > bufferBalanceNeeded) {
@@ -592,8 +579,15 @@ contract Symphony is
         external
         onlyOwner
     {
+        require(
+            _value >= 0 && _value <= 10000,
+            "symphony::updateBufferPercentage: not correct buffer percent."
+        );
         assetBuffer[_asset] = _value;
         emit UpdatedBufferPercentage(_asset, _value);
+        if (_value > 0) {
+            rebalanceAsset(_asset);
+        }
     }
 
     /**
@@ -604,19 +598,19 @@ contract Symphony is
     }
 
     /**
-     * @notice Add a token for rewards earning
+     * @notice Add an asset into whitelist
      */
-    function addTokenForReward(address _token) external onlyOwner {
-        isWhitelistedForRewards[_token] = true;
-        AddedAssetForReward(_token);
+    function addWhitelistAsset(address _asset) external onlyOwner {
+        isWhitelistAsset[_asset] = true;
+        AddedWhitelistAsset(_asset);
     }
 
     /**
-     * @notice Remove a token from rewards earning
+     * @notice Remove a whitelisted asset
      */
-    function removeTokenFromReward(address _token) external onlyOwner {
-        isWhitelistedForRewards[_token] = false;
-        RemovedAssetFromReward(_token);
+    function removeWhitelistAsset(address _asset) external onlyOwner {
+        isWhitelistAsset[_asset] = false;
+        RemovedWhitelistAsset(_asset);
     }
 
     /**
@@ -628,13 +622,13 @@ contract Symphony is
     {
         require(
             strategy[_asset] != _strategy,
-            "Symphony: updateStrategy:: Strategy shouldn't be same."
+            "Symphony::updateStrategy: Strategy shouldn't be same."
         );
         _updateAssetStrategy(_asset, _strategy);
     }
 
     /**
-     * @notice Withdraw tokens from contract, only in emergency case
+     * @notice Withdraw tokens from contract
      */
     function withdrawTokens(
         address[] calldata assets,
@@ -733,7 +727,9 @@ contract Symphony is
     {
         for (uint256 i = 0; i < assets.length; i++) {
             address asset = assets[i];
-            _withdrawFromStrategy(asset);
+            address assetStrategy = strategy[asset];
+
+            IYieldAdapter(assetStrategy).withdrawAll(asset);
         }
     }
 
@@ -790,41 +786,27 @@ contract Symphony is
 
         uint256 bufferAmount = IERC20(asset).balanceOf(address(this));
 
-        uint256 amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
-            bufferAmount
-        );
-
-        if (amountToWithdraw > 0) {
-            emit AssetRebalanced(asset);
-            IYieldAdapter(strategy[asset]).withdraw(
-                asset,
-                amountToWithdraw,
-                myOrder.shares,
-                totalSharesInAsset,
-                myOrder.recipient,
-                orderId
+        uint256 amountToWithdraw;
+        if (bufferAmount < orderAmount.add(neededAmountInBuffer)) {
+            amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
+                bufferAmount
             );
         }
-    }
 
-    function _withdrawFromStrategy(address asset) internal {
-        uint256 amount = IYieldAdapter(strategy[asset]).getTotalUnderlying(
-            asset
-        );
-        uint256 totalSharesInAsset = totalAssetShares[asset];
+        emit AssetRebalanced(asset);
 
         IYieldAdapter(strategy[asset]).withdraw(
             asset,
-            amount,
+            amountToWithdraw,
+            myOrder.shares,
             totalSharesInAsset,
-            totalSharesInAsset,
-            address(this),
-            bytes32(0)
+            myOrder.recipient,
+            orderId
         );
     }
 
     /**
-     * @notice Update Strategy of a token
+     * @notice Update Strategy of an asset
      */
     function _updateAssetStrategy(address _asset, address _strategy) internal {
         address previousStrategy = strategy[_asset];
@@ -839,11 +821,6 @@ contract Symphony is
             // caution: external call to unknown address
             IERC20(_asset).safeApprove(_strategy, uint256(-1));
             IYieldAdapter(_strategy).maxApprove(_asset);
-
-            address iouToken = IYieldAdapter(_strategy).getYieldTokenAddress(
-                _asset
-            );
-            IERC20(iouToken).safeApprove(_strategy, uint256(-1));
 
             strategy[_asset] = _strategy;
 

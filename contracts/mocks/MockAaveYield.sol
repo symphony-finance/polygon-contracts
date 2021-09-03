@@ -159,7 +159,7 @@ contract MockAaveYield is Initializable {
     function setOrderRewardDebt(
         bytes32 orderId,
         address,
-        uint256 shares,
+        uint256,
         uint256 totalShares,
         uint256 totalRewardBalance
     ) external {
@@ -171,7 +171,7 @@ contract MockAaveYield is Initializable {
 
         pendingRewards = totalRewardBalance;
         previousAccRewardPerShare = accRewardPerShare;
-        orderRewardDebt[orderId] = shares.mul(accRewardPerShare).div(10**18);
+        orderRewardDebt[orderId] = accRewardPerShare;
     }
 
     /**
@@ -179,11 +179,15 @@ contract MockAaveYield is Initializable {
      * @param asset the address of token
      **/
     function maxApprove(address asset) external {
-        address aToken = getYieldTokenAddress(asset);
-        aAsset = aToken;
+        require(
+            aAsset == address(0),
+            "AaveYield: Asset can't be changed after initilization."
+        );
+
+        aAsset = getYieldTokenAddress(asset);
 
         IERC20(asset).safeApprove(lendingPool, uint256(-1));
-        IERC20(aToken).safeApprove(lendingPool, uint256(-1));
+        IERC20(aAsset).safeApprove(lendingPool, uint256(-1));
     }
 
     // *************** //
@@ -216,15 +220,10 @@ contract MockAaveYield is Initializable {
      * @dev Used to get external reward balance
      **/
     function getRewardBalance() public view returns (uint256 amount) {
-        if (isExternalRewardEnabled) {
-            address[] memory assets = new address[](1);
-            assets[0] = aAsset;
+        address[] memory assets = new address[](1);
+        assets[0] = aAsset;
 
-            amount = incentivesController.getRewardsBalance(
-                assets,
-                address(this)
-            );
-        }
+        amount = incentivesController.getRewardsBalance(assets, address(this));
     }
 
     function getAccumulatedRewardPerShare(
@@ -358,7 +357,7 @@ contract MockAaveYield is Initializable {
         );
 
         // reward_amount = shares x (ARPS) - (reward_debt)
-        reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
+        reward = _shares.mul(accRewardPerShare.sub(_rewardDebt)).div(10**18);
 
         require(
             totalRewardBalance >= reward,

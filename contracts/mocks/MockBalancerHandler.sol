@@ -141,21 +141,6 @@ contract MockBalancerHandler is IHandler {
         );
     }
 
-    /**
-     * @notice Check whether can handle an order execution
-     * @return bool - Whether the execution can be handled or not
-     */
-    function canHandle(
-        address,
-        address,
-        uint256,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external view override returns (bool) {
-        return true;
-    }
-
     function simulate(
         address _inputToken,
         address _outputToken,

@@ -88,7 +88,7 @@ contract BalancerHandler is IHandler {
         _;
     }
 
-    /// @notice receive ETH
+    /// @notice receive MATIC
     receive() external payable override {
         require(
             msg.sender != tx.origin,
@@ -139,21 +139,6 @@ contract BalancerHandler is IHandler {
             feePercent,
             protcolFeePercent
         );
-    }
-
-    /**
-     * @notice Check whether can handle an order execution
-     * @return bool - Whether the execution can be handled or not
-     */
-    function canHandle(
-        address,
-        address,
-        uint256,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external view override returns (bool) {
-        return true;
     }
 
     function simulate(
