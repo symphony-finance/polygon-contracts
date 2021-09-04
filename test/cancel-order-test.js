@@ -1,9 +1,11 @@
 const { expect } = require("chai");
-const { default: BigNumber } = require("bignumber.js");
-const { BigNumber: EthersBN } = require('ethers');
 const config = require("../config/index.json");
+const { AbiCoder } = require("ethers/lib/utils");
+const { BigNumber: EthersBN } = require('ethers');
+const { default: BigNumber } = require("bignumber.js");
 const { time } = require("@openzeppelin/test-helpers");
-const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS, ZERO_BYTES32 } =
+    require("@openzeppelin/test-helpers/src/constants");
 
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
@@ -78,6 +80,8 @@ describe("Cancel Order Test", () => {
         );
 
         await usdcContract.approve(symphony.address, approveAmount);
+
+        await symphony.addWhitelistAsset(usdcAddress);
 
         // Create Order
         const createTx = await symphony.createOrder(
@@ -187,6 +191,8 @@ describe("Cancel Order Test", () => {
             usdcAddress,
             0, // 40%
         );
+
+        await symphony.addWhitelistAsset(usdcAddress);
 
         // Create Order
         const tx1 = await symphony.createOrder(
@@ -310,6 +316,8 @@ describe("Cancel Order Test", () => {
 
         await usdcContract.approve(symphony.address, approveAmount);
 
+        await symphony.addWhitelistAsset(usdcAddress);
+
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
@@ -331,16 +339,18 @@ describe("Cancel Order Test", () => {
                 new BigNumber(bufferPercent / 100)
             ))
         );
-        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress))).to.eq(
-            Number(new BigNumber(inputAmount).times(
-                new BigNumber((100 - bufferPercent) / 100)
-            ))
-        );
+        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress))).to
+            .greaterThanOrEqual(
+                Number(new BigNumber(inputAmount).times(
+                    new BigNumber((100 - bufferPercent) / 100)
+                )) - 1
+            );
 
         // Remove yield strategy
-        await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS);
+        await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS, encodedOrder);
 
-        expect(await usdcContract.balanceOf(symphony.address)).to.eq(inputAmount);
+        expect(Number(await usdcContract.balanceOf(symphony.address)))
+            .to.be.greaterThanOrEqual(Number(inputAmount));
         expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
 
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
@@ -420,6 +430,8 @@ describe("Cancel Order Test", () => {
 
         await usdcContract.approve(symphony.address, approveAmount);
 
+        await symphony.addWhitelistAsset(usdcAddress);
+
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
@@ -441,11 +453,12 @@ describe("Cancel Order Test", () => {
                 new BigNumber(bufferPercent / 100)
             ))
         );
-        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress))).to.eq(
-            Number(new BigNumber(inputAmount).times(
-                new BigNumber((100 - bufferPercent) / 100)
-            ))
-        );
+        expect(Number(await aaveYield.getTotalUnderlying(usdcAddress))).to
+            .greaterThanOrEqual(
+                Number(new BigNumber(inputAmount).times(
+                    new BigNumber((100 - bufferPercent) / 100)
+                )) - 1
+            );
 
         const aaveYieldNew = await upgrades.deployProxy(
             AaveYield,
@@ -461,7 +474,7 @@ describe("Cancel Order Test", () => {
         await aaveYield.deployed();
 
         // Migrate startegy to new contract
-        await symphony.migrateStrategy(usdcAddress, aaveYieldNew.address);
+        await symphony.migrateStrategy(usdcAddress, aaveYieldNew.address, encodedOrder);
 
         expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
             Number(new BigNumber(inputAmount).times(
@@ -558,6 +571,8 @@ describe("Cancel Order Test", () => {
     //         0, // 40%
     //     );
 
+    //     await symphony.addWhitelistAsset(usdcAddress);
+
     //     // Create Order
     //     const tx1 = await symphony.createOrder(
     //         deployer.address,
@@ -650,3 +665,8 @@ const getShareFromOrder = (orderData) => {
     const decodedData = abiCoder.decode(abi, orderData);
     return decodedData[6];
 }
+
+const encodedOrder = new AbiCoder().encode(
+    ['address', 'uint256', 'bytes32', 'address[]'],
+    [ZERO_ADDRESS, 0, ZERO_BYTES32, []]
+);

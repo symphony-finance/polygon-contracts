@@ -1,6 +1,7 @@
 const hre = require("hardhat");
 const { expect } = require("chai");
 const config = require("../config/index.json");
+const { AbiCoder } = require("ethers/lib/utils");
 const { default: BigNumber } = require("bignumber.js");
 const { time } = require("@openzeppelin/test-helpers");
 const IERC20Artifacts = require(
@@ -15,7 +16,7 @@ const AaveYieldArtifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
-const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -158,6 +159,8 @@ describe("Execute Order Test", () => {
 
         await daiContract.approve(symphony.address, approveAmount);
         await usdcContract.approve(symphony.address, approveAmount);
+
+        await symphony.addWhitelistAsset(daiAddress);
 
         // Create Order
         const tx = await symphony.createOrder(
@@ -328,6 +331,8 @@ describe("Execute Order Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
+        await symphony.addWhitelistAsset(daiAddress);
+
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
@@ -344,8 +349,15 @@ describe("Execute Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
+        const data = encodeData(
+            ZERO_ADDRESS,
+            0,
+            ZERO_BYTES32,
+            []
+        );
+
         // Remove yield strategy
-        await symphony.migrateStrategy(daiAddress, ZERO_ADDRESS);
+        await symphony.migrateStrategy(daiAddress, ZERO_ADDRESS, data);
 
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
 
@@ -359,3 +371,12 @@ describe("Execute Order Test", () => {
         );
     });
 });
+
+const encodeData = (router, slippage, codeHash, path) => {
+    const abiCoder = new AbiCoder();
+
+    return abiCoder.encode(
+        ['address', 'uint256', 'bytes32', 'address[]'],
+        [router, slippage, codeHash, path]
+    )
+}

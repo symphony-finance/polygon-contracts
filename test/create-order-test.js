@@ -87,6 +87,8 @@ describe("Create Order Test", () => {
 
         expect(await symphony.totalAssetShares(usdcAddress)).to.eq(0);
 
+        await symphony.addWhitelistAsset(usdcAddress);
+
         // Create 1st Order
         await symphony.createOrder(
             deployer.address,
@@ -179,6 +181,8 @@ describe("Create Order Test", () => {
             usdcAddress,
             0, // 40%
         );
+
+        await symphony.addWhitelistAsset(usdcAddress);
 
         // Create Order
         const tx = await symphony.createOrder(
@@ -279,6 +283,8 @@ describe("Create Order Test", () => {
             10000, // 100%
         );
 
+        await symphony.addWhitelistAsset(usdcAddress);
+
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
@@ -373,6 +379,8 @@ describe("Create Order Test", () => {
             bufferPercent * 100, // 4000
         );
 
+        await symphony.addWhitelistAsset(usdcAddress);
+
         // Create Order
         const tx = await symphony.createOrder(
             deployer.address,
@@ -449,6 +457,8 @@ describe("Create Order Test", () => {
 
         await usdcContract.approve(symphony.address, approveAmount);
 
+        await symphony.addWhitelistAsset(usdcAddress);
+
         // Create Order
         await symphony.createOrder(
             deployer.address,
@@ -522,6 +532,7 @@ describe("Create Order Test", () => {
         await usdcContract.approve(symphony.address, approveAmount);
 
         await symphony.pause();
+        await symphony.addWhitelistAsset(usdcAddress);
 
         await expect(
             symphony.createOrder(
@@ -624,6 +635,8 @@ describe("Create Order Test", () => {
     //         usdcAddress,
     //         4000, // 40%
     //     );
+
+    // await symphony.addWhitelistAsset(usdcAddress);
 
     //     // Create Order
     //     const tx = await symphony.createOrder(

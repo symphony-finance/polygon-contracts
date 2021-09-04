@@ -3,7 +3,7 @@ const { expect } = require("chai");
 const config = require("../config/index.json");
 const { default: BigNumber } = require("bignumber.js");
 const { time } = require("@openzeppelin/test-helpers");
-const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
 
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
@@ -14,6 +14,7 @@ const SymphonyArtifacts = require(
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
 );
+const { AbiCoder } = require("ethers/lib/utils");
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -22,15 +23,15 @@ const bufferPercent = 4000; // 40%
 const configParams = config.mainnet;
 
 const inputAmount = new BigNumber(10).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(6))
+    new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
 const minReturnAmount = new BigNumber(15).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
+    new BigNumber(10).exponentiatedBy(new BigNumber(6))
 ).toString();
 
 const stoplossAmount = new BigNumber(11).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
+    new BigNumber(10).exponentiatedBy(new BigNumber(6))
 ).toString();
 
 const approveAmount = new BigNumber(100)
@@ -52,9 +53,9 @@ describe("Migrate Strategy Test", () => {
         );
         deployer.address = deployer._address;
 
-        // Create USDC contract instance
-        const usdcContract = new ethers.Contract(
-            usdcAddress,
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
             IERC20Artifacts.abi,
             deployer
         );
@@ -102,17 +103,17 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        const aUsdcAddress = await aaveYield.getYieldTokenAddress(usdcAddress);
+        const aDaiAddress = await aaveYield.getYieldTokenAddress(daiAddress);
 
         // Create aUSDC contract instance
-        const aUsdcInstance = new ethers.Contract(
-            aUsdcAddress,
+        const aDaiContract = new ethers.Contract(
+            aDaiAddress,
             IERC20Artifacts.abi,
             deployer
         );
 
-        await symphony.updateStrategy(usdcAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(usdcAddress, 4000);
+        await symphony.updateStrategy(daiAddress, aaveYield.address);
+        await symphony.updateBufferPercentage(daiAddress, 4000);
 
         const approveAmount = new BigNumber(100)
             .times(
@@ -121,13 +122,15 @@ describe("Migrate Strategy Test", () => {
             )
             .toString();
 
-        await usdcContract.approve(symphony.address, approveAmount);
+        await daiContract.approve(symphony.address, approveAmount);
+
+        await symphony.addWhitelistAsset(daiAddress);
 
         // Create Order
         await symphony.createOrder(
             deployer.address,
-            usdcAddress,
             daiAddress,
+            usdcAddress,
             inputAmount,
             minReturnAmount,
             stoplossAmount
@@ -137,30 +140,12 @@ describe("Migrate Strategy Test", () => {
             (10000 - bufferPercent) / 10000
         );
 
-        expect(Number(await aUsdcInstance.balanceOf(aaveYield.address)))
-            .to.eq(strategyBal);
+        expect(Number(await aDaiContract.balanceOf(aaveYield.address)))
+            .to.greaterThanOrEqual(Number(strategyBal));
 
         for (let i = 0; i < 100; ++i) {
             await time.advanceBlock();
         };
-
-        const rewardBalance = await aaveYield.getRewardBalance(usdcAddress);
-
-        expect(Number(rewardBalance)).to.be.greaterThan(0);
-
-        // withdrawing reward from Aave
-        await aaveYield.withdrawAaveReward(usdcAddress);
-
-        // Create reward token contract instance
-        const rewardContract = new ethers.Contract(
-            rewardToken,
-            IERC20Artifacts.abi,
-            deployer
-        );
-
-        expect(
-            Number(await rewardContract.balanceOf(aaveYield.address))
-        ).greaterThanOrEqual(Number(rewardBalance));
 
         // Deploy AaveYield Contract
         const AaveYieldNew = await hre.ethers.getContractFactory("AaveYield");
@@ -178,18 +163,30 @@ describe("Migrate Strategy Test", () => {
 
         await aaveYieldNew.deployed();
 
+        const rewardBalance = await aaveYield.getRewardBalance();
+
+        expect(Number(rewardBalance)).to.be.greaterThan(0);
+
+        // construct extra data for swapping reward
+        const extraData = encodeData(
+            "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", // Uniswap V2 Router
+            100,
+            "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f", // Uniswap V2 init code hash
+            [rewardToken, configParams.wethAddress, daiAddress]
+        );
+
         // Migrate Strategy to new contract
-        await symphony.migrateStrategy(usdcAddress, aaveYieldNew.address);
+        await symphony.migrateStrategy(daiAddress, aaveYieldNew.address, extraData);
 
-        expect(await symphony.strategy(usdcAddress)).to.eq(aaveYieldNew.address);
+        // expect(
+        //     Number(await rewardContract.balanceOf(symphony.address))
+        // ).greaterThanOrEqual(Number(rewardBalance.add(symphonyRewardBal)));
 
-        expect(await aUsdcInstance.balanceOf(aaveYield.address)).to.eq(0);
-        expect(Number(await aUsdcInstance.balanceOf(aaveYieldNew.address)))
+        expect(await symphony.strategy(daiAddress)).to.eq(aaveYieldNew.address);
+
+        expect(await aDaiContract.balanceOf(aaveYield.address)).to.eq(0);
+        expect(Number(await aDaiContract.balanceOf(aaveYieldNew.address)))
             .to.be.greaterThanOrEqual(strategyBal);
-
-        expect(
-            Number(await rewardContract.balanceOf(aaveYield.address))
-        ).greaterThanOrEqual(Number(rewardBalance));
     });
 
     it("Should remove strategy of an asset", async () => {
@@ -203,9 +200,9 @@ describe("Migrate Strategy Test", () => {
         );
         deployer.address = deployer._address;
 
-        // Create USDC contract instance
-        const usdcContract = new ethers.Contract(
-            usdcAddress,
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
             IERC20Artifacts.abi,
             deployer
         );
@@ -234,7 +231,6 @@ describe("Migrate Strategy Test", () => {
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        const configParams = config.mainnet;
         let aaveYield = await upgrades.deployProxy(
             AaveYield,
             [
@@ -254,32 +250,41 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        await symphony.updateStrategy(usdcAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(usdcAddress, bufferPercent);
+        await symphony.updateStrategy(daiAddress, aaveYield.address);
+        await symphony.updateBufferPercentage(daiAddress, bufferPercent);
 
-        await usdcContract.approve(symphony.address, approveAmount);
+        await daiContract.approve(symphony.address, approveAmount);
+
+        await symphony.addWhitelistAsset(daiAddress);
 
         // Create Order
         await symphony.createOrder(
             deployer.address,
-            usdcAddress,
             daiAddress,
+            usdcAddress,
             inputAmount,
             minReturnAmount,
             stoplossAmount
         );
 
-        const symphonyUsdcBal = Number(
-            await usdcContract.balanceOf(symphony.address)
+        const symphonyDaiBal = Number(
+            await daiContract.balanceOf(symphony.address)
         );
 
-        expect(symphonyUsdcBal).to.eq(
+        expect(symphonyDaiBal).to.eq(
             Number(inputAmount) * (bufferPercent / 10000)
         );
 
-        await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS);
+        const data = encodeData(
+            ZERO_ADDRESS,
+            0,
+            ZERO_BYTES32,
+            []
+        );
 
-        expect(Number(await usdcContract.balanceOf(symphony.address)))
+        await symphony.migrateStrategy(daiAddress, ZERO_ADDRESS, data);
+
+        expect(Number(await daiContract.balanceOf(symphony.address)))
             .to.be.greaterThanOrEqual(Number(inputAmount) - 1);
     });
 
@@ -316,7 +321,7 @@ describe("Migrate Strategy Test", () => {
         );
 
         await expect(
-            symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS)
+            symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS, ZERO_BYTES32)
         ).to.be.revertedWith(
             "Symphony::migrateStrategy: no strategy for asset exists!!"
         );
@@ -380,9 +385,18 @@ describe("Migrate Strategy Test", () => {
         await symphony.updateStrategy(usdcAddress, aaveYield.address);
 
         await expect(
-            symphony.migrateStrategy(usdcAddress, aaveYield.address)
+            symphony.migrateStrategy(usdcAddress, aaveYield.address, ZERO_BYTES32)
         ).to.be.revertedWith(
             "Symphony::migrateStrategy: new startegy shouldn't be same!!"
         );
     });
 });
+
+const encodeData = (router, slippage, codeHash, path) => {
+    const abiCoder = new AbiCoder();
+
+    return abiCoder.encode(
+        ['address', 'uint256', 'bytes32', 'address[]'],
+        [router, slippage, codeHash, path]
+    )
+}
