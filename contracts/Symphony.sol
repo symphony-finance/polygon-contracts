@@ -104,7 +104,7 @@ contract Symphony is
     ) external nonReentrant whenNotPaused returns (bytes32 orderId) {
         require(
             inputAmount > 0,
-            "Symphony::createOrder: Input amoount can't be zero"
+            "Symphony::createOrder: Input amount can't be zero"
         );
         require(
             minReturnAmount > 0,
@@ -430,6 +430,7 @@ contract Symphony is
 
         uint256 assetBufferPercent = assetBuffer[asset];
 
+        // this condition will fail if buffer goes 80% -> 100%
         if (assetBufferPercent != 10000) {
             uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
@@ -439,7 +440,7 @@ contract Symphony is
             uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
             uint256 bufferBalanceNeeded = totalBalance.percentMul(
-                assetBuffer[asset]
+                assetBufferPercent
             );
 
             emit AssetRebalanced(asset);
@@ -755,8 +756,17 @@ contract Symphony is
         returns (uint256 shares)
     {
         if (totalAssetShares[_token] > 0) {
+            
+            // can _amount.mul(totalAssetShares[_token]) < total funds?
+            // if someone sends tokens to the contract then the shares can be 0
+            // if shares for an order is 0 then the creator won't get any buy tokens
             shares = _amount.mul(totalAssetShares[_token]).div(
                 getTotalFunds(_token)
+            );
+
+            require(
+                shares > 0,
+                "SYM::CS: shares can't be 0"
             );
         } else {
             shares = _amount;
