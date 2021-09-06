@@ -428,38 +428,33 @@ contract Symphony is
             "Symphony::rebalanceAsset: Rebalance needs some strategy"
         );
 
-        uint256 assetBufferPercent = assetBuffer[asset];
+        uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
-        // this condition will fail if buffer goes 80% -> 100%
-        if (assetBufferPercent != 10000) {
-            uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
+        uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
+            .getTotalUnderlying(asset);
 
-            uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
-                .getTotalUnderlying(asset);
+        uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
-            uint256 totalBalance = balanceInContract.add(balanceInStrategy);
+        uint256 bufferBalanceNeeded = totalBalance.percentMul(
+            assetBuffer[asset]
+        );
 
-            uint256 bufferBalanceNeeded = totalBalance.percentMul(
-                assetBufferPercent
+        emit AssetRebalanced(asset);
+
+        if (balanceInContract > bufferBalanceNeeded) {
+            IYieldAdapter(strategy[asset]).deposit(
+                asset,
+                balanceInContract.sub(bufferBalanceNeeded)
             );
-
-            emit AssetRebalanced(asset);
-
-            if (balanceInContract > bufferBalanceNeeded) {
-                IYieldAdapter(strategy[asset]).deposit(
-                    asset,
-                    balanceInContract.sub(bufferBalanceNeeded)
-                );
-            } else if (balanceInContract < bufferBalanceNeeded) {
-                IYieldAdapter(strategy[asset]).withdraw(
-                    asset,
-                    bufferBalanceNeeded.sub(balanceInContract),
-                    0,
-                    0,
-                    address(0),
-                    bytes32(0)
-                );
-            }
+        } else if (balanceInContract < bufferBalanceNeeded) {
+            IYieldAdapter(strategy[asset]).withdraw(
+                asset,
+                bufferBalanceNeeded.sub(balanceInContract),
+                0,
+                0,
+                address(0),
+                bytes32(0)
+            );
         }
     }
 
@@ -756,17 +751,12 @@ contract Symphony is
         returns (uint256 shares)
     {
         if (totalAssetShares[_token] > 0) {
-            
-            // can _amount.mul(totalAssetShares[_token]) < total funds?
-            // if someone sends tokens to the contract then the shares can be 0
-            // if shares for an order is 0 then the creator won't get any buy tokens
             shares = _amount.mul(totalAssetShares[_token]).div(
                 getTotalFunds(_token)
             );
-
             require(
                 shares > 0,
-                "SYM::CS: shares can't be 0"
+                "Symphony::_calculateShares: shares can't be 0"
             );
         } else {
             shares = _amount;
