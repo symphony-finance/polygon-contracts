@@ -78,11 +78,7 @@ contract QuickswapHandler is IHandler {
             order.inputAmount
         );
 
-        uint256 actualAmtOut = swap(
-            order.inputToken,
-            order.outputToken,
-            order.inputAmount
-        );
+        uint256 actualAmtOut = swap(order);
 
         uint256 oracleAmount = oracle.get(
             order.inputToken,
