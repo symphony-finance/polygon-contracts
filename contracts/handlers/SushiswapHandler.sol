@@ -60,10 +60,6 @@ contract SushiswapHandler is IHandler {
 
     /// @notice receive MATIC
     receive() external payable override {
-        require(
-            msg.sender != tx.origin,
-            "SushiswapHandler#receive: NO_SEND_MATIC_PLEASE"
-        );
     }
 
     /**
@@ -77,7 +73,12 @@ contract SushiswapHandler is IHandler {
         address treasury,
         bytes calldata
     ) external override onlySymphony {
-        (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
+        IERC20(order.inputToken).safeApprove(
+            address(UniswapRouter),
+            order.inputAmount
+        );
+
+        uint256 actualAmtOut = swap(
             order.inputToken,
             order.outputToken,
             order.inputAmount
@@ -88,30 +89,16 @@ contract SushiswapHandler is IHandler {
             order.outputToken,
             order.inputAmount
         );
-
+        
         require(
-            (amountOut >= order.minReturnAmount ||
-                amountOut <= order.stoplossAmount) && amountOut >= oracleAmount,
+            (actualAmtOut >= order.minReturnAmount ||
+                actualAmtOut <= order.stoplossAmount) && actualAmtOut >= oracleAmount,
             "SushiswapHandler: Amount mismatch !!"
-        );
-
-        IERC20(order.inputToken).safeApprove(
-            address(UniswapRouter),
-            order.inputAmount
-        );
-
-        // Swap Tokens
-        uint256[] memory returnAmount = UniswapRouter.swapExactTokensForTokens(
-            order.inputAmount,
-            amountOut.mul(98).div(100), // Slipage: 2%
-            path,
-            address(this),
-            block.timestamp.add(1800)
         );
 
         transferTokens(
             order.outputToken,
-            returnAmount[returnAmount.length - 1], // Output amount received
+            actualAmtOut, // Output amount received
             order.recipient,
             executor,
             treasury,
@@ -200,6 +187,25 @@ contract SushiswapHandler is IHandler {
         }
 
         amountOut = _amounts[_amounts.length - 1];
+    }
+
+    function swap(IOrderStructs.Order memory order) internal returns (uint256) {
+        (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
+        );
+
+        // Swap Tokens
+        uint256[] memory returnAmount = UniswapRouter.swapExactTokensForTokens(
+            order.inputAmount,
+            amountOut,
+            path,
+            address(this),
+            block.timestamp.add(1800)
+        );
+
+        return returnAmount[returnAmount.length - 1];
     }
 
     function transferTokens(

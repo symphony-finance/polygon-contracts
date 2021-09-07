@@ -201,6 +201,16 @@ contract Symphony is
             "Symphony::updateOrder: Only recipient can update the order"
         );
 
+        require(
+            _minReturnAmount > 0,
+            "Symphony::createOrder: Amount out can't be zero"
+        );
+
+        require(
+            _stoplossAmount < _minReturnAmount,
+            "Symphony::createOrder: stoploss amount should be less than amount out"
+        );
+
         delete orderHash[orderId];
 
         bytes32 newOrderId = getOrderId(
@@ -573,24 +583,6 @@ contract Symphony is
     }
 
     /**
-     * @notice Update asset buffer percentage
-     */
-    function updateBufferPercentage(address _asset, uint256 _value)
-        external
-        onlyOwner
-    {
-        require(
-            _value >= 0 && _value <= 10000,
-            "symphony::updateBufferPercentage: not correct buffer percent."
-        );
-        assetBuffer[_asset] = _value;
-        emit UpdatedBufferPercentage(_asset, _value);
-        if (_value > 0) {
-            rebalanceAsset(_asset);
-        }
-    }
-
-    /**
      * @notice Update the oracle
      */
     function updateOracle(IOracle _oracle) external onlyOwner {
@@ -735,6 +727,22 @@ contract Symphony is
     }
 
     /**
+    * @notice Update asset buffer percentage
+    */
+    function updateBufferPercentage(address _asset, uint256 _value)
+        external
+        onlyEmergencyAdminOrOwner
+    {
+        require(
+            _value >= 0 && _value <= 10000,
+            "symphony::updateBufferPercentage: not correct buffer percent."
+        );
+        assetBuffer[_asset] = _value;
+        emit UpdatedBufferPercentage(_asset, _value);        
+        rebalanceAsset(_asset);
+    }
+
+    /**
      * @notice Update emergency admin address
      */
     function updateEmergencyAdmin(address _emergencyAdmin) external {
@@ -810,7 +818,6 @@ contract Symphony is
      * @notice Update Strategy of an asset
      */
     function _updateAssetStrategy(address _asset, address _strategy) internal {
-        address previousStrategy = strategy[_asset];
 
         // max approve token
         if (
@@ -824,12 +831,7 @@ contract Symphony is
             IYieldAdapter(_strategy).maxApprove(_asset);
 
             strategy[_asset] = _strategy;
-
-            if (
-                previousStrategy != _strategy && previousStrategy != address(0)
-            ) {
-                rebalanceAsset(_asset);
-            }
+            rebalanceAsset(_asset);
         }
     }
 }

@@ -90,10 +90,6 @@ contract BalancerHandler is IHandler {
 
     /// @notice receive MATIC
     receive() external payable override {
-        require(
-            msg.sender != tx.origin,
-            "BalancerHandler#receive: NO_SEND_MATIC_PLEASE"
-        );
     }
 
     /**

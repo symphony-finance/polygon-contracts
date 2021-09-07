@@ -90,10 +90,6 @@ contract MockBalancerHandler is IHandler {
 
     /// @notice receive ETH
     receive() external payable override {
-        require(
-            msg.sender != tx.origin,
-            "BalancerHandler#receive: NO_SEND_MATIC_PLEASE"
-        );
     }
 
     /**
