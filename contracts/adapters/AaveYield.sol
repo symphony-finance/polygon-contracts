@@ -123,12 +123,7 @@ contract AaveYield is IYieldAdapter, Initializable {
         if (amount > 0) {
             emit Withdraw(asset, amount);
 
-            uint256 underlyingAssetAmt = _withdrawERC20(asset, amount);
-
-            require(
-                underlyingAssetAmt > 0,
-                "AaveYield::withdraw: incorrect amount withdrawn"
-            );
+            _withdrawERC20(asset, amount);
         }
 
         if (isExternalRewardEnabled && shares > 0 && recipient != address(0)) {
