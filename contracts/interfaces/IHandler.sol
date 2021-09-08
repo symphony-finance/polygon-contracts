@@ -26,24 +26,4 @@ interface IHandler {
         address _treasury,
         bytes calldata _data
     ) external;
-
-    /**
-     * @notice Simulate an order execution
-     * @param _inputToken - Address of the input token
-     * @param _outputToken - Address of the output token
-     * @param _inputAmount - uint256 of the input token amount
-     * @param _minReturnAmount - uint256 minimum return output token
-     * @param _stoplossAmount - uint256 stoploss amount
-     * @param _data - Bytes of arbitrary data
-     * @return success - Whether the execution can be handled or not
-     * @return amountOut - Amount of output token bought
-     */
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        bytes calldata _data
-    ) external view returns (bool success, uint256 amountOut);
 }

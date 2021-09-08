@@ -24,8 +24,6 @@ const main = () => {
 
         SushiswapHandler.deploy(
             configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
             configParams.chainlinkOracle,
             configParams.symphonyAddress

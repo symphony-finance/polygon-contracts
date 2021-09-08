@@ -137,15 +137,6 @@ contract MockBalancerHandler is IHandler {
         );
     }
 
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        bytes calldata
-    ) external view override returns (bool success, uint256 bought) {}
-
     /**
      * @notice Swap input token to output token
      * @param _inputToken - Address of the input token

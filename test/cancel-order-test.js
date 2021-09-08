@@ -486,7 +486,7 @@ describe("Cancel Order Test", () => {
             greaterThanOrEqual(
                 Number(new BigNumber(inputAmount).times(
                     new BigNumber((100 - bufferPercent) / 100)
-                ))
+                )) - 1
             );
         expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
 

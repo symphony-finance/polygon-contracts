@@ -18,6 +18,7 @@ const ChainlinkArtifacts = require(
 );
 const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
 
+const abiCoder = new AbiCoder();
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
@@ -145,8 +146,6 @@ describe("Execute Order Test", () => {
 
         const sushiswapHandler = await SushiswapHandler.deploy(
             configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
             chainlinkOracle.address,
             symphony.address
@@ -185,8 +184,10 @@ describe("Execute Order Test", () => {
             await time.advanceBlock();
         };
 
+        const path = encodePath([daiAddress, configParams.wethAddress, usdcAddress])
+
         // Execute Order
-        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, path);
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
@@ -297,8 +298,6 @@ describe("Execute Order Test", () => {
 
         const sushiswapHandler = await SushiswapHandler.deploy(
             configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
             chainlinkOracle.address,
             symphony.address
@@ -361,8 +360,10 @@ describe("Execute Order Test", () => {
 
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
 
+        const path = encodePath([daiAddress, configParams.wethAddress, usdcAddress])
+
         // Execute Order
-        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, path);
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
@@ -373,10 +374,12 @@ describe("Execute Order Test", () => {
 });
 
 const encodeData = (router, slippage, codeHash, path) => {
-    const abiCoder = new AbiCoder();
-
     return abiCoder.encode(
         ['address', 'uint256', 'bytes32', 'address[]'],
         [router, slippage, codeHash, path]
     )
+}
+
+const encodePath = (path) => {
+    return abiCoder.encode(['address[]'], [path])
 }
