@@ -22,6 +22,9 @@ async function main() {
         deployer.address
     );
 
+    console.log("\nDeploying ChainlinkOracle..");
+    await deployChainlinkOracle();
+
     console.log("\nDeploying Symphony..");
     await deploySymphony(executionFee);
 
@@ -33,9 +36,6 @@ async function main() {
 
     console.log("\nDeploying AaveYield..");
     await deployAaveYield();
-
-    console.log("\nDeploying ChainlinkOracle..");
-    await deployChainlinkOracle();
 
     console.log("\nDeploying SushiswapHandler..");
     await deploySushiswapHandler();
@@ -70,7 +70,7 @@ async function main() {
 
         if (data.feed) {
             await chainlinkOracle.addTokenFeed(
-                data.address ? data.address : data.chainlinkAddress,
+                data.address ? data.address : data.aaveAddress,
                 data.feed,
             );
         }
@@ -85,6 +85,10 @@ async function main() {
             await symphony.updateBufferPercentage(
                 data.address ? data.address : data.aaveAddress,
                 data.buffer,
+            );
+
+            await symphony.addWhitelistAsset(
+                data.address ? data.address : data.aaveAddress
             );
         }
     }

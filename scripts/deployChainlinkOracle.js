@@ -1,18 +1,24 @@
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
-const file = require("../config/index.json");
 const fileName = "../config/index.json";
+const file = require("../config/index.json");
+const config = require("../config/index.json");
 
 const main = () => {
     return new Promise(async (resolve) => {
-        const [deployer] = await ethers.getSigners();
+        let configParams = config.development;
+        if (network.name === "matic") {
+            configParams = config.matic;
+        } else if (network.name === "mumbai") {
+            configParams = config.mumbai;
+        }
 
         // Deploy ChainlinkOracle Contract
         const ChainlinkOracle = await hre.ethers
             .getContractFactory("ChainlinkOracle");
 
-        ChainlinkOracle.deploy(deployer.address)
+        ChainlinkOracle.deploy(configParams.admin)
             .then(async (chainlinkOracle) => {
                 await chainlinkOracle.deployed();
 

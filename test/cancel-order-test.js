@@ -350,7 +350,7 @@ describe("Cancel Order Test", () => {
         await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS, encodedOrder);
 
         expect(Number(await usdcContract.balanceOf(symphony.address)))
-            .to.be.greaterThanOrEqual(Number(inputAmount));
+            .to.be.greaterThanOrEqual(Number(inputAmount) - 1);
         expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
 
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
@@ -360,7 +360,8 @@ describe("Cancel Order Test", () => {
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
-        expect(usdcBalAfterExecute).to.be.eq(usdcBalBeforeExecute.add(inputAmount));
+        expect(Number(usdcBalAfterExecute)).to.be
+            .greaterThanOrEqual(Number(usdcBalBeforeExecute.add(inputAmount)));
     });
 
     it("Should cancel order when strategy migrated after creating the order", async () => {
@@ -481,11 +482,12 @@ describe("Cancel Order Test", () => {
                 new BigNumber(bufferPercent / 100)
             ))
         );
-        expect(Number(await aaveYieldNew.getTotalUnderlying(usdcAddress))).to.eq(
-            Number(new BigNumber(inputAmount).times(
-                new BigNumber((100 - bufferPercent) / 100)
-            ))
-        );
+        expect(Number(await aaveYieldNew.getTotalUnderlying(usdcAddress))).to.
+            greaterThanOrEqual(
+                Number(new BigNumber(inputAmount).times(
+                    new BigNumber((100 - bufferPercent) / 100)
+                ))
+            );
         expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
 
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
@@ -495,7 +497,8 @@ describe("Cancel Order Test", () => {
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
-        expect(usdcBalAfterExecute).to.be.eq(usdcBalBeforeExecute.add(inputAmount));
+        expect(Number(usdcBalAfterExecute)).to.be
+            .greaterThanOrEqual(Number(usdcBalBeforeExecute.add(inputAmount)));
     });
 
     // it("Should cancel order with Mstable yield strategy", async () => {

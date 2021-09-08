@@ -2,12 +2,18 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { network } = require("hardhat");
-const file = require("../config/index.json");
 const fileName = "../config/index.json";
+const file = require("../config/index.json");
+const config = require("../config/index.json");
 
 const main = (fee) => {
     return new Promise(async (resolve) => {
-        const [deployer] = await ethers.getSigners();
+        let configParams = config.development;
+        if (network.name === "matic") {
+            configParams = config.matic;
+        } else if (network.name === "mumbai") {
+            configParams = config.mumbai;
+        }
 
         // Deploy Symphony Contract
         const Symphony = await hre.ethers.getContractFactory("Symphony");
@@ -15,9 +21,10 @@ const main = (fee) => {
         upgrades.deployProxy(
             Symphony,
             [
-                deployer.address,
-                deployer.address,
+                configParams.admin,
+                configParams.emergencyAdmin,
                 fee, // 40 for 0.4 %
+                configParams.chainlinkOracle,
             ]
         ).then(async (symphony) => {
             await symphony.deployed();
