@@ -63,9 +63,9 @@ contract BalancerHandler is IHandler {
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
 
-    IOracle public oracle;
+    IOracle public immutable oracle;
     IVault public immutable vault;
-    address public symphony;
+    address public immutable symphony;
 
     /**
      * @notice Creates the handler
@@ -89,8 +89,7 @@ contract BalancerHandler is IHandler {
     }
 
     /// @notice receive MATIC
-    receive() external payable override {
-    }
+    receive() external payable override {}
 
     /**
      * @notice Handle an order execution
@@ -136,15 +135,6 @@ contract BalancerHandler is IHandler {
             protcolFeePercent
         );
     }
-
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        bytes calldata
-    ) external view override returns (bool success, uint256 bought) {}
 
     /**
      * @notice Swap input token to output token

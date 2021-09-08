@@ -18,8 +18,6 @@ contract MockSushiswapHandler is IHandler {
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
 
-    address public immutable WETH;
-    address public immutable WMATIC;
     address public immutable FACTORY;
     bytes32 public immutable FACTORY_CODE_HASH;
     IUniswapRouter internal UniswapRouter;
@@ -29,21 +27,15 @@ contract MockSushiswapHandler is IHandler {
     /**
      * @notice Creates the handler
      * @param _router - Address of the Sushiswap router contract
-     * @param _weth - Address of WETH contract
-     * @param _wmatic - Address of WMATIC contract
      * @param _codeHash - Bytes32 of the Sushiswap v2 pair contract unit code hash
      */
     constructor(
         IUniswapRouter _router,
-        address _weth,
-        address _wmatic,
         bytes32 _codeHash,
         IOracle _oracle,
         address _symphony
     ) {
         UniswapRouter = _router;
-        WETH = _weth;
-        WMATIC = _wmatic;
         FACTORY_CODE_HASH = _codeHash;
         oracle = _oracle;
         FACTORY = _router.factory();
@@ -59,8 +51,7 @@ contract MockSushiswapHandler is IHandler {
     }
 
     /// @notice receive ETH
-    receive() external payable override {
-    }
+    receive() external payable override {}
 
     /**
      * @notice Handle an order execution
@@ -71,34 +62,26 @@ contract MockSushiswapHandler is IHandler {
         uint256 protcolFeePercent,
         address executor,
         address treasury,
-        bytes calldata
+        bytes calldata handlerData
     ) external override onlySymphony {
-        IERC20(order.inputToken).safeApprove(
-            address(UniswapRouter),
-            order.inputAmount
-        );
-
-        uint256 actualAmtOut = swap(
-            order.inputToken,
-            order.outputToken,
-            order.inputAmount
-        );
-
         uint256 oracleAmount = oracle.get(
             order.inputToken,
             order.outputToken,
             order.inputAmount
         );
-        
-        require(
-            (actualAmtOut >= order.minReturnAmount ||
-                actualAmtOut <= order.stoplossAmount) && actualAmtOut >= oracleAmount,
-            "SushiswapHandler: Amount mismatch !!"
-        );
 
-        transferTokens(
+        uint256 amountOutMin = oracleAmount <= order.stoplossAmount ||
+            oracleAmount > order.minReturnAmount
+            ? oracleAmount
+            : order.minReturnAmount;
+
+        address[] memory path = _decodeData(handlerData);
+
+        uint256 actualAmtOut = _swap(order, path, amountOutMin);
+
+        _transferTokens(
             order.outputToken,
-            actualAmtOut, // Output amount received
+            actualAmtOut,
             order.recipient,
             executor,
             treasury,
@@ -107,106 +90,20 @@ contract MockSushiswapHandler is IHandler {
         );
     }
 
-    /**
-     * @notice Simulate an order execution
-     * @param _inputToken - Address of the input token
-     * @param _outputToken - Address of the output token
-     * @param _inputAmount - uint256 of the input token amount
-     * @param _minReturnAmount - uint256 of the max return amount of output token
-     * @param _stoplossAmount - uint256 stoploss amount
-     * @return success - Whether the execution can be handled or not
-     * @return amountOut - Amount of output token bought
-     */
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        bytes calldata
-    ) external view override returns (bool success, uint256 amountOut) {
-        (amountOut, ) = getPathAndAmountOut(
-            _inputToken,
-            _outputToken,
-            _inputAmount
-        );
-
-        // uint256 totalFee = amountOut.percentMul(_feePercent);
-        // amountOut = amountOut.sub(totalFee);
-
-        uint256 oracleAmount = oracle.get(
-            _inputToken,
-            _outputToken,
-            _inputAmount
-        );
-
-        return (
-            ((amountOut >= _minReturnAmount || amountOut <= _stoplossAmount) &&
-                amountOut >= oracleAmount),
-            amountOut
-        );
-    }
-
-    function getPathAndAmountOut(
-        address inputToken,
-        address outputToken,
-        uint256 inputAmount
-    ) internal view returns (uint256 amountOut, address[] memory path) {
-        path = new address[](2);
-        path[0] = inputToken;
-        path[1] = outputToken;
-
-        uint256[] memory _amounts = UniswapLibrary.getAmountsOut(
-            FACTORY,
-            inputAmount,
-            path,
-            FACTORY_CODE_HASH
-        );
-
-        if (_amounts[1] == 0) {
-            path = new address[](3);
-
-            path[0] = inputToken;
-            path[1] = WETH; // WETH address
-            path[2] = outputToken;
-
-            _amounts = UniswapLibrary.getAmountsOut(
-                FACTORY,
-                inputAmount,
-                path,
-                FACTORY_CODE_HASH
-            );
-
-            if (_amounts[_amounts.length - 1] == 0) {
-                path[1] = WMATIC; // WMATIC address
-
-                _amounts = UniswapLibrary.getAmountsOut(
-                    FACTORY,
-                    inputAmount,
-                    path,
-                    FACTORY_CODE_HASH
-                );
-            }
-        }
-
-        amountOut = _amounts[_amounts.length - 1];
-    }
-
-    function swap(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount
+    function _swap(
+        IOrderStructs.Order memory order,
+        address[] memory path,
+        uint256 amountOutMin
     ) internal returns (uint256) {
-        (uint256 amountOut, address[] memory path) = getPathAndAmountOut(
-            _inputToken,
-            _outputToken,
-            _inputAmount
+        IERC20(order.inputToken).safeApprove(
+            address(UniswapRouter),
+            order.inputAmount
         );
 
         // Swap Tokens
         uint256[] memory returnAmount = UniswapRouter.swapExactTokensForTokens(
-            _inputAmount,
-            amountOut,
+            order.inputAmount,
+            amountOutMin,
             path,
             address(this),
             block.timestamp.add(1800)
@@ -215,7 +112,7 @@ contract MockSushiswapHandler is IHandler {
         return returnAmount[returnAmount.length - 1];
     }
 
-    function transferTokens(
+    function _transferTokens(
         address token,
         uint256 amount,
         address recipient,
@@ -236,5 +133,13 @@ contract MockSushiswapHandler is IHandler {
         }
 
         IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
+    }
+
+    function _decodeData(bytes memory _data)
+        internal
+        view
+        returns (address[] memory path)
+    {
+        path = abi.decode(_data, (address[]));
     }
 }
