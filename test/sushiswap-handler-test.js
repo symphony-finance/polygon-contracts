@@ -104,7 +104,6 @@ describe("Sushiswap Handler Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
             deployer.address // false symphony address
         );
 
@@ -120,8 +119,15 @@ describe("Sushiswap Handler Test", () => {
 
         const balanceBeforeSwap = await daiContract.balanceOf(recipient);
 
+        const oracleAmount = await chainlinkOracle.get(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
+        );
+
         await sushiswapHandler.handle(
             order,
+            oracleAmount,
             40,
             2500,
             recipient,
@@ -178,7 +184,6 @@ describe("Sushiswap Handler Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
             deployer.address // false symphony address
         );
 
@@ -190,12 +195,19 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
 
+        const oracleAmount = await chainlinkOracle.get(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
+        );
+
         const result = await sushiswapHandler.simulate(
             order.inputToken,
             order.outputToken,
             order.inputAmount,
             order.minReturnAmount,
             stoplossAmount,
+            oracleAmount,
             ZERO_BYTES32
         );
 
@@ -231,7 +243,6 @@ describe("Sushiswap Handler Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            deployer.address, // false chainlink addr
             deployer.address // false symphony address
         );
 
@@ -252,7 +263,7 @@ describe("Sushiswap Handler Test", () => {
         const executorBalBefore = await daiContract.balanceOf(executor);
         const treasuryBalBefore = await daiContract.balanceOf(treasury);
 
-        await sushiswapHandler.transferTokens(
+        await sushiswapHandler._transferTokens(
             order.outputToken,
             minReturnAmount,
             recipient,

@@ -70,6 +70,29 @@ describe("Execute Order Test", () => {
             deployer
         );
 
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.addTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.addTokenFeed(
+            daiAddress,
+            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        );
+
+        await chainlinkOracle.updatePriceSlippage(100);
+
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
 
@@ -79,7 +102,7 @@ describe("Execute Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40,
-                ZERO_ADDRESS,
+                chainlinkOracle.address,
             ]
         );
 
@@ -117,29 +140,6 @@ describe("Execute Order Test", () => {
         await symphony.updateStrategy(daiAddress, aaveYield.address);
         await symphony.updateBufferPercentage(daiAddress, 4000);
 
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.addTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.addTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        await chainlinkOracle.updatePriceSlippage(100);
-
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
 
@@ -148,7 +148,6 @@ describe("Execute Order Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
             symphony.address
         );
 
@@ -224,6 +223,29 @@ describe("Execute Order Test", () => {
             deployer
         );
 
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.addTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.addTokenFeed(
+            daiAddress,
+            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        );
+
+        await chainlinkOracle.updatePriceSlippage(100);
+
         // Deploy Symphony Contract
         const Symphony = await ethers.getContractFactory("Symphony");
 
@@ -233,7 +255,7 @@ describe("Execute Order Test", () => {
                 deployer.address,
                 deployer.address,
                 40,
-                ZERO_ADDRESS,
+                chainlinkOracle.address,
             ]
         );
 
@@ -269,29 +291,6 @@ describe("Execute Order Test", () => {
         await symphony.updateStrategy(daiAddress, aaveYield.address);
         await symphony.updateBufferPercentage(daiAddress, 4000);
 
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.addTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.addTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        await chainlinkOracle.updatePriceSlippage(100);
-
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
 
@@ -300,7 +299,6 @@ describe("Execute Order Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
             symphony.address
         );
 

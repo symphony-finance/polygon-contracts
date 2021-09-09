@@ -12,6 +12,7 @@ interface IHandler {
     /**
      * @notice Handle an order execution
      * @param _order - Order structure
+     * @param _oracleAmount - Current out amount from oracle
      * @param _feePercent - uint256 total execution fee percent
      * @param _protocolFeePercent - uint256 protocol fee percent
      * @param _executor - Address of the order executor
@@ -20,6 +21,7 @@ interface IHandler {
      */
     function handle(
         IOrderStructs.Order memory _order,
+        uint256 _oracleAmount,
         uint256 _feePercent,
         uint256 _protocolFeePercent,
         address _executor,
@@ -34,6 +36,7 @@ interface IHandler {
      * @param _inputAmount - uint256 of the input token amount
      * @param _minReturnAmount - uint256 minimum return output token
      * @param _stoplossAmount - uint256 stoploss amount
+     * @param _oracleAmount - Current out amount from oracle
      * @param _data - Bytes of arbitrary data
      * @return success - Whether the execution can be handled or not
      * @return amountOut - Amount of output token bought
@@ -44,6 +47,7 @@ interface IHandler {
         uint256 _inputAmount,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount,
+        uint256 _oracleAmount,
         bytes calldata _data
     ) external view returns (bool success, uint256 amountOut);
 }

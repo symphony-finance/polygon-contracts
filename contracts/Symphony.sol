@@ -342,8 +342,15 @@ contract Symphony is
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
+        uint256 oracleAmount = oracle.get(
+            myOrder.inputToken,
+            myOrder.outputToken,
+            depositPlusYield
+        );
+
         IHandler(_handler).handle(
             myOrder,
+            oracleAmount,
             BASE_FEE,
             PROTOCOL_FEE_PERCENT,
             msg.sender,
@@ -727,8 +734,8 @@ contract Symphony is
     }
 
     /**
-    * @notice Update asset buffer percentage
-    */
+     * @notice Update asset buffer percentage
+     */
     function updateBufferPercentage(address _asset, uint256 _value)
         external
         onlyEmergencyAdminOrOwner
@@ -738,7 +745,7 @@ contract Symphony is
             "symphony::updateBufferPercentage: not correct buffer percent."
         );
         assetBuffer[_asset] = _value;
-        emit UpdatedBufferPercentage(_asset, _value);        
+        emit UpdatedBufferPercentage(_asset, _value);
         rebalanceAsset(_asset);
     }
 
@@ -818,7 +825,6 @@ contract Symphony is
      * @notice Update Strategy of an asset
      */
     function _updateAssetStrategy(address _asset, address _strategy) internal {
-
         // max approve token
         if (
             _strategy != address(0) &&
