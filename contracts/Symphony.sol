@@ -104,7 +104,7 @@ contract Symphony is
     ) external nonReentrant whenNotPaused returns (bytes32 orderId) {
         require(
             inputAmount > 0,
-            "Symphony::createOrder: Input amoount can't be zero"
+            "Symphony::createOrder: Input amount can't be zero"
         );
         require(
             minReturnAmount > 0,
@@ -445,37 +445,33 @@ contract Symphony is
             "Symphony::rebalanceAsset: Rebalance needs some strategy"
         );
 
-        uint256 assetBufferPercent = assetBuffer[asset];
+        uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
-        if (assetBufferPercent != 10000) {
-            uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
+        uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
+            .getTotalUnderlying(asset);
 
-            uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
-                .getTotalUnderlying(asset);
+        uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
-            uint256 totalBalance = balanceInContract.add(balanceInStrategy);
+        uint256 bufferBalanceNeeded = totalBalance.percentMul(
+            assetBuffer[asset]
+        );
 
-            uint256 bufferBalanceNeeded = totalBalance.percentMul(
-                assetBuffer[asset]
+        emit AssetRebalanced(asset);
+
+        if (balanceInContract > bufferBalanceNeeded) {
+            IYieldAdapter(strategy[asset]).deposit(
+                asset,
+                balanceInContract.sub(bufferBalanceNeeded)
             );
-
-            emit AssetRebalanced(asset);
-
-            if (balanceInContract > bufferBalanceNeeded) {
-                IYieldAdapter(strategy[asset]).deposit(
-                    asset,
-                    balanceInContract.sub(bufferBalanceNeeded)
-                );
-            } else if (balanceInContract < bufferBalanceNeeded) {
-                IYieldAdapter(strategy[asset]).withdraw(
-                    asset,
-                    bufferBalanceNeeded.sub(balanceInContract),
-                    0,
-                    0,
-                    address(0),
-                    bytes32(0)
-                );
-            }
+        } else if (balanceInContract < bufferBalanceNeeded) {
+            IYieldAdapter(strategy[asset]).withdraw(
+                asset,
+                bufferBalanceNeeded.sub(balanceInContract),
+                0,
+                0,
+                address(0),
+                bytes32(0)
+            );
         }
     }
 
@@ -772,6 +768,10 @@ contract Symphony is
         if (totalAssetShares[_token] > 0) {
             shares = _amount.mul(totalAssetShares[_token]).div(
                 getTotalFunds(_token)
+            );
+            require(
+                shares > 0,
+                "Symphony::_calculateShares: shares can't be 0"
             );
         } else {
             shares = _amount;
