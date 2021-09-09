@@ -167,26 +167,25 @@ describe("Create Order Test", () => {
         expect(await symphony.totalAssetShares(usdcAddress)).to.eq(0);
 
         await symphony.addWhitelistAsset(usdcAddress);
-        
+
         // check the state changes
         let totalSharesBefore = await symphony.totalAssetShares(
             usdcAddress
         );
-        
+
         expect(totalSharesBefore).to.eq(0);
 
-        inputAmount = 1;
-        minReturnAmount = 2;
-        stoplossAmount = 0;
-        
+        const inputAmount1 = 1;
+        const minReturnAmount1 = 2;
+
         // Create Order 1 USDC  
         await symphony.createOrder(
             deployer.address,
             usdcAddress,
             daiAddress,
-            inputAmount,
-            minReturnAmount,
-            stoplossAmount
+            inputAmount1,
+            minReturnAmount1,
+            0
         );
 
         // check the state changes
@@ -199,14 +198,14 @@ describe("Create Order Test", () => {
         totalSharesBefore = await symphony.totalAssetShares(
             usdcAddress
         );
-        
+
         expect(totalSharesBefore).to.eq(1);
 
-        inputAmount = new BigNumber(10000000).times(
+        const inputAmount2 = new BigNumber(10000000).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
-        
-        minReturnAmount = new BigNumber(20000000).times(
+
+        const minReturnAmount2 = new BigNumber(20000000).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
@@ -214,8 +213,8 @@ describe("Create Order Test", () => {
             deployer.address,
             usdcAddress,
             daiAddress,
-            inputAmount,
-            minReturnAmount,
+            inputAmount2,
+            minReturnAmount2,
             0
         );
 
