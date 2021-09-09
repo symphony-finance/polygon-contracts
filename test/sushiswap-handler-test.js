@@ -119,7 +119,7 @@ describe("Sushiswap Handler Test", () => {
 
         const balanceBeforeSwap = await daiContract.balanceOf(recipient);
 
-        const oracleAmount = await chainlinkOracle.get(
+        const oracleResult = await chainlinkOracle.get(
             order.inputToken,
             order.outputToken,
             order.inputAmount
@@ -127,7 +127,7 @@ describe("Sushiswap Handler Test", () => {
 
         await sushiswapHandler.handle(
             order,
-            oracleAmount,
+            oracleResult.amountOutWithSlippage,
             40,
             2500,
             recipient,
@@ -195,7 +195,7 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
 
-        const oracleAmount = await chainlinkOracle.get(
+        const oracleResult = await chainlinkOracle.get(
             order.inputToken,
             order.outputToken,
             order.inputAmount
@@ -207,7 +207,7 @@ describe("Sushiswap Handler Test", () => {
             order.inputAmount,
             order.minReturnAmount,
             stoplossAmount,
-            oracleAmount,
+            oracleResult.amountOutWithSlippage,
             ZERO_BYTES32
         );
 

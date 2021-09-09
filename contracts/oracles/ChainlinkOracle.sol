@@ -25,7 +25,7 @@ contract ChainlinkOracle is Ownable {
         address inputToken,
         address outputToken,
         uint256 inputAmount
-    ) public view returns (uint256 oracleAmount) {
+    ) public view returns (uint256 amountOut, uint256 amountOutWithSlippage) {
         uint256 price = uint256(1e36);
 
         require(
@@ -52,18 +52,18 @@ contract ChainlinkOracle is Ownable {
                 uint256(IAggregator(outputFeedAddress).latestAnswer());
         }
 
-        oracleAmount = price.mul(inputAmount) / uint256(1e36);
+        amountOut = price.mul(inputAmount) / uint256(1e36);
 
         if (outputToken != address(0))
-            oracleAmount = oracleAmount.mul(
+            amountOut = amountOut.mul(
                 10**IERC20WithDecimal(outputToken).decimals()
             );
         if (inputToken != address(0))
-            oracleAmount = oracleAmount.div(
+            amountOut = amountOut.div(
                 10**IERC20WithDecimal(inputToken).decimals()
             );
 
-        oracleAmount = oracleAmount.percentMul(
+        amountOutWithSlippage = amountOut.percentMul(
             uint256(10000).sub(priceSlippage)
         );
     }

@@ -342,7 +342,7 @@ contract Symphony is
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
-        uint256 oracleAmount = oracle.get(
+        (, uint256 oracleAmount) = oracle.get(
             myOrder.inputToken,
             myOrder.outputToken,
             depositPlusYield
@@ -388,7 +388,7 @@ contract Symphony is
             myOrder.shares
         );
 
-        uint256 oracleAmount = oracle.get(
+        (uint256 oracleAmount, ) = oracle.get(
             myOrder.inputToken,
             myOrder.outputToken,
             depositPlusYield

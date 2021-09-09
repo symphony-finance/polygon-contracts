@@ -121,7 +121,7 @@ describe("Balancer Handler Test", () => {
         const executorBalBefore = await balContract.balanceOf(executor);
         const treasuryBalBefore = await balContract.balanceOf(treasury);
 
-        const oracleAmount = await chainlinkOracle.get(
+        const oracleResult = await chainlinkOracle.get(
             order.inputToken,
             order.outputToken,
             order.inputAmount,
@@ -129,7 +129,7 @@ describe("Balancer Handler Test", () => {
 
         await balancerHandler.handle(
             order,
-            oracleAmount,
+            oracleResult.amountOutWithSlippage,
             totalFeePercent,
             protocolFeePercent,
             executor,
@@ -252,7 +252,7 @@ describe("Balancer Handler Test", () => {
             shares: 0,
         };
 
-        const oracleAmount = await chainlinkOracle.get(
+        const oracleResult = await chainlinkOracle.get(
             order.inputToken,
             order.outputToken,
             order.inputAmount,
@@ -260,7 +260,7 @@ describe("Balancer Handler Test", () => {
 
         await balancerHandler.handle(
             order,
-            oracleAmount,
+            oracleResult.amountOutWithSlippage,
             totalFeePercent,
             protocolFeePercent,
             executor,

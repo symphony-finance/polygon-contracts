@@ -7,5 +7,5 @@ interface IOracle {
         address inputToken,
         address outputToken,
         uint256 inputAmount
-    ) external view returns (uint256 answer);
+    ) external view returns (uint256 amountOut, uint256 amountOutWithSlippage);
 }

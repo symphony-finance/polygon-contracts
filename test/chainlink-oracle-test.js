@@ -85,9 +85,12 @@ describe("Chainlink Oracle Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
-        expect(Number(await chainlinkOracle.get(
+        const result1 = await chainlinkOracle.get(
             usdcAddress, daiAddress, inputAmount1
-        ))).to.be.greaterThan(Number(outputAmount1));
+        );
+
+        expect(Number(result1.amountOutWithSlippage)).to.be
+            .greaterThan(Number(outputAmount1));
 
         // DAI to USDC price
         const inputAmount2 = new BigNumber(10).times(
@@ -98,9 +101,12 @@ describe("Chainlink Oracle Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
-        expect(Number(await chainlinkOracle.get(
+        const result2 = await chainlinkOracle.get(
             daiAddress, usdcAddress, inputAmount2
-        ))).to.be.greaterThan(Number(outputAmount2));
+        );
+
+        expect(Number(result2.amountOutWithSlippage)).to.be
+            .greaterThan(Number(outputAmount2));
 
         // DAI to AAVE price
         const inputAmount3 = new BigNumber(100).times(
@@ -111,9 +117,12 @@ describe("Chainlink Oracle Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
-        expect(Number(await chainlinkOracle.get(
+        const result3 = await chainlinkOracle.get(
             daiAddress, aaveAddress, inputAmount3
-        ))).to.be.greaterThan(Number(outputAmount3));
+        );
+
+        expect(Number(result3.amountOutWithSlippage)).to.be
+            .greaterThan(Number(outputAmount3));
     });
 
     it("should revert if no price feed", async () => {
