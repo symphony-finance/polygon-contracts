@@ -16,15 +16,15 @@ const AaveYieldArtifacts = require(
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
-const inputAmount = new BigNumber(10).times(
+let inputAmount = new BigNumber(10).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
 ).toString();
 
-const minReturnAmount = new BigNumber(15).times(
+let minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
-const stoplossAmount = new BigNumber(8).times(
+let stoplossAmount = new BigNumber(8).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
@@ -113,6 +113,116 @@ describe("Create Order Test", () => {
             minReturnAmount,
             newstoploss
         );
+    });
+
+    it("Should create order with extreme values", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Symphony Contract
+        const Symphony = await ethers.getContractFactory("Symphony");
+
+        let symphony = await upgrades.deployProxy(
+            Symphony,
+            [
+                deployer.address,
+                deployer.address,
+                40, // 40 for 0.4 %,
+                ZERO_ADDRESS
+            ]
+        );
+
+        await symphony.deployed();
+
+        symphony = new ethers.Contract(
+            symphony.address,
+            SymphonyArtifacts.abi,
+            deployer
+        );
+
+        await daiContract.approve(symphony.address, approveAmount);
+        await usdcContract.approve(symphony.address, approveAmount);
+
+        expect(await symphony.totalAssetShares(usdcAddress)).to.eq(0);
+
+        await symphony.addWhitelistAsset(usdcAddress);
+        
+        // check the state changes
+        let totalSharesBefore = await symphony.totalAssetShares(
+            usdcAddress
+        );
+        
+        expect(totalSharesBefore).to.eq(0);
+
+        inputAmount = 1;
+        minReturnAmount = 2;
+        stoplossAmount = 0;
+        
+        // Create Order 1 USDC  
+        await symphony.createOrder(
+            deployer.address,
+            usdcAddress,
+            daiAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount
+        );
+
+        // check the state changes
+        let totalSharesAfter = await symphony.totalAssetShares(
+            usdcAddress
+        );
+
+        expect(totalSharesAfter).to.eq(1);
+
+        totalSharesBefore = await symphony.totalAssetShares(
+            usdcAddress
+        );
+        
+        expect(totalSharesBefore).to.eq(1);
+
+        inputAmount = new BigNumber(10000000).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+        
+        minReturnAmount = new BigNumber(20000000).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
+        await symphony.createOrder(
+            deployer.address,
+            usdcAddress,
+            daiAddress,
+            inputAmount,
+            minReturnAmount,
+            0
+        );
+
+        totalSharesAfter = await symphony.totalAssetShares(
+            usdcAddress
+        );
+        expect(totalSharesAfter).to.eq(10000000000001);
     });
 
     it("Should create order with yield strategy & 0% buffer", async () => {
