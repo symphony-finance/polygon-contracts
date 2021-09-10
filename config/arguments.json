@@ -1,0 +1,9 @@
+{
+  "timelock": {
+    "rinkeby": {
+      "minimumDelay": 150,
+      "proposers": ["0x0cEb8D2f001E29c5d6FC18A656151A061750c364"],
+      "executors": ["0x0cEb8D2f001E29c5d6FC18A656151A061750c364"]
+    }
+  }
+}
