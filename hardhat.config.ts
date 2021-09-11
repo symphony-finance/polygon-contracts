@@ -1,6 +1,7 @@
 require('dotenv').config();
 require("hardhat-gas-reporter");
 require("@nomiclabs/hardhat-waffle");
+require("@nomiclabs/hardhat-etherscan");
 require('@openzeppelin/hardhat-upgrades');
 const { accounts } = require('./test-accounts.ts');
 
@@ -12,7 +13,7 @@ const INFURA_KEY = process.env.INFURA_KEY || '';
 const ALCHEMY_KEY = process.env.ALCHEMY_KEY || '';
 const MAINNET_FORK = process.env.MAINNET_FORK === 'true';
 const BUIDLEREVM_CHAINID = 31337;
-
+const ETHERSCAN_KEY = process.env.ETHERSCAN_KEY || '';
 const mainnetFork = MAINNET_FORK
     ? {
         // blockNumber: 12317479,
@@ -54,6 +55,15 @@ module.exports = {
             gasMultiplier: DEFAULT_GAS_MUL,
             gasPrice: 1 * GWEI
         },
+        rinkeby: {
+            url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_KEY}`,
+            chainId: 4,
+            accounts: [`0x${process.env.PRIVATE_KEY}`],
+            blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
+        }
+    },
+    etherscan: {
+        apiKey: ETHERSCAN_KEY
     },
     solidity: {
         version: "0.7.4",

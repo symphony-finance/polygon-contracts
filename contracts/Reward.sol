@@ -45,6 +45,8 @@ contract Reward is Initializable, OwnableUpgradeable {
             unclaimedReward > 0,
             "claimReward: You don't have any unclaimed rewards"
         );
+
+        reward[msg.sender] = 0;
         emit RewardClaimed(msg.sender, unclaimedReward);
         token.safeTransfer(msg.sender, unclaimedReward);
     }

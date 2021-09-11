@@ -23,7 +23,8 @@
     "balancerVault": "",
     "proxyAdmin": "",
     "admin": "0xEcE66059152428D526A966C1A86165EB81543633",
-    "emergencyAdmin": "0xEcE66059152428D526A966C1A86165EB81543633"
+    "emergencyAdmin": "0xEcE66059152428D526A966C1A86165EB81543633",
+    "timelockAddr": ""
   },
   "matic": {
     "symphonyToken": "",
@@ -49,7 +50,8 @@
     "balancerVault": "",
     "proxyAdmin": "",
     "admin": "",
-    "emergencyAdmin": ""
+    "emergencyAdmin": "",
+    "timelockAddr": ""
   },
   "mainnet": {
     "symphonyToken": "",
@@ -72,11 +74,13 @@
     "quickswapRouter": "",
     "quickswapCodeHash": "",
     "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+    "proxyAdmin": "",
     "admin": "",
-    "emergencyAdmin": ""
+    "emergencyAdmin": "",
+    "timelockAddr": ""
   },
   "development": {
-    "symphonyToken": "",
+    "symphonyToken": "0xfacde2a1a180c55214887c2961f259c73d78e072",
     "symphonyAddress": "",
     "wmaticGateway": "",
     "aaveYieldAddress": "",
@@ -96,7 +100,9 @@
     "quickswapRouter": "",
     "quickswapCodeHash": "",
     "balancerVault": "",
-    "admin": "",
-    "emergencyAdmin": ""
+    "proxyAdmin": "0x09B324db17e0Be12fB22663bd0FDF0e420C3a7f3",
+    "admin": "0xEcE66059152428D526A966C1A86165EB81543633",
+    "emergencyAdmin": "0xEcE66059152428D526A966C1A86165EB81543633",
+    "timelockAddr": "0x72ffA91Fa870364447Cd34774Cb07305395dd3c3"
   }
 }
