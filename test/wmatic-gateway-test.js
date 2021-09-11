@@ -2,6 +2,9 @@ const { expect } = require("chai");
 const config = require("../config/index.json");
 const { default: BigNumber } = require("bignumber.js");
 const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
+const SymphonyArtifacts = require(
+    "../artifacts/contracts/Symphony.sol/Symphony.json"
+);
 
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
@@ -33,6 +36,14 @@ describe("WMATIC Gateway Test", function () {
         );
 
         await symphony.deployed();
+
+        symphony = new ethers.Contract(
+            symphony.address,
+            SymphonyArtifacts.abi,
+            deployer
+        );
+
+        await symphony.addWhitelistAsset(configParams.wethAddress);
 
         // Deploy WMATICGateway Contract
         const WETHGateway = await ethers.getContractFactory("WMATICGateway");

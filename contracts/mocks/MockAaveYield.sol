@@ -12,6 +12,8 @@ import "../interfaces/IAavePoolCore.sol";
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/IAaveLendingPool.sol";
 import "../interfaces/IAaveIncentivesController.sol";
+import "../interfaces/IUniswapRouter.sol";
+import "../libraries/UniswapLibrary.sol";
 
 /**
  * @title Aave Yield contract
@@ -144,11 +146,43 @@ contract MockAaveYield is Initializable {
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(address asset) external {
+    function withdrawAll(
+        address asset,
+        uint256 totalRewardBalance,
+        bytes calldata data
+    ) external {
         uint256 amount = IERC20(aAsset).balanceOf(address(this));
 
         if (amount > 0) {
             _withdrawERC20(asset, amount, msg.sender);
+
+            if (isExternalRewardEnabled) {
+                uint256 rewardAmount = _calculateAndTransferReward(
+                    100,
+                    100,
+                    0,
+                    address(this),
+                    totalRewardBalance
+                );
+
+                (
+                    address router,
+                    uint256 slippage,
+                    bytes32 codeHash,
+                    address[] memory path
+                ) = abi.decode(data, (address, uint256, bytes32, address[]));
+
+                if (router != address(0)) {
+                    _swap(
+                        incentivesController.REWARD_TOKEN(),
+                        rewardAmount,
+                        router,
+                        slippage,
+                        codeHash,
+                        path
+                    );
+                }
+            }
         }
     }
 
@@ -159,7 +193,7 @@ contract MockAaveYield is Initializable {
     function setOrderRewardDebt(
         bytes32 orderId,
         address,
-        uint256 shares,
+        uint256,
         uint256 totalShares,
         uint256 totalRewardBalance
     ) external {
@@ -171,7 +205,7 @@ contract MockAaveYield is Initializable {
 
         pendingRewards = totalRewardBalance;
         previousAccRewardPerShare = accRewardPerShare;
-        orderRewardDebt[orderId] = shares.mul(accRewardPerShare).div(10**18);
+        orderRewardDebt[orderId] = accRewardPerShare;
     }
 
     /**
@@ -179,11 +213,15 @@ contract MockAaveYield is Initializable {
      * @param asset the address of token
      **/
     function maxApprove(address asset) external {
-        address aToken = getYieldTokenAddress(asset);
-        aAsset = aToken;
+        require(
+            aAsset == address(0),
+            "AaveYield: Asset can't be changed after initilization."
+        );
+
+        aAsset = getYieldTokenAddress(asset);
 
         IERC20(asset).safeApprove(lendingPool, uint256(-1));
-        IERC20(aToken).safeApprove(lendingPool, uint256(-1));
+        IERC20(aAsset).safeApprove(lendingPool, uint256(-1));
     }
 
     // *************** //
@@ -216,15 +254,10 @@ contract MockAaveYield is Initializable {
      * @dev Used to get external reward balance
      **/
     function getRewardBalance() public view returns (uint256 amount) {
-        if (isExternalRewardEnabled) {
-            address[] memory assets = new address[](1);
-            assets[0] = aAsset;
+        address[] memory assets = new address[](1);
+        assets[0] = aAsset;
 
-            amount = incentivesController.getRewardsBalance(
-                assets,
-                address(this)
-            );
-        }
+        amount = incentivesController.getRewardsBalance(assets, address(this));
     }
 
     function getAccumulatedRewardPerShare(
@@ -358,7 +391,7 @@ contract MockAaveYield is Initializable {
         );
 
         // reward_amount = shares x (ARPS) - (reward_debt)
-        reward = _shares.mul(accRewardPerShare).div(10**18).sub(_rewardDebt);
+        reward = _shares.mul(accRewardPerShare.sub(_rewardDebt)).div(10**18);
 
         require(
             totalRewardBalance >= reward,
@@ -380,6 +413,51 @@ contract MockAaveYield is Initializable {
 
             incentivesController.claimRewards(assets, _reward, _recipient);
         }
+    }
+
+    function _swap(
+        address _inputToken,
+        uint256 _inputAmount,
+        address _router,
+        uint256 _slippage,
+        bytes32 _codeHash,
+        address[] memory _path
+    ) internal {
+        IERC20(_inputToken).safeApprove(_router, _inputAmount);
+
+        uint256 amountOut = _getAmountOut(
+            _inputAmount,
+            _router,
+            _codeHash,
+            _path
+        );
+
+        // Swap Tokens
+        IUniswapRouter(_router).swapExactTokensForTokens(
+            _inputAmount,
+            amountOut.mul(uint256(100).sub(_slippage)).div(100), // Slipage: 2 for 2%
+            _path,
+            symphony,
+            block.timestamp.add(1800)
+        );
+    }
+
+    function _getAmountOut(
+        uint256 _inputAmount,
+        address _router,
+        bytes32 _codeHash,
+        address[] memory _path
+    ) internal view returns (uint256 amountOut) {
+        address factory = IUniswapRouter(_router).factory();
+
+        uint256[] memory _amounts = UniswapLibrary.getAmountsOut(
+            factory,
+            _inputAmount,
+            _path,
+            _codeHash
+        );
+
+        amountOut = _amounts[_amounts.length - 1];
     }
 
     receive() external payable {}

@@ -93,13 +93,15 @@ describe("Aave Yield Test", () => {
             2000000
         );
 
-        expect(await aaveYield.orderRewardDebt(mockOrderId2)).to.eq(2000000);
+        const accRewardPerShare1 = new BigNumber(0.2).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        expect(await aaveYield.orderRewardDebt(mockOrderId2))
+            .to.eq(accRewardPerShare1);
         expect(await aaveYield.pendingRewards()).to.eq(2000000);
-        expect(await aaveYield.previousAccRewardPerShare()).to.eq(
-            new BigNumber(0.2).times(
-                new BigNumber(10).exponentiatedBy(new BigNumber(18))
-            ).toString()
-        );
+        expect(await aaveYield.previousAccRewardPerShare())
+            .to.eq(accRewardPerShare1);
 
         // Charlie's Order
         await aaveYield.setOrderRewardDebt(
@@ -110,13 +112,16 @@ describe("Aave Yield Test", () => {
             4000000
         );
 
-        expect(await aaveYield.orderRewardDebt(mockOrderId3)).to.eq(3000000);
+
+        const accRewardPerShare2 = new BigNumber(0.3).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        expect(await aaveYield.orderRewardDebt(mockOrderId3))
+            .to.eq(accRewardPerShare2);
         expect(await aaveYield.pendingRewards()).to.eq(4000000);
-        expect(await aaveYield.previousAccRewardPerShare()).to.eq(
-            new BigNumber(0.3).times(
-                new BigNumber(10).exponentiatedBy(new BigNumber(18))
-            ).toString()
-        );
+        expect(await aaveYield.previousAccRewardPerShare())
+            .to.eq(accRewardPerShare2);
 
         // Withraw Bob's Order
         await aaveYield.withdraw(
@@ -200,7 +205,7 @@ describe("Aave Yield Test", () => {
             1
         );
 
-        expect(await aaveYield.orderRewardDebt(mockOrderId2)).to.eq(1);
+        expect(await aaveYield.orderRewardDebt(mockOrderId2)).to.eq(1000000000000);
         expect(await aaveYield.pendingRewards()).to.eq(1);
         expect(await aaveYield.previousAccRewardPerShare()).to.eq(1000000000000);
 
@@ -213,7 +218,7 @@ describe("Aave Yield Test", () => {
             5
         );
 
-        expect(await aaveYield.orderRewardDebt(mockOrderId3)).to.eq(3);
+        expect(await aaveYield.orderRewardDebt(mockOrderId3)).to.eq(3000000000000);
         expect(await aaveYield.pendingRewards()).to.eq(5);
         expect(await aaveYield.previousAccRewardPerShare()).to.eq(3000000000000);
 
@@ -273,7 +278,7 @@ describe("Aave Yield Test", () => {
             0
         );
 
-        expect(await aaveYield.orderRewardDebt(mockOrderId1)).to.eq(5);
+        expect(await aaveYield.orderRewardDebt(mockOrderId1)).to.eq(5000000000000);
         expect(await aaveYield.pendingRewards()).to.eq(0);
         expect(await aaveYield.previousAccRewardPerShare()).to.eq(5000000000000);
 

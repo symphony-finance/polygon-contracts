@@ -1,14 +1,13 @@
 const fs = require("fs");
 const path = require("path");
-const hre, { network } = require("hardhat");
+const hre = require("hardhat");
+const { network } = require("hardhat");
 const config = require("../config/index.json");
 const file = require("../config/index.json");
 const fileName = "../config/index.json";
 
 const main = () => {
     return new Promise(async (resolve) => {
-        const [deployer] = await ethers.getSigners();
-
         let configParams = config.mumbai;
         if (network.name === "matic") {
             configParams = config.matic;
@@ -23,7 +22,7 @@ const main = () => {
             WmaticGateway,
             [
                 configParams.wmaticAddress,
-                deployer.address,
+                configParams.admin,
                 configParams.symphonyAddress,
             ]
         ).then(async (wmaticGateway) => {

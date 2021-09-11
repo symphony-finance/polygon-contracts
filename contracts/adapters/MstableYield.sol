@@ -112,7 +112,11 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(address asset) external override onlySymphony {
+    function withdrawAll(address asset, bytes calldata)
+        external
+        override
+        onlySymphony
+    {
         uint256 amount = savingContract.balanceOfUnderlying(symphony);
         emit Withdraw(asset, amount);
         _withdraw(asset, amount);

@@ -45,9 +45,9 @@ contract Symphony is
     mapping(bytes32 => bytes32) public orderHash;
     mapping(address => uint256) public assetBuffer;
 
+    mapping(address => bool) public isWhitelistAsset;
     mapping(address => bool) public isRegisteredHandler;
     mapping(address => uint256) public totalAssetShares;
-    mapping(address => bool) public isWhitelistedForRewards;
 
     // ************** //
     // *** EVENTS *** //
@@ -62,8 +62,8 @@ contract Symphony is
     event HandlerRemoved(address handler);
     event UpdatedBaseFee(uint256 fee);
     event UpdatedBufferPercentage(address asset, uint256 percent);
-    event AddedAssetForReward(address asset);
-    event RemovedAssetFromReward(address asset);
+    event AddedWhitelistAsset(address asset);
+    event RemovedWhitelistAsset(address asset);
 
     modifier onlyEmergencyAdminOrOwner() {
         require(
@@ -104,11 +104,15 @@ contract Symphony is
     ) external nonReentrant whenNotPaused returns (bytes32 orderId) {
         require(
             inputAmount > 0,
-            "Symphony::createOrder: Input amoount can't be zero"
+            "Symphony::createOrder: Input amount can't be zero"
         );
         require(
             minReturnAmount > 0,
             "Symphony::createOrder: Amount out can't be zero"
+        );
+        require(
+            isWhitelistAsset[inputToken],
+            "Symphony::createOrder: Input asset not in whitelist"
         );
         require(
             stoplossAmount < minReturnAmount,
@@ -143,8 +147,8 @@ contract Symphony is
             "Symphony::createOrder: tokens not transferred"
         );
 
-        uint256 previousAssetShares = totalAssetShares[inputToken];
-        totalAssetShares[inputToken] = previousAssetShares.add(shares);
+        uint256 prevTotalAssetShares = totalAssetShares[inputToken];
+        totalAssetShares[inputToken] = prevTotalAssetShares.add(shares);
 
         bytes memory encodedOrder = abi.encode(
             recipient,
@@ -169,7 +173,7 @@ contract Symphony is
                 orderId,
                 inputToken,
                 shares,
-                previousAssetShares
+                prevTotalAssetShares
             );
         }
     }
@@ -195,6 +199,16 @@ contract Symphony is
         require(
             msg.sender == myOrder.recipient,
             "Symphony::updateOrder: Only recipient can update the order"
+        );
+
+        require(
+            _minReturnAmount > 0,
+            "Symphony::createOrder: Amount out can't be zero"
+        );
+
+        require(
+            _stoplossAmount < _minReturnAmount,
+            "Symphony::createOrder: stoploss amount should be less than amount out"
         );
 
         delete orderHash[orderId];
@@ -298,18 +312,6 @@ contract Symphony is
 
         IOrderStructs.Order memory myOrder = decodeOrder(_orderData);
 
-        require(
-            IHandler(_handler).canHandle(
-                myOrder.inputToken,
-                myOrder.outputToken,
-                myOrder.inputAmount,
-                myOrder.minReturnAmount,
-                myOrder.stoplossAmount,
-                _handlerData
-            ),
-            "Symphony::executeOrder: Handler Can't handle this tx"
-        );
-
         uint256 totalTokens = getTotalFunds(myOrder.inputToken);
 
         uint256 depositPlusYield = _calculateTokenFromShares(
@@ -340,8 +342,15 @@ contract Symphony is
 
         IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
 
+        (, uint256 oracleAmount) = oracle.get(
+            myOrder.inputToken,
+            myOrder.outputToken,
+            depositPlusYield
+        );
+
         IHandler(_handler).handle(
             myOrder,
+            oracleAmount,
             BASE_FEE,
             PROTOCOL_FEE_PERCENT,
             msg.sender,
@@ -379,7 +388,7 @@ contract Symphony is
             myOrder.shares
         );
 
-        uint256 oracleAmount = oracle.get(
+        (uint256 oracleAmount, ) = oracle.get(
             myOrder.inputToken,
             myOrder.outputToken,
             depositPlusYield
@@ -436,42 +445,33 @@ contract Symphony is
             "Symphony::rebalanceAsset: Rebalance needs some strategy"
         );
 
-        uint256 assetBufferPercent = assetBuffer[asset];
+        uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
 
-        if (assetBufferPercent != 10000) {
-            uint256 balanceInContract = IERC20(asset).balanceOf(address(this));
+        uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
+            .getTotalUnderlying(asset);
 
-            uint256 balanceInStrategy = IYieldAdapter(strategy[asset])
-                .getTotalUnderlying(asset);
+        uint256 totalBalance = balanceInContract.add(balanceInStrategy);
 
-            uint256 totalBalance = balanceInContract.add(balanceInStrategy);
+        uint256 bufferBalanceNeeded = totalBalance.percentMul(
+            assetBuffer[asset]
+        );
 
-            uint256 bufferBalanceNeeded = totalBalance.percentMul(
-                assetBuffer[asset]
+        emit AssetRebalanced(asset);
+
+        if (balanceInContract > bufferBalanceNeeded) {
+            IYieldAdapter(strategy[asset]).deposit(
+                asset,
+                balanceInContract.sub(bufferBalanceNeeded)
             );
-
-            require(
-                balanceInContract != bufferBalanceNeeded,
-                "Symphony::rebalanceAsset: Asset already balanced"
+        } else if (balanceInContract < bufferBalanceNeeded) {
+            IYieldAdapter(strategy[asset]).withdraw(
+                asset,
+                bufferBalanceNeeded.sub(balanceInContract),
+                0,
+                0,
+                address(0),
+                bytes32(0)
             );
-
-            emit AssetRebalanced(asset);
-
-            if (balanceInContract > bufferBalanceNeeded) {
-                IYieldAdapter(strategy[asset]).deposit(
-                    asset,
-                    balanceInContract.sub(bufferBalanceNeeded)
-                );
-            } else if (balanceInContract < bufferBalanceNeeded) {
-                IYieldAdapter(strategy[asset]).withdraw(
-                    asset,
-                    bufferBalanceNeeded.sub(balanceInContract),
-                    0,
-                    0,
-                    address(0),
-                    bytes32(0)
-                );
-            }
         }
     }
 
@@ -586,17 +586,6 @@ contract Symphony is
     }
 
     /**
-     * @notice Update asset buffer percentage
-     */
-    function updateBufferPercentage(address _asset, uint256 _value)
-        external
-        onlyOwner
-    {
-        assetBuffer[_asset] = _value;
-        emit UpdatedBufferPercentage(_asset, _value);
-    }
-
-    /**
      * @notice Update the oracle
      */
     function updateOracle(IOracle _oracle) external onlyOwner {
@@ -604,19 +593,19 @@ contract Symphony is
     }
 
     /**
-     * @notice Add a token for rewards earning
+     * @notice Add an asset into whitelist
      */
-    function addTokenForReward(address _token) external onlyOwner {
-        isWhitelistedForRewards[_token] = true;
-        AddedAssetForReward(_token);
+    function addWhitelistAsset(address _asset) external onlyOwner {
+        isWhitelistAsset[_asset] = true;
+        AddedWhitelistAsset(_asset);
     }
 
     /**
-     * @notice Remove a token from rewards earning
+     * @notice Remove a whitelisted asset
      */
-    function removeTokenFromReward(address _token) external onlyOwner {
-        isWhitelistedForRewards[_token] = false;
-        RemovedAssetFromReward(_token);
+    function removeWhitelistAsset(address _asset) external onlyOwner {
+        isWhitelistAsset[_asset] = false;
+        RemovedWhitelistAsset(_asset);
     }
 
     /**
@@ -628,13 +617,13 @@ contract Symphony is
     {
         require(
             strategy[_asset] != _strategy,
-            "Symphony: updateStrategy:: Strategy shouldn't be same."
+            "Symphony::updateStrategy: Strategy shouldn't be same."
         );
         _updateAssetStrategy(_asset, _strategy);
     }
 
     /**
-     * @notice Withdraw tokens from contract, only in emergency case
+     * @notice Withdraw tokens from contract
      */
     function withdrawTokens(
         address[] calldata assets,
@@ -649,10 +638,11 @@ contract Symphony is
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(address asset, address newStrategy)
-        external
-        onlyOwner
-    {
+    function migrateStrategy(
+        address asset,
+        address newStrategy,
+        bytes calldata data
+    ) external onlyOwner {
         address previousStrategy = strategy[asset];
         require(
             previousStrategy != address(0),
@@ -663,7 +653,7 @@ contract Symphony is
             "Symphony::migrateStrategy: new startegy shouldn't be same!!"
         );
 
-        IYieldAdapter(previousStrategy).withdrawAll(asset);
+        IYieldAdapter(previousStrategy).withdrawAll(asset, data);
 
         if (newStrategy != address(0)) {
             _updateAssetStrategy(asset, newStrategy);
@@ -727,14 +717,32 @@ contract Symphony is
      * @notice Withdraw all assets from strategies including rewards
      * @dev Only in emergency case. Transfer rewards to symphony contract
      */
-    function emergencyWithdrawFromStrategy(address[] calldata assets)
+    function emergencyWithdrawFromStrategy(
+        address[] calldata assets,
+        bytes calldata data
+    ) external onlyEmergencyAdminOrOwner {
+        for (uint256 i = 0; i < assets.length; i++) {
+            address asset = assets[i];
+            address assetStrategy = strategy[asset];
+
+            IYieldAdapter(assetStrategy).withdrawAll(asset, data);
+        }
+    }
+
+    /**
+     * @notice Update asset buffer percentage
+     */
+    function updateBufferPercentage(address _asset, uint256 _value)
         external
         onlyEmergencyAdminOrOwner
     {
-        for (uint256 i = 0; i < assets.length; i++) {
-            address asset = assets[i];
-            _withdrawFromStrategy(asset);
-        }
+        require(
+            _value >= 0 && _value <= 10000,
+            "symphony::updateBufferPercentage: not correct buffer percent."
+        );
+        assetBuffer[_asset] = _value;
+        emit UpdatedBufferPercentage(_asset, _value);
+        rebalanceAsset(_asset);
     }
 
     /**
@@ -760,6 +768,10 @@ contract Symphony is
         if (totalAssetShares[_token] > 0) {
             shares = _amount.mul(totalAssetShares[_token]).div(
                 getTotalFunds(_token)
+            );
+            require(
+                shares > 0,
+                "Symphony::_calculateShares: shares can't be 0"
             );
         } else {
             shares = _amount;
@@ -790,45 +802,29 @@ contract Symphony is
 
         uint256 bufferAmount = IERC20(asset).balanceOf(address(this));
 
-        uint256 amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
-            bufferAmount
-        );
-
-        if (amountToWithdraw > 0) {
-            emit AssetRebalanced(asset);
-            IYieldAdapter(strategy[asset]).withdraw(
-                asset,
-                amountToWithdraw,
-                myOrder.shares,
-                totalSharesInAsset,
-                myOrder.recipient,
-                orderId
+        uint256 amountToWithdraw;
+        if (bufferAmount < orderAmount.add(neededAmountInBuffer)) {
+            amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
+                bufferAmount
             );
         }
-    }
 
-    function _withdrawFromStrategy(address asset) internal {
-        uint256 amount = IYieldAdapter(strategy[asset]).getTotalUnderlying(
-            asset
-        );
-        uint256 totalSharesInAsset = totalAssetShares[asset];
+        emit AssetRebalanced(asset);
 
         IYieldAdapter(strategy[asset]).withdraw(
             asset,
-            amount,
+            amountToWithdraw,
+            myOrder.shares,
             totalSharesInAsset,
-            totalSharesInAsset,
-            address(this),
-            bytes32(0)
+            myOrder.recipient,
+            orderId
         );
     }
 
     /**
-     * @notice Update Strategy of a token
+     * @notice Update Strategy of an asset
      */
     function _updateAssetStrategy(address _asset, address _strategy) internal {
-        address previousStrategy = strategy[_asset];
-
         // max approve token
         if (
             _strategy != address(0) &&
@@ -840,18 +836,8 @@ contract Symphony is
             IERC20(_asset).safeApprove(_strategy, uint256(-1));
             IYieldAdapter(_strategy).maxApprove(_asset);
 
-            address iouToken = IYieldAdapter(_strategy).getYieldTokenAddress(
-                _asset
-            );
-            IERC20(iouToken).safeApprove(_strategy, uint256(-1));
-
             strategy[_asset] = _strategy;
-
-            if (
-                previousStrategy != _strategy && previousStrategy != address(0)
-            ) {
-                rebalanceAsset(_asset);
-            }
+            rebalanceAsset(_asset);
         }
     }
 }

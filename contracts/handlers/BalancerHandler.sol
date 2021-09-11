@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "../interfaces/IWETH.sol";
-import "../interfaces/IOracle.sol";
 import "../interfaces/IHandler.sol";
 import "../libraries/PercentageMath.sol";
 
@@ -63,20 +62,14 @@ contract BalancerHandler is IHandler {
     using SafeERC20 for IERC20;
     using PercentageMath for uint256;
 
-    IOracle public oracle;
     IVault public immutable vault;
-    address public symphony;
+    address public immutable symphony;
 
     /**
      * @notice Creates the handler
      */
-    constructor(
-        IVault _vault,
-        IOracle _oracle,
-        address _symphony
-    ) {
+    constructor(IVault _vault, address _symphony) {
         vault = _vault;
-        oracle = _oracle;
         symphony = _symphony;
     }
 
@@ -88,19 +81,15 @@ contract BalancerHandler is IHandler {
         _;
     }
 
-    /// @notice receive ETH
-    receive() external payable override {
-        require(
-            msg.sender != tx.origin,
-            "BalancerHandler#receive: NO_SEND_MATIC_PLEASE"
-        );
-    }
+    /// @notice receive MATIC
+    receive() external payable override {}
 
     /**
      * @notice Handle an order execution
      */
     function handle(
         IOrderStructs.Order memory order,
+        uint256 oracleAmount,
         uint256 feePercent,
         uint256 protcolFeePercent,
         address executor,
@@ -115,12 +104,6 @@ contract BalancerHandler is IHandler {
             order.outputToken,
             order.inputAmount,
             handlerdata
-        );
-
-        uint256 oracleAmount = oracle.get(
-            order.inputToken,
-            order.outputToken,
-            order.inputAmount
         );
 
         require(
@@ -141,27 +124,13 @@ contract BalancerHandler is IHandler {
         );
     }
 
-    /**
-     * @notice Check whether can handle an order execution
-     * @return bool - Whether the execution can be handled or not
-     */
-    function canHandle(
-        address,
-        address,
-        uint256,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external view override returns (bool) {
-        return true;
-    }
-
     function simulate(
         address _inputToken,
         address _outputToken,
         uint256 _inputAmount,
         uint256 _minReturnAmount,
         uint256 _stoplossAmount,
+        uint256 _oracleAmount,
         bytes calldata
     ) external view override returns (bool success, uint256 bought) {}
 

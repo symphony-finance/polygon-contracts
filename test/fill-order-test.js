@@ -131,6 +131,8 @@ describe("Fill Order Test", () => {
 
         await daiContract.approve(symphony.address, approveAmount);
 
+        await symphony.addWhitelistAsset(daiAddress);
+
         // Create Order
         const tx = await symphony.createOrder(
             recipient,

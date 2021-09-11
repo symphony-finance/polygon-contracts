@@ -1,10 +1,10 @@
 {
   "mumbai": {
     "symphonyToken": "",
-    "symphonyAddress": "0xC21278e092383eD846f737Fad0D53c52CD8d704E",
-    "wmaticGateway": "",
-    "treasury": "0xBeeb296beB9C78CA2F03CdEC621B1bb0735512a0",
-    "aaveYieldAddress": "0xD34599eE640c7A4F5564d0D39a4385D5f4487463",
+    "symphonyAddress": "0x4C6941567C18E98BAf5c534928A1a74351AC067C",
+    "wmaticGateway": "0xC679b086AeD167548cd1a09fB3Cb41876d661C90",
+    "treasury": "0x73b72b467ECbbAE3322Bf9128BA98E3FC0cE68E5",
+    "aaveYieldAddress": "0xc1b56AB90bb2D8A9C1E21ABc9c5a44C993269ab9",
     "aaveLendingPool": "0x9198F13B08E299d85E096929fA9781A1E3d5d827",
     "aaveProtocolDataProvider": "0xFA3bD19110d986c5e5E9DD5F69362d05035D045B",
     "aaveIncentivesController": "0xd41aE58e803Edf4304334acCE4DC4Ec34a63C644",
@@ -13,15 +13,17 @@
     "mstableSavingContract": "0x90fd23b712becEecF68B798e6d1174F43A4809C9",
     "wethAddress": "0x6aA61E359301b2E9a3c3118d409834BDc8b10dC4",
     "wmaticAddress": "0xBb9DF44E381e3d5D82717BC87901FbBEF2eFE361",
-    "chainlinkOracle": "0x0287A5ceC67fef6A9BddE8b10caE3f19661019ea",
-    "sushiswapHandlerAddress": "0xD0a8EF353093cb66729eAb24f37E9bb68442eB7C",
+    "chainlinkOracle": "0xF5754a263e17a042bA114Ab4c3322C73efeD92cE",
+    "sushiswapHandlerAddress": "0x6AAB48D1698eC61fd6B85bc20FE4c3F6C8Fd0282",
     "sushiswapRouter": "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
     "sushiswapCodeHash": "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
     "quickswapHandlerAddress": "",
     "quickswapRouter": "",
     "quickswapCodeHash": "",
     "balancerVault": "",
-    "proxyAdmin": ""
+    "proxyAdmin": "",
+    "admin": "0xEcE66059152428D526A966C1A86165EB81543633",
+    "emergencyAdmin": "0xEcE66059152428D526A966C1A86165EB81543633"
   },
   "matic": {
     "symphonyToken": "",
@@ -45,7 +47,9 @@
     "quickswapRouter": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
     "quickswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
     "balancerVault": "",
-    "proxyAdmin": ""
+    "proxyAdmin": "",
+    "admin": "",
+    "emergencyAdmin": ""
   },
   "mainnet": {
     "symphonyToken": "",
@@ -67,7 +71,9 @@
     "quickswapHandlerAddress": "",
     "quickswapRouter": "",
     "quickswapCodeHash": "",
-    "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8"
+    "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+    "admin": "",
+    "emergencyAdmin": ""
   },
   "development": {
     "symphonyToken": "",
@@ -89,6 +95,8 @@
     "quickswapHandlerAddress": "",
     "quickswapRouter": "",
     "quickswapCodeHash": "",
-    "balancerVault": ""
+    "balancerVault": "",
+    "admin": "",
+    "emergencyAdmin": ""
   }
 }

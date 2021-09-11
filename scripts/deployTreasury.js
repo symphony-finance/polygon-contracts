@@ -2,14 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { network } = require("hardhat");
-const config = require("../config/index.json");
-const file = require("../config/index.json");
 const fileName = "../config/index.json";
+const file = require("../config/index.json");
+const config = require("../config/index.json");
 
 const main = () => {
     return new Promise(async (resolve) => {
-        const [deployer] = await ethers.getSigners();
-
         let configParams = config.development;
         if (network.name === "matic") {
             configParams = config.matic;
@@ -20,7 +18,7 @@ const main = () => {
         // Deploy Treasury Contract
         const Treasury = await hre.ethers.getContractFactory("Treasury");
 
-        Treasury.deploy(deployer.address)
+        Treasury.deploy(configParams.admin)
             .then(async (treasury) => {
 
                 await treasury.deployed();

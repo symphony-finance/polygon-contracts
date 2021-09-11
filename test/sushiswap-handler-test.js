@@ -78,12 +78,32 @@ describe("Sushiswap Handler Test", () => {
             "MockSushiswapHandler"
         );
 
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.addTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.addTokenFeed(
+            daiAddress,
+            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        );
+
         let sushiswapHandler = await SushiswapHandler.deploy(
             configParams.sushiswapRouter, // Router
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            deployer.address, // false chainlink oracle address
             deployer.address // false symphony address
         );
 
@@ -99,8 +119,15 @@ describe("Sushiswap Handler Test", () => {
 
         const balanceBeforeSwap = await daiContract.balanceOf(recipient);
 
+        const oracleResult = await chainlinkOracle.get(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
+        );
+
         await sushiswapHandler.handle(
             order,
+            oracleResult.amountOutWithSlippage,
             40,
             2500,
             recipient,
@@ -113,142 +140,6 @@ describe("Sushiswap Handler Test", () => {
 
         expect(Number(amountReceived)).to.be
             .greaterThanOrEqual(Number(expectedReturn));
-    });
-
-    it("should return true if order can be handled", async () => {
-        await network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
-        });
-
-        const deployer = await ethers.provider.getSigner(
-            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
-        );
-        deployer.address = deployer._address;
-
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.addTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.addTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        // Deploy Sushiswap Handler
-        const SushiswapHandler = await ethers.getContractFactory(
-            "MockSushiswapHandler"
-        );
-
-        let sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
-            deployer.address // false symphony address
-        );
-
-        await sushiswapHandler.deployed();
-
-        sushiswapHandler = new ethers.Contract(
-            sushiswapHandler.address,
-            SushiswapHandlerArtifacts.abi,
-            deployer
-        );
-
-        const result = await sushiswapHandler.canHandle(
-            order.inputToken,
-            order.outputToken,
-            order.inputAmount,
-            order.minReturnAmount,
-            order.stoplossAmount,
-            ZERO_BYTES32
-        );
-
-        expect(result).to.be.true;
-    });
-
-    it("should return false if order can't be handled", async () => {
-        await network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
-        });
-
-        const deployer = await ethers.provider.getSigner(
-            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
-        );
-        deployer.address = deployer._address;
-
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.addTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.addTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        // Deploy Sushiswap Handler
-        const SushiswapHandler = await ethers.getContractFactory(
-            "MockSushiswapHandler"
-        );
-
-        let sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
-            deployer.address // false symphony address
-        );
-
-        await sushiswapHandler.deployed();
-
-        sushiswapHandler = new ethers.Contract(
-            sushiswapHandler.address,
-            SushiswapHandlerArtifacts.abi,
-            deployer
-        );
-
-        const newStoplossAmount = new BigNumber(9.9).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(18))
-        ).toString();
-
-        const result = await sushiswapHandler.canHandle(
-            order.inputToken,
-            order.outputToken,
-            order.inputAmount,
-            order.minReturnAmount,
-            newStoplossAmount,
-            ZERO_BYTES32
-        );
-
-        expect(result).to.be.false;
     });
 
     it("should simulate the order execution correctly", async () => {
@@ -293,7 +184,6 @@ describe("Sushiswap Handler Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            chainlinkOracle.address,
             deployer.address // false symphony address
         );
 
@@ -305,12 +195,19 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
 
+        const oracleResult = await chainlinkOracle.get(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
+        );
+
         const result = await sushiswapHandler.simulate(
             order.inputToken,
             order.outputToken,
             order.inputAmount,
             order.minReturnAmount,
             stoplossAmount,
+            oracleResult.amountOutWithSlippage,
             ZERO_BYTES32
         );
 
@@ -346,7 +243,6 @@ describe("Sushiswap Handler Test", () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            deployer.address, // false chainlink addr
             deployer.address // false symphony address
         );
 
@@ -367,7 +263,7 @@ describe("Sushiswap Handler Test", () => {
         const executorBalBefore = await daiContract.balanceOf(executor);
         const treasuryBalBefore = await daiContract.balanceOf(treasury);
 
-        await sushiswapHandler.transferTokens(
+        await sushiswapHandler._transferTokens(
             order.outputToken,
             minReturnAmount,
             recipient,
@@ -390,6 +286,142 @@ describe("Sushiswap Handler Test", () => {
         expect(Number(result.protocolFee)).to.be
             .eq(Number(treasuryBalAfter.sub(treasuryBalBefore)));
     });
+
+    // it("should return true if order can be handled", async () => {
+    //     await network.provider.request({
+    //         method: "hardhat_impersonateAccount",
+    //         params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+    //     });
+
+    //     const deployer = await ethers.provider.getSigner(
+    //         "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+    //     );
+    //     deployer.address = deployer._address;
+
+    //     // Deploy Chainlink Oracle
+    //     const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+    //     let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+    //     await chainlinkOracle.deployed();
+
+    //     chainlinkOracle = new ethers.Contract(
+    //         chainlinkOracle.address,
+    //         ChainlinkArtifacts.abi,
+    //         deployer
+    //     );
+    //     await chainlinkOracle.addTokenFeed(
+    //         usdcAddress,
+    //         "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+    //     );
+
+    //     await chainlinkOracle.addTokenFeed(
+    //         daiAddress,
+    //         "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+    //     );
+
+    //     // Deploy Sushiswap Handler
+    //     const SushiswapHandler = await ethers.getContractFactory(
+    //         "MockSushiswapHandler"
+    //     );
+
+    //     let sushiswapHandler = await SushiswapHandler.deploy(
+    //         configParams.sushiswapRouter, // Router
+    //         configParams.wethAddress, // WETH
+    //         configParams.wmaticAddress, // WMATIC
+    //         configParams.sushiswapCodeHash,
+    //         chainlinkOracle.address,
+    //         deployer.address // false symphony address
+    //     );
+
+    //     await sushiswapHandler.deployed();
+
+    //     sushiswapHandler = new ethers.Contract(
+    //         sushiswapHandler.address,
+    //         SushiswapHandlerArtifacts.abi,
+    //         deployer
+    //     );
+
+    //     const result = await sushiswapHandler.canHandle(
+    //         order.inputToken,
+    //         order.outputToken,
+    //         order.inputAmount,
+    //         order.minReturnAmount,
+    //         order.stoplossAmount,
+    //         ZERO_BYTES32
+    //     );
+
+    //     expect(result).to.be.true;
+    // });
+
+    // it("should return false if order can't be handled", async () => {
+    //     await network.provider.request({
+    //         method: "hardhat_impersonateAccount",
+    //         params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+    //     });
+
+    //     const deployer = await ethers.provider.getSigner(
+    //         "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+    //     );
+    //     deployer.address = deployer._address;
+
+    //     // Deploy Chainlink Oracle
+    //     const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+    //     let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+    //     await chainlinkOracle.deployed();
+
+    //     chainlinkOracle = new ethers.Contract(
+    //         chainlinkOracle.address,
+    //         ChainlinkArtifacts.abi,
+    //         deployer
+    //     );
+    //     await chainlinkOracle.addTokenFeed(
+    //         usdcAddress,
+    //         "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+    //     );
+
+    //     await chainlinkOracle.addTokenFeed(
+    //         daiAddress,
+    //         "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+    //     );
+
+    //     // Deploy Sushiswap Handler
+    //     const SushiswapHandler = await ethers.getContractFactory(
+    //         "MockSushiswapHandler"
+    //     );
+
+    //     let sushiswapHandler = await SushiswapHandler.deploy(
+    //         configParams.sushiswapRouter, // Router
+    //         configParams.wethAddress, // WETH
+    //         configParams.wmaticAddress, // WMATIC
+    //         configParams.sushiswapCodeHash,
+    //         chainlinkOracle.address,
+    //         deployer.address // false symphony address
+    //     );
+
+    //     await sushiswapHandler.deployed();
+
+    //     sushiswapHandler = new ethers.Contract(
+    //         sushiswapHandler.address,
+    //         SushiswapHandlerArtifacts.abi,
+    //         deployer
+    //     );
+
+    //     const newStoplossAmount = new BigNumber(9.9).times(
+    //         new BigNumber(10).exponentiatedBy(new BigNumber(18))
+    //     ).toString();
+
+    //     const result = await sushiswapHandler.canHandle(
+    //         order.inputToken,
+    //         order.outputToken,
+    //         order.inputAmount,
+    //         order.minReturnAmount,
+    //         newStoplossAmount,
+    //         ZERO_BYTES32
+    //     );
+
+    //     expect(result).to.be.false;
+    // });
 });
 
 const getParticipantsDividend = () => {
