@@ -1,8 +1,8 @@
 const fs = require("fs");
 const { network } = require("hardhat");
-const arguments = require('../config/arguments.json');
 const fileName = "../config/index.json";
 const file = require("../config/index.json");
+const globalArgs = require('../config/arguments.json');
 
 const main = async () => {
     const networkName = "rinkeby";
@@ -10,7 +10,7 @@ const main = async () => {
         networkName = network.name;
     }
 
-    const timelockArgs = arguments.timelock[networkName];
+    const timelockArgs = globalArgs.timelock[networkName];
     var delayTime = timelockArgs.minimumDelay;
     var proposersArray = timelockArgs.proposers;
     var executorsArray = timelockArgs.executors;
@@ -38,9 +38,9 @@ const main = async () => {
     );
 
     if (network.name === "matic") {
-        file.matic.timelockAddr = timelock.address;
+        file.matic.timelockAddress = timelock.address;
     } else {
-        file.development.timelockAddr = timelock.address;
+        file.development.timelockAddress = timelock.address;
     }
 
     fs.writeFileSync(

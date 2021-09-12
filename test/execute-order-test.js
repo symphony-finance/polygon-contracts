@@ -81,12 +81,12 @@ describe("Execute Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             usdcAddress,
             "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
         );
 
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             daiAddress,
             "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
         );
@@ -234,12 +234,12 @@ describe("Execute Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             usdcAddress,
             "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
         );
 
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             daiAddress,
             "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
         );

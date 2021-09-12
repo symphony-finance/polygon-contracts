@@ -5,8 +5,9 @@ const { network } = require("hardhat");
 const fileName = "../config/index.json";
 const file = require("../config/index.json");
 const config = require("../config/index.json");
+const globalArgs = require('../config/arguments.json');
 
-const main = (fee) => {
+const main = () => {
     return new Promise(async (resolve) => {
         let configParams = config.development;
         if (network.name === "matic") {
@@ -23,7 +24,7 @@ const main = (fee) => {
             [
                 configParams.admin,
                 configParams.emergencyAdmin,
-                fee, // 40 for 0.4 %
+                globalArgs.symphony.executionFee,
                 configParams.chainlinkOracle,
             ]
         ).then(async (symphony) => {

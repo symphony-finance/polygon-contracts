@@ -63,12 +63,12 @@ describe("Balancer Handler Test", () => {
             deployer
         );
 
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             usdcAddress,
             "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
         );
 
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             balAddress,
             "0xC1438AA3823A6Ba0C159CfA8D98dF5A994bA120b", // BAL-ETH
         );
@@ -190,12 +190,12 @@ describe("Balancer Handler Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             usdcAddress,
             "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
         );
 
-        await chainlinkOracle.addTokenFeed(
+        await chainlinkOracle.updateTokenFeed(
             daiAddress,
             "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
         );

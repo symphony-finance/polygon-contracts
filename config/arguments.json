@@ -1,9 +1,19 @@
 {
+  "symphony": {
+    "_comment::executionFee": "20 = 0.2%",
+    "executionFee": 20,
+    "_comment::protocolFee": "2500 = 0.2 / 4 = 0.05%",
+    "protocolFee": 2500
+  },
   "timelock": {
     "rinkeby": {
       "minimumDelay": 150,
       "proposers": ["0x0cEb8D2f001E29c5d6FC18A656151A061750c364"],
       "executors": ["0x0cEb8D2f001E29c5d6FC18A656151A061750c364"]
     }
+  },
+  "chainlink": {
+    "_comment::slippage": "0.5%",
+    "slippage": 50
   }
 }
