@@ -68,7 +68,7 @@ contract ChainlinkOracle is Ownable {
         );
     }
 
-    function addTokenFeed(address asset, address feed) external onlyOwner {
+    function updateTokenFeed(address asset, address feed) external onlyOwner {
         oracleFeed[asset] = feed;
     }
 

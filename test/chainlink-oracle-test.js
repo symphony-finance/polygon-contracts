@@ -40,8 +40,8 @@ describe("Chainlink Oracle Test", () => {
 
         expect(await chainlinkOracle.owner()).to.eq(deployer.address);
 
-        await chainlinkOracle.addTokenFeed(daiAddress, daiFeed);
-        await chainlinkOracle.addTokenFeed(usdcAddress, usdcFeed);
+        await chainlinkOracle.updateTokenFeed(daiAddress, daiFeed);
+        await chainlinkOracle.updateTokenFeed(usdcAddress, usdcFeed);
 
         expect(await chainlinkOracle.oracleFeed(daiAddress)).to.eq(daiFeed);
         expect(await chainlinkOracle.oracleFeed(usdcAddress)).to.eq(usdcFeed);
@@ -70,9 +70,9 @@ describe("Chainlink Oracle Test", () => {
             deployer
         );
 
-        await chainlinkOracle.addTokenFeed(daiAddress, daiFeed);
-        await chainlinkOracle.addTokenFeed(usdcAddress, usdcFeed);
-        await chainlinkOracle.addTokenFeed(aaveAddress, aaveFeed);
+        await chainlinkOracle.updateTokenFeed(daiAddress, daiFeed);
+        await chainlinkOracle.updateTokenFeed(usdcAddress, usdcFeed);
+        await chainlinkOracle.updateTokenFeed(aaveAddress, aaveFeed);
 
         await chainlinkOracle.updatePriceSlippage(0);
 
@@ -148,7 +148,7 @@ describe("Chainlink Oracle Test", () => {
             deployer
         );
 
-        await chainlinkOracle.addTokenFeed(daiAddress, daiFeed);
+        await chainlinkOracle.updateTokenFeed(daiAddress, daiFeed);
 
         // USDC to DAI price
         const inputAmount = new BigNumber(10).times(
@@ -163,8 +163,8 @@ describe("Chainlink Oracle Test", () => {
             "Oracle feed doesn't exist for the input asset."
         );
 
-        await chainlinkOracle.addTokenFeed(usdcAddress, usdcFeed);
-        await chainlinkOracle.addTokenFeed(daiAddress, ZERO_ADDRESS);
+        await chainlinkOracle.updateTokenFeed(usdcAddress, usdcFeed);
+        await chainlinkOracle.updateTokenFeed(daiAddress, ZERO_ADDRESS);
 
         await expect(
             chainlinkOracle.get(

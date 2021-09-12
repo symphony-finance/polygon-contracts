@@ -18,30 +18,27 @@ const main = () => {
             configParams = config.mumbai;
         }
 
-        // Deploy SushiswapHandler Contract
-        const SushiswapHandler = await hre.ethers
-            .getContractFactory("SushiswapHandler");
+        // Deploy BalancerHandler Contract
+        const BalancerHandler = await hre.ethers
+            .getContractFactory("BalancerHandler");
 
-        SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
-            configParams.symphonyAddress
-        ).then(async (sushiswapHandler) => {
-            await sushiswapHandler.deployed();
+        BalancerHandler.deploy(
+            configParams.balancerVault,
+            configParams.symphonyAddress,
+        ).then(async (balancerHandler) => {
+            await balancerHandler.deployed();
 
             console.log(
-                "Sushiswap Handler deployed to:",
-                sushiswapHandler.address, "\n"
+                "Balancer Handler deployed to:",
+                balancerHandler.address, "\n"
             );
 
             if (network.name === "mumbai") {
-                file.mumbai.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.mumbai.balancerHandlerAddress = balancerHandler.address;
             } else if (network.name === "matic") {
-                file.matic.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.matic.balancerHandlerAddress = balancerHandler.address;
             } else {
-                file.development.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.development.balancerHandlerAddress = balancerHandler.address;
             }
 
             fs.writeFileSync(
@@ -58,10 +55,10 @@ const main = () => {
                 deployer
             );
 
-            await symphony.addHandler(sushiswapHandler.address);
+            await symphony.addHandler(balancerHandler.address);
             resolve(true);
         });
     })
 }
 
-module.exports = { deploySushiswapHandler: main }
+module.exports = { deployBalancerHandler: main }

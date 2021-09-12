@@ -1,8 +1,4 @@
-const fs = require("fs");
-const path = require("path");
 const hre = require("hardhat");
-const fileName = "../config/index.json";
-const file = require("../config/index.json");
 const config = require("../config/index.json");
 
 const main = () => {
@@ -34,20 +30,7 @@ const main = () => {
                 aaveYield.address, "\n"
             );
 
-            if (network.name === "mumbai") {
-                file.mumbai.aaveYieldAddress = aaveYield.address;
-            } else if (network.name === "matic") {
-                file.matic.aaveYieldAddress = aaveYield.address;
-            } else {
-                file.development.aaveYieldAddress = aaveYield.address;
-            }
-
-            fs.writeFileSync(
-                path.join(__dirname, fileName),
-                JSON.stringify(file, null, 2),
-            );
-
-            resolve(true);
+            resolve(aaveYield.address);
         });
     })
 }

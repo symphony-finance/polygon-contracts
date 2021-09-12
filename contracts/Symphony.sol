@@ -737,7 +737,7 @@ contract Symphony is
         onlyEmergencyAdminOrOwner
     {
         require(
-            _value >= 0 && _value <= 10000,
+            _value <= 10000,
             "symphony::updateBufferPercentage: not correct buffer percent."
         );
         assetBuffer[_asset] = _value;
@@ -802,7 +802,7 @@ contract Symphony is
 
         uint256 bufferAmount = IERC20(asset).balanceOf(address(this));
 
-        uint256 amountToWithdraw;
+        uint256 amountToWithdraw = 0;
         if (bufferAmount < orderAmount.add(neededAmountInBuffer)) {
             amountToWithdraw = orderAmount.add(neededAmountInBuffer).sub(
                 bufferAmount
