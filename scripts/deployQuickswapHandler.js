@@ -58,7 +58,9 @@ const main = () => {
                 deployer
             );
 
-            await symphony.addHandler(quickswapHandler.address);
+            const tx = await symphony.addHandler(quickswapHandler.address);
+            await tx.wait();
+
             resolve(true);
         });
     });

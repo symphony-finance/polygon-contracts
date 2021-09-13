@@ -38,17 +38,20 @@ async function main() {
             console.log("\nSetting up strategy for", data.token);
             const strategyAddr = await deployAaveYield();
 
-            await symphony.updateStrategy(
+            const tx1 = await symphony.updateStrategy(
                 data.address,
                 strategyAddr,
             );
+            await tx1.wait();
 
-            await symphony.updateBufferPercentage(
+            const tx2 = await symphony.updateBufferPercentage(
                 data.address,
                 data.buffer,
             );
+            await tx2.wait();
 
-            await symphony.addWhitelistAsset(data.address);
+            const tx3 = await symphony.addWhitelistAsset(data.address);
+            await tx3.wait();
 
             if (network.name === "mumbai") {
                 file.mumbai[i].strategy = strategyAddr;

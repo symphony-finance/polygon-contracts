@@ -348,6 +348,8 @@ contract Symphony is
             depositPlusYield
         );
 
+        myOrder.inputAmount = depositPlusYield;
+
         IHandler(_handler).handle(
             myOrder,
             oracleAmount,

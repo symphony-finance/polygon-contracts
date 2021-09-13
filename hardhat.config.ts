@@ -13,7 +13,7 @@ const INFURA_KEY = process.env.INFURA_KEY || '';
 const ALCHEMY_KEY = process.env.ALCHEMY_KEY || '';
 const MAINNET_FORK = process.env.MAINNET_FORK === 'true';
 const BUIDLEREVM_CHAINID = 31337;
-const ETHERSCAN_KEY = process.env.ETHERSCAN_KEY || '';
+const POLYGONSCAN_KEY = process.env.POLYGONSCAN_KEY || '';
 const mainnetFork = MAINNET_FORK
     ? {
         // blockNumber: 12317479,
@@ -46,10 +46,18 @@ module.exports = {
             forking: mainnetFork,
             loggingEnabled: true,
         },
+        matic: {
+            hardfork: HARDFORK,
+            url: `https://polygon-rpc.com/`,
+            accounts: [`0x${process.env.MAINNET_PRIVATE_KEY}`],
+            chainId: 137,
+            blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
+            gasPrice: 10 * GWEI
+        },
         mumbai: {
             hardfork: HARDFORK,
             url: `https://rpc-mumbai.maticvigil.com/`,
-            accounts: [`0x${process.env.PRIVATE_KEY}`],
+            accounts: [`0x${process.env.TESTNET_PRIVATE_KEY}`],
             chainId: 80001,
             blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
             gasMultiplier: DEFAULT_GAS_MUL,
@@ -58,12 +66,12 @@ module.exports = {
         rinkeby: {
             url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_KEY}`,
             chainId: 4,
-            accounts: [`0x${process.env.PRIVATE_KEY}`],
+            accounts: [`0x${process.env.TESTNET_PRIVATE_KEY}`],
             blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
         }
     },
     etherscan: {
-        apiKey: ETHERSCAN_KEY
+        apiKey: POLYGONSCAN_KEY
     },
     solidity: {
         version: "0.7.4",

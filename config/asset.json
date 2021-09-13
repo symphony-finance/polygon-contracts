@@ -21,16 +21,18 @@
       "token": "matic",
       "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
       "feed": "0xAB594600376Ec9fD91F8e885dADF0CE036862dE0",
-      "strategy": "",
+      "strategy": "0x584bE2F5BB0190ce6a7A88599463aEC1FAc49791",
       "buffer": 2000
     },
     {
       "token": "usdc",
       "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "feed": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
-      "strategy": "",
+      "strategy": "0x7E756dE98019F69b64560dFd5C95578f93dAb33f",
       "buffer": 4000
-    },
+    }
+  ],
+  "temp_matic": [
     {
       "token": "aave",
       "address": "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",

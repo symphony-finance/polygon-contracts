@@ -55,7 +55,9 @@ const main = () => {
                 deployer
             );
 
-            await symphony.addHandler(balancerHandler.address);
+            const tx = await symphony.addHandler(balancerHandler.address);
+            await tx.wait();
+
             resolve(true);
         });
     })

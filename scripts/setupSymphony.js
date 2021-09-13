@@ -70,10 +70,14 @@ async function main() {
     }
 
     console.log("\nupdating treasury address in contract");
-    await symphony.updateTreasury(configParams.treasury);
+    const tx1 = await symphony.updateTreasury(configParams.treasury);
+    await tx1.wait();
 
     console.log("\nupdating protocol fee in contract");
-    await symphony.updateProtocolFee(globalArgs.symphony.protocolFee);
+    const tx2 = await symphony.updateProtocolFee(
+        globalArgs.symphony.protocolFee
+    );
+    await tx2.wait();
 
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];
