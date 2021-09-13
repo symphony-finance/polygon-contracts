@@ -358,8 +358,8 @@ contract Symphony is
             _handlerData
         );
 
-        uint256 yieldEarned = depositPlusYield.sub(myOrder.inputAmount);
-        if (yieldEarned > 0) {
+        if (depositPlusYield > myOrder.inputAmount) {
+            uint256 yieldEarned = depositPlusYield.sub(myOrder.inputAmount);
             IERC20(myOrder.inputToken).safeTransfer(
                 myOrder.recipient,
                 yieldEarned
@@ -441,10 +441,13 @@ contract Symphony is
             );
         }
 
-        IERC20(myOrder.inputToken).safeTransfer(msg.sender, myOrder.inputAmount);
-        
-        uint256 yieldEarned = depositPlusYield.sub(myOrder.inputAmount);
-        if (yieldEarned > 0) {
+        IERC20(myOrder.inputToken).safeTransfer(
+            msg.sender,
+            myOrder.inputAmount
+        );
+
+        if (depositPlusYield > myOrder.inputAmount) {
+            uint256 yieldEarned = depositPlusYield.sub(myOrder.inputAmount);
             IERC20(myOrder.inputToken).safeTransfer(
                 myOrder.recipient,
                 yieldEarned
