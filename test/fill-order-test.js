@@ -1,7 +1,10 @@
 const hre = require("hardhat");
-const { expect } = require("chai");
+const { expect } = require("chai")
+
 const config = require("../config/index.json");
+const { BigNumber: EthersBN } = require("ethers");
 const { default: BigNumber } = require("bignumber.js");
+const { time } = require("@openzeppelin/test-helpers");
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
@@ -15,7 +18,7 @@ const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
 
-const totalFeePercent = 40;
+const totalFeePercent = 20;
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0x641fb9877b73823f41f0f25de666275e6e846e75";
@@ -91,7 +94,7 @@ describe("Fill Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
+                totalFeePercent,
                 chainlinkOracle.address
             ]
         );
@@ -167,6 +170,7 @@ describe("Fill Order Test", () => {
 
         await usdcContract.approve(symphony.address, approveAmount);
 
+        const daiBalBeforeExecute = await daiContract.balanceOf(recipient);
         const usdcBalBeforeExecute = await usdcContract.balanceOf(recipient);
 
         symphony = new ethers.Contract(
@@ -179,16 +183,30 @@ describe("Fill Order Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
+        // Advancing 100 blocks
+        for (let i = 0; i < 100; ++i) {
+            await time.advanceBlock();
+        };
+
+        const totalTokens = await symphony.getTotalFunds(daiAddress);
+        const depositPlusYield = totalTokens; // as there is only one order
+        const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmount));
+
         // Execute Order
         await symphony.fillOrder(orderId, orderData, quoteAmount);
 
+        const daiBalAfterExecute = await daiContract.balanceOf(recipient);
         const usdcBalAfterExecute = await usdcContract.balanceOf(recipient);
         const recipientReturn = getRecipientReturn(quoteAmount);
 
-        expect(Number(usdcBalAfterExecute))
+        expect(Number(daiBalAfterExecute))
             .to.be.greaterThanOrEqual(
-                Number(usdcBalBeforeExecute) + Number(recipientReturn)
+                Number(daiBalBeforeExecute) + Number(yieldEarned)
             );
+
+        expect(Number(usdcBalAfterExecute)).to.eq(
+            Number(usdcBalBeforeExecute) + Number(recipientReturn)
+        );
     });
 });
 

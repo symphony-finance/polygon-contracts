@@ -12,7 +12,8 @@ const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
 const { AbiCoder } = require("ethers/lib/utils");
-const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
+const { expectRevert } = require("@openzeppelin/test-helpers");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -73,8 +74,6 @@ describe("Balancer Handler Test", () => {
             "0xC1438AA3823A6Ba0C159CfA8D98dF5A994bA120b", // BAL-ETH
         );
 
-        // await chainlinkOracle.updatePriceSlippage(500);
-
         // Deploy Balancer Handler
         const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
 
@@ -90,9 +89,6 @@ describe("Balancer Handler Test", () => {
             BalancerArtifacts.abi,
             deployer
         );
-
-        const intermidiateAmount = "0";
-        const data = encodeData(ZERO_ADDRESS, intermidiateAmount, usdcBalPool, ZERO_BYTES32);
 
         await usdcContract.transfer(balancerHandler.address, inputAmount);
 
@@ -126,6 +122,16 @@ describe("Balancer Handler Test", () => {
             order.outputToken,
             order.inputAmount,
         );
+
+        const addresses = [usdcAddress, balAddress];
+        const swapSteps = [{
+            poolId: usdcBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: order.inputAmount,
+            userData: 0x0,
+        }];
+        const data = encodeData(addresses, swapSteps);
 
         await balancerHandler.handle(
             order,
@@ -218,9 +224,6 @@ describe("Balancer Handler Test", () => {
             deployer
         );
 
-        const intermidiateAmount = "0";
-        const data = encodeData(balAddress, intermidiateAmount, usdcBalPool, daiUsdcPool);
-
         await usdcContract.transfer(balancerHandler.address, inputAmount);
 
         const minReturnAmount = new BigNumber(1.05).times(
@@ -257,6 +260,22 @@ describe("Balancer Handler Test", () => {
             order.outputToken,
             order.inputAmount,
         );
+
+        const addresses = [usdcAddress, balAddress, daiAddress];
+        const swapSteps = [{
+            poolId: usdcBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: order.inputAmount,
+            userData: 0x0,
+        }, {
+            poolId: daiUsdcPool,
+            assetInIndex: '1',
+            assetOutIndex: '2',
+            amount: 0,
+            userData: 0x0,
+        }];
+        const data = encodeData(addresses, swapSteps);
 
         await balancerHandler.handle(
             order,
@@ -301,14 +320,274 @@ describe("Balancer Handler Test", () => {
             )
         );
     });
+
+    it("Should revert if incorrect output token passed", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Balancer Handler
+        const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
+
+        let balancerHandler = await BalancerHandler.deploy(
+            configParams.balancerVault,
+            ZERO_ADDRESS
+        );
+
+        await balancerHandler.deployed();
+
+        balancerHandler = new ethers.Contract(
+            balancerHandler.address,
+            BalancerArtifacts.abi,
+            deployer
+        );
+
+        await usdcContract.transfer(balancerHandler.address, inputAmount);
+
+        const minReturnAmount = new BigNumber(1.05).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        const stoplossAmount = new BigNumber(0.98).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        const order = {
+            recipient,
+            inputToken: usdcAddress,
+            outputToken: daiAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount,
+            shares: 0,
+        };
+
+        const addresses = [usdcAddress, balAddress];
+        const swapSteps = [{
+            poolId: usdcBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: order.inputAmount,
+            userData: 0x0,
+        }];
+        const data = encodeData(addresses, swapSteps);
+
+        await expectRevert(
+            balancerHandler.handle(
+                order,
+                order.minReturnAmount + 1, // false oracle amount
+                totalFeePercent,
+                protocolFeePercent,
+                executor,
+                treasury,
+                data
+            ),
+            "BalancerHandler: Incorrect output token recieved !!"
+        )
+    });
+
+    it("Should revert if input or output amount changed in handler data", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+
+        await chainlinkOracle.updateTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.updateTokenFeed(
+            daiAddress,
+            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        );
+
+        await chainlinkOracle.updatePriceSlippage(450);
+
+        // Deploy Balancer Handler
+        const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
+
+        let balancerHandler = await BalancerHandler.deploy(
+            configParams.balancerVault,
+            ZERO_ADDRESS
+        );
+
+        await balancerHandler.deployed();
+
+        balancerHandler = new ethers.Contract(
+            balancerHandler.address,
+            BalancerArtifacts.abi,
+            deployer
+        );
+
+        await usdcContract.transfer(balancerHandler.address, inputAmount);
+
+        const minReturnAmount = new BigNumber(1.05).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        const stoplossAmount = new BigNumber(0.98).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        const order = {
+            recipient,
+            inputToken: usdcAddress,
+            outputToken: daiAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount,
+            shares: 0,
+        };
+
+        const oracleResult = await chainlinkOracle.get(
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount,
+        );
+
+        const addresses = [usdcAddress, balAddress, daiAddress];
+
+        const decreasedInputAmt = new BigNumber(0.5).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
+        const swapSteps1 = [{
+            poolId: usdcBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: decreasedInputAmt,
+            userData: 0x0,
+        }, {
+            poolId: daiUsdcPool,
+            assetInIndex: '1',
+            assetOutIndex: '2',
+            amount: 0,
+            userData: 0x0,
+        }];
+        const data1 = encodeData(addresses, swapSteps1);
+
+        await expectRevert(
+            balancerHandler.handle(
+                order,
+                oracleResult.amountOutWithSlippage,
+                totalFeePercent,
+                protocolFeePercent,
+                executor,
+                treasury,
+                data1
+            ),
+            "BalancerHandler: Oracle price doesn't match with return amount !!"
+        );
+
+        const increasedInputAmt = new BigNumber(1.5).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
+        const swapSteps2 = [{
+            poolId: usdcBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: increasedInputAmt,
+            userData: 0x0,
+        }, {
+            poolId: daiUsdcPool,
+            assetInIndex: '1',
+            assetOutIndex: '2',
+            amount: 0,
+            userData: 0x0,
+        }];
+        const data2 = encodeData(addresses, swapSteps2);
+
+        await expectRevert(
+            balancerHandler.handle(
+                order,
+                oracleResult.amountOutWithSlippage,
+                totalFeePercent,
+                protocolFeePercent,
+                executor,
+                treasury,
+                data2
+            ),
+            "ERC20: transfer amount exceeds allowance"
+        );
+
+        const swapSteps3 = [{
+            poolId: usdcBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: order.inputAmount,
+            userData: 0x0,
+        }, {
+            poolId: daiUsdcPool,
+            assetInIndex: '1',
+            assetOutIndex: '2',
+            amount: 238,
+            userData: 0x0,
+        }];
+        const data3 = encodeData(addresses, swapSteps3);
+
+        await expectRevert(
+            balancerHandler.handle(
+                order,
+                oracleResult.amountOutWithSlippage,
+                totalFeePercent,
+                protocolFeePercent,
+                executor,
+                treasury,
+                data3
+            ),
+            "BalancerHandler: Oracle price doesn't match with return amount !!"
+        );
+    });
 });
 
-const encodeData = (intermidiate, intermidiateAmount, poolA, poolB) => {
+const encodeData = (addresses, swapSteps) => {
     const abiCoder = new AbiCoder();
 
     return abiCoder.encode(
-        ['address', 'uint256', 'bytes32', 'bytes32'],
-        [intermidiate, intermidiateAmount, poolA, poolB]
+        [
+            'address[]',
+            "tuple(bytes32 poolId, uint256 assetInIndex, uint256 assetOutIndex, uint256 amount, bytes userData)[]"
+        ],
+        [addresses, swapSteps]
     )
 }
 

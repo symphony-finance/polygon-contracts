@@ -340,15 +340,13 @@ contract Symphony is
             );
         }
 
-        IERC20(myOrder.inputToken).safeTransfer(_handler, depositPlusYield);
+        IERC20(myOrder.inputToken).safeTransfer(_handler, myOrder.inputAmount);
 
         (, uint256 oracleAmount) = oracle.get(
             myOrder.inputToken,
             myOrder.outputToken,
-            depositPlusYield
+            myOrder.inputAmount
         );
-
-        myOrder.inputAmount = depositPlusYield;
 
         IHandler(_handler).handle(
             myOrder,
@@ -359,6 +357,14 @@ contract Symphony is
             treasury,
             _handlerData
         );
+
+        uint256 yieldEarned = depositPlusYield.sub(myOrder.inputAmount);
+        if (yieldEarned > 0) {
+            IERC20(myOrder.inputToken).safeTransfer(
+                myOrder.recipient,
+                yieldEarned
+            );
+        }
     }
 
     /**
@@ -393,7 +399,7 @@ contract Symphony is
         (uint256 oracleAmount, ) = oracle.get(
             myOrder.inputToken,
             myOrder.outputToken,
-            depositPlusYield
+            myOrder.inputAmount
         );
 
         bool success = ((quoteAmount >= myOrder.minReturnAmount ||
@@ -435,7 +441,15 @@ contract Symphony is
             );
         }
 
-        IERC20(myOrder.inputToken).safeTransfer(msg.sender, depositPlusYield);
+        IERC20(myOrder.inputToken).safeTransfer(msg.sender, myOrder.inputAmount);
+        
+        uint256 yieldEarned = depositPlusYield.sub(myOrder.inputAmount);
+        if (yieldEarned > 0) {
+            IERC20(myOrder.inputToken).safeTransfer(
+                myOrder.recipient,
+                yieldEarned
+            );
+        }
     }
 
     /**

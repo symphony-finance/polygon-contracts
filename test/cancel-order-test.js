@@ -361,7 +361,7 @@ describe("Cancel Order Test", () => {
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
         expect(Number(usdcBalAfterExecute)).to.be
-            .greaterThanOrEqual(Number(usdcBalBeforeExecute.add(inputAmount)));
+            .greaterThanOrEqual(Number(usdcBalBeforeExecute.add(inputAmount)) - 1);
     });
 
     it("Should cancel order when strategy migrated after creating the order", async () => {
