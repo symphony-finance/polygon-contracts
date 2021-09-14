@@ -2,6 +2,7 @@ const hre = require("hardhat");
 const { expect } = require("chai");
 const config = require("../config/index.json");
 const { AbiCoder } = require("ethers/lib/utils");
+const { BigNumber: EthersBN } = require("ethers");
 const { default: BigNumber } = require("bignumber.js");
 const { time, expectRevert } = require("@openzeppelin/test-helpers");
 const IERC20Artifacts = require(
@@ -183,6 +184,7 @@ describe("Execute Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
+        const daiBalBeforeExecute = await daiContract.balanceOf(deployer.address);
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
 
         // Advancing 100 blocks
@@ -190,14 +192,36 @@ describe("Execute Order Test", () => {
             await time.advanceBlock();
         };
 
+        const oracleResult = await chainlinkOracle.get(
+            daiAddress,
+            usdcAddress,
+            inputAmount
+        );
+        const oracleAmount = Number(oracleResult.amountOutWithSlippage);
+
+        const amountOutMin = oracleAmount <= Number(stoplossAmount) ||
+            oracleAmount > Number(minReturnAmount)
+            ? oracleAmount
+            : Number(minReturnAmount);
+
+        const totalTokens = await symphony.getTotalFunds(daiAddress);
+        const depositPlusYield = totalTokens; // as there is only one order
+        const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmount));
+
         // Execute Order
         await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
 
+        const daiBalAfterExecute = await daiContract.balanceOf(deployer.address);
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
         expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(
-            Number(usdcBalBeforeExecute) + Number(expectedReturn)
+            Number(usdcBalBeforeExecute) + Number(amountOutMin)
         );
+
+        expect(Number(daiBalAfterExecute))
+            .to.be.greaterThanOrEqual(
+                Number(daiBalBeforeExecute) + Number(yieldEarned)
+            );
     });
 
     it("Should execute order with Balancer Handler & Aave Yield", async () => {
@@ -335,8 +359,21 @@ describe("Execute Order Test", () => {
             await time.advanceBlock();
         };
 
-        const intermidiateAmount = "0";
-        const data = encodeHandlerData(balAddress, intermidiateAmount, daiBalPool, usdcBalPool);
+        const addresses = [daiAddress, balAddress, usdcAddress];
+        const swapSteps = [{
+            poolId: daiBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: inputAmount,
+            userData: 0x0,
+        }, {
+            poolId: usdcBalPool,
+            assetInIndex: '1',
+            assetOutIndex: '2',
+            amount: 0,
+            userData: 0x0,
+        }];
+        const data = encodeBalHandlerData(addresses, swapSteps);
 
         // Execute Order
         await symphony.executeOrder(orderId, orderData, balancerHandler.address, data)
@@ -729,7 +766,21 @@ describe("Execute Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        const data = encodeHandlerData(balAddress, '0', daiBalPool, usdcBalPool);
+        const addresses = [daiAddress, balAddress, usdcAddress];
+        const swapSteps = [{
+            poolId: daiBalPool,
+            assetInIndex: '0',
+            assetOutIndex: '1',
+            amount: inputAmount,
+            userData: 0x0,
+        }, {
+            poolId: usdcBalPool,
+            assetInIndex: '1',
+            assetOutIndex: '2',
+            amount: 0,
+            userData: 0x0,
+        }];
+        const data = encodeBalHandlerData(addresses, swapSteps);
 
         await expectRevert(
             symphony.executeOrder(orderId, orderData, balancerHandler.address, data),
@@ -747,11 +798,14 @@ const encodeData = (router, slippage, codeHash, path) => {
     )
 }
 
-const encodeHandlerData = (intermidiate, intermidiateAmount, poolA, poolB) => {
+const encodeBalHandlerData = (addresses, swapSteps) => {
     const abiCoder = new AbiCoder();
 
     return abiCoder.encode(
-        ['address', 'uint256', 'bytes32', 'bytes32'],
-        [intermidiate, intermidiateAmount, poolA, poolB]
+        [
+            'address[]',
+            "tuple(bytes32 poolId, uint256 assetInIndex, uint256 assetOutIndex, uint256 amount, bytes userData)[]"
+        ],
+        [addresses, swapSteps]
     )
 }
