@@ -102,7 +102,7 @@ contract MockBalancerHandler is IHandler {
 
         require(
             returnAmount >= oracleAmount,
-            "BalancerHandler: Oracle price doesn't match with return amount !!"
+            "BalancerHandler: Oracle amount doesn't match with return amount !!"
         );
 
         _transferTokens(

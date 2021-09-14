@@ -83,17 +83,21 @@ contract BalancerHandler is IHandler {
 
         // Swap Tokens
         uint256 returnAmount = _swap(handlerdata);
-  
+
         require(
             IERC20(order.outputToken).balanceOf(address(this)) >= returnAmount,
             "BalancerHandler: Incorrect output token recieved !!"
         );
 
         require(
-            (returnAmount >= order.minReturnAmount ||
-                returnAmount <= order.stoplossAmount) &&
-                returnAmount >= oracleAmount,
-            "BalancerHandler: Amount mismatch !!"
+            returnAmount >= order.minReturnAmount ||
+                returnAmount <= order.stoplossAmount,
+            "BalancerHandler: Order condition doesn't satisfy !!"
+        );
+
+        require(
+            returnAmount >= oracleAmount,
+            "BalancerHandler: Oracle amount doesn't match with return amount !!"
         );
 
         _transferTokens(

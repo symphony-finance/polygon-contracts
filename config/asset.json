@@ -28,7 +28,7 @@
       "token": "usdc",
       "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "feed": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
-      "strategy": "0x7E756dE98019F69b64560dFd5C95578f93dAb33f",
+      "strategy": "0x16BD9b71939d1A4B234A14Ec35Ba65b93C78cB15",
       "buffer": 4000
     }
   ],
@@ -38,35 +38,35 @@
       "address": "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
       "feed": "0x72484B12719E23115761D5DA1646945632979bB6",
       "strategy": "",
-      "buffer": 2000
+      "buffer": 1000
     },
     {
       "token": "dai",
       "address": "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
       "feed": "0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D",
       "strategy": "",
-      "buffer": 4000
+      "buffer": 2000
     },
     {
       "token": "weth",
       "address": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
       "feed": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
       "strategy": "",
-      "buffer": 2000
+      "buffer": 1000
     },
     {
       "token": "wbtc",
       "address": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
       "feed": "0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6",
       "strategy": "",
-      "buffer": 2000
+      "buffer": 1000
     },
     {
       "token": "usdt",
       "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
       "feed": "0x0A6513e40db6EB1b165753AD52E80663aeA50545",
       "strategy": "",
-      "buffer": 4000
+      "buffer": 2000
     }
   ]
 }

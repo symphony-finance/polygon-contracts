@@ -514,7 +514,7 @@ describe("Balancer Handler Test", () => {
                 treasury,
                 data1
             ),
-            "BalancerHandler: Oracle price doesn't match with return amount !!"
+            "BalancerHandler: Oracle amount doesn't match with return amount !!"
         );
 
         const increasedInputAmt = new BigNumber(1.5).times(
@@ -574,7 +574,7 @@ describe("Balancer Handler Test", () => {
                 treasury,
                 data3
             ),
-            "BalancerHandler: Oracle price doesn't match with return amount !!"
+            "BalancerHandler: Oracle amount doesn't match with return amount !!"
         );
     });
 });

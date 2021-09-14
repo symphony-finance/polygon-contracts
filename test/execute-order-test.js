@@ -784,7 +784,7 @@ describe("Execute Order Test", () => {
 
         await expectRevert(
             symphony.executeOrder(orderId, orderData, balancerHandler.address, data),
-            'BalancerHandler: Amount mismatch !!'
+            "BalancerHandler: Order condition doesn't satisfy !!"
         );
     });
 });

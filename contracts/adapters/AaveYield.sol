@@ -317,39 +317,6 @@ contract AaveYield is IYieldAdapter, Initializable {
         protocolDataProvider = _protocolDataProvider;
     }
 
-    /**
-     * @notice For executing any transaction from the contract
-     */
-    function executeTransaction(
-        address target,
-        uint256 value,
-        string memory signature,
-        bytes memory data
-    ) external payable onlyGovernance returns (bytes memory) {
-        bytes memory callData;
-
-        if (bytes(signature).length == 0) {
-            callData = data;
-        } else {
-            callData = abi.encodePacked(
-                bytes4(keccak256(bytes(signature))),
-                data
-            );
-        }
-
-        // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) = target.call{value: value}(
-            callData
-        );
-
-        require(
-            success,
-            "AaveYield::executeTransaction: Transaction execution reverted."
-        );
-
-        return returnData;
-    }
-
     // ************************** //
     // *** INTERNAL FUNCTIONS *** //
     // ************************** //
