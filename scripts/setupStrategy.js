@@ -34,7 +34,7 @@ async function main() {
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];
 
-        if (data.address) {
+        if (data.address && !data.strategy) {
             console.log("\nSetting up strategy for", data.token);
             const strategyAddr = await deployAaveYield();
 
@@ -44,11 +44,13 @@ async function main() {
             );
             await tx1.wait();
 
-            const tx2 = await symphony.updateBufferPercentage(
-                data.address,
-                data.buffer,
-            );
-            await tx2.wait();
+            if (data.buffer > 0) {
+                const tx2 = await symphony.updateBufferPercentage(
+                    data.address,
+                    data.buffer,
+                );
+                await tx2.wait();
+            }
 
             const tx3 = await symphony.addWhitelistAsset(data.address);
             await tx3.wait();

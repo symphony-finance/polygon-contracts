@@ -1,4 +1,55 @@
 {
+  "matic": [
+    {
+      "token": "matic",
+      "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+      "feed": "0xAB594600376Ec9fD91F8e885dADF0CE036862dE0",
+      "strategy": "0x584bE2F5BB0190ce6a7A88599463aEC1FAc49791",
+      "buffer": 0
+    },
+    {
+      "token": "usdc",
+      "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "feed": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
+      "strategy": "0x16BD9b71939d1A4B234A14Ec35Ba65b93C78cB15",
+      "buffer": 2000
+    },
+    {
+      "token": "aave",
+      "address": "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
+      "feed": "0x72484B12719E23115761D5DA1646945632979bB6",
+      "strategy": "0xDeDcd80edc3405f0fE62A81AFC0823032501b25b",
+      "buffer": 0
+    },
+    {
+      "token": "dai",
+      "address": "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
+      "feed": "0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D",
+      "strategy": "0x9950a9Ca97F9d48fa717763cfaE7137E87Ac718d",
+      "buffer": 2000
+    },
+    {
+      "token": "weth",
+      "address": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
+      "feed": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
+      "strategy": "0x998A1694c39c900Bf8a34b381965490c2f5ce573",
+      "buffer": 0
+    },
+    {
+      "token": "wbtc",
+      "address": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+      "feed": "0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6",
+      "strategy": "0x75B2cD07Dc63580B71621C1056cbbEDB60A31f42",
+      "buffer": 0
+    },
+    {
+      "token": "usdt",
+      "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+      "feed": "0x0A6513e40db6EB1b165753AD52E80663aeA50545",
+      "strategy": "0x9F87c0Bf859cc0863741fA2808d18CD152d4265C",
+      "buffer": 2000
+    }
+  ],
   "mumbai": [
     {
       "token": "matic",
@@ -14,59 +65,6 @@
       "feed": "0x572dDec9087154dC5dfBB1546Bb62713147e0Ab0",
       "strategy": "0x4a5eEABE1CA80855670dCaBF0054657975b9a455",
       "buffer": 4000
-    }
-  ],
-  "matic": [
-    {
-      "token": "matic",
-      "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-      "feed": "0xAB594600376Ec9fD91F8e885dADF0CE036862dE0",
-      "strategy": "0x584bE2F5BB0190ce6a7A88599463aEC1FAc49791",
-      "buffer": 2000
-    },
-    {
-      "token": "usdc",
-      "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-      "feed": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
-      "strategy": "0x16BD9b71939d1A4B234A14Ec35Ba65b93C78cB15",
-      "buffer": 4000
-    }
-  ],
-  "temp_matic": [
-    {
-      "token": "aave",
-      "address": "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
-      "feed": "0x72484B12719E23115761D5DA1646945632979bB6",
-      "strategy": "",
-      "buffer": 1000
-    },
-    {
-      "token": "dai",
-      "address": "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
-      "feed": "0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D",
-      "strategy": "",
-      "buffer": 2000
-    },
-    {
-      "token": "weth",
-      "address": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
-      "feed": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
-      "strategy": "",
-      "buffer": 1000
-    },
-    {
-      "token": "wbtc",
-      "address": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
-      "feed": "0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6",
-      "strategy": "",
-      "buffer": 1000
-    },
-    {
-      "token": "usdt",
-      "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
-      "feed": "0x0A6513e40db6EB1b165753AD52E80663aeA50545",
-      "strategy": "",
-      "buffer": 2000
     }
   ]
 }
