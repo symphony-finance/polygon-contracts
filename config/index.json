@@ -15,7 +15,7 @@
     "quickswapHandlerAddress": "0xdBE1F300E1fB03d4089e152c6cd812273239F499",
     "quickswapRouter": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
     "quickswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
-    "balancerHandlerAddress": "0xcf2e6DBE122394DAbE98E3C772F35D6FEF7A22dc",
+    "balancerHandlerAddress": "0x63535e8cA0F0E19dEB3aEC5D209636391b28bBa5",
     "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
     "wethAddress": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
     "wmaticAddress": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",

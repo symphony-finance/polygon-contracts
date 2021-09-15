@@ -13,7 +13,7 @@
     }
   },
   "chainlink": {
-    "_comment::slippage": "0.5%",
-    "slippage": 50
+    "_comment::slippage": "0.7%",
+    "slippage": 70
   }
 }
