@@ -6,6 +6,16 @@
     "protocolFee": 2500
   },
   "timelock": {
+    "matic": {
+      "minimumDelay": 86400,
+      "proposers": [
+        "0xEBB9194eDbe62494a43d253ab230dA96a457fdB1",
+        "0x3A893A7525C4263052c3C04f9C32d919c75cb8e0",
+        "0x45B1E1E13aDe283eCc5e1c586897D12Eef69fc9B",
+        "0xd32908F63713F514aDDBE3962A2dE7112fdCD4A7"
+      ],
+      "executors": ["0xEBB9194eDbe62494a43d253ab230dA96a457fdB1"]
+    },
     "rinkeby": {
       "minimumDelay": 150,
       "proposers": ["0x0cEb8D2f001E29c5d6FC18A656151A061750c364"],

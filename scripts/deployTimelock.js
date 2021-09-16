@@ -1,12 +1,13 @@
 const fs = require("fs");
+const path = require("path");
 const { network } = require("hardhat");
 const fileName = "../config/index.json";
 const file = require("../config/index.json");
 const globalArgs = require('../config/arguments.json');
 
 const main = async () => {
-    const networkName = "rinkeby";
-    if (network.name === "mumbai") {
+    let networkName = "rinkeby";
+    if (network.name === "matic") {
         networkName = network.name;
     }
 
