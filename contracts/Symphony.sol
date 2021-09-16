@@ -642,19 +642,6 @@ contract Symphony is
     }
 
     /**
-     * @notice Withdraw tokens from contract
-     */
-    function withdrawTokens(
-        address[] calldata assets,
-        uint256[] calldata amount,
-        address receiver
-    ) external onlyOwner {
-        for (uint256 i = 0; i < assets.length; i++) {
-            IERC20(assets[i]).safeTransfer(receiver, amount[i]);
-        }
-    }
-
-    /**
      * @notice Migrate to new strategy
      */
     function migrateStrategy(
@@ -679,39 +666,6 @@ contract Symphony is
         } else {
             strategy[asset] = newStrategy;
         }
-    }
-
-    /**
-     * @notice For executing any transaction from the contract
-     */
-    function executeTransaction(
-        address target,
-        uint256 value,
-        string memory signature,
-        bytes memory data
-    ) external payable onlyOwner returns (bytes memory) {
-        bytes memory callData;
-
-        if (bytes(signature).length == 0) {
-            callData = data;
-        } else {
-            callData = abi.encodePacked(
-                bytes4(keccak256(bytes(signature))),
-                data
-            );
-        }
-
-        // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) = target.call{value: value}(
-            callData
-        );
-
-        require(
-            success,
-            "Symphony::executeTransaction: Transaction execution reverted."
-        );
-
-        return returnData;
     }
 
     // *************************** //
