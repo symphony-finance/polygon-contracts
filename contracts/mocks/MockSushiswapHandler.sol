@@ -99,10 +99,16 @@ contract MockSushiswapHandler is IHandler {
         uint256 _oracleAmount,
         bytes calldata
     ) external view override returns (bool success, uint256 amountOut) {
+        uint256 amountOutMin = _oracleAmount <= _stoplossAmount ||
+            _oracleAmount > _minReturnAmount
+            ? _oracleAmount
+            : _minReturnAmount;
+
         (amountOut, ) = _getPathAndAmountOut(
             _inputToken,
             _outputToken,
-            _inputAmount
+            _inputAmount,
+            amountOutMin
         );
 
         return (
@@ -119,7 +125,8 @@ contract MockSushiswapHandler is IHandler {
         (, address[] memory path) = _getPathAndAmountOut(
             order.inputToken,
             order.outputToken,
-            order.inputAmount
+            order.inputAmount,
+            amountOutMin
         );
 
         IERC20(order.inputToken).safeApprove(
@@ -165,7 +172,8 @@ contract MockSushiswapHandler is IHandler {
     function _getPathAndAmountOut(
         address inputToken,
         address outputToken,
-        uint256 inputAmount
+        uint256 inputAmount,
+        uint256 amountOutMin
     ) internal view returns (uint256 amountOut, address[] memory path) {
         path = new address[](2);
         path[0] = inputToken;
@@ -178,7 +186,7 @@ contract MockSushiswapHandler is IHandler {
             FACTORY_CODE_HASH
         );
 
-        if (_amounts[1] == 0) {
+        if (_amounts[1] < amountOutMin) {
             path = new address[](3);
 
             path[0] = inputToken;
@@ -192,7 +200,7 @@ contract MockSushiswapHandler is IHandler {
                 FACTORY_CODE_HASH
             );
 
-            if (_amounts[_amounts.length - 1] == 0) {
+            if (_amounts[_amounts.length - 1] < amountOutMin) {
                 path[1] = WMATIC; // WMATIC address
 
                 _amounts = UniswapLibrary.getAmountsOut(
