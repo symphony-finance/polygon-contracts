@@ -142,6 +142,118 @@ describe("Sushiswap Handler Test", () => {
             .greaterThanOrEqual(Number(expectedReturn));
     });
 
+    it("should swap asset with hops", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        const balAddress = "0xba100000625a3754423978a60c9317c58a424e3d";
+
+        // Create BAL contract instance
+        const balContract = new ethers.Contract(
+            balAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Sushiswap Handler
+        const SushiswapHandler = await ethers.getContractFactory(
+            "MockSushiswapHandler"
+        );
+
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.updateTokenFeed(
+            usdcAddress,
+            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        );
+
+        await chainlinkOracle.updateTokenFeed(
+            balAddress,
+            "0xC1438AA3823A6Ba0C159CfA8D98dF5A994bA120b", // BAL-ETH
+        );
+
+        await chainlinkOracle.updatePriceSlippage(300); // 3%
+
+        let sushiswapHandler = await SushiswapHandler.deploy(
+            configParams.sushiswapRouter, // Router
+            configParams.wethAddress, // WETH
+            configParams.wmaticAddress, // WMATIC
+            configParams.sushiswapCodeHash,
+            deployer.address // false symphony address
+        );
+
+        await sushiswapHandler.deployed();
+
+        sushiswapHandler = new ethers.Contract(
+            sushiswapHandler.address,
+            SushiswapHandlerArtifacts.abi,
+            deployer
+        );
+
+        await usdcContract.transfer(sushiswapHandler.address, inputAmount);
+
+        const balanceBeforeSwap = await balContract.balanceOf(recipient);
+
+        const newOrder = {
+            inputToken: usdcAddress,
+            outputToken: balAddress,
+            inputAmount,
+            minReturnAmount: '0',
+            stoplossAmount: '0',
+            shares: 0,
+            recipient,
+        };
+
+        newOrder.minReturnAmount = new BigNumber(0.5).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(18))
+        ).toString();
+
+        const oracleResult = await chainlinkOracle.get(
+            newOrder.inputToken,
+            newOrder.outputToken,
+            newOrder.inputAmount
+        );
+
+        await sushiswapHandler.handle(
+            newOrder,
+            oracleResult.amountOutWithSlippage,
+            40,
+            2500,
+            recipient,
+            deployer.address, // false treasury
+            ZERO_BYTES32
+        );
+
+        const balanceAfterSwap = await balContract.balanceOf(recipient);
+        const amountReceived = balanceAfterSwap.sub(balanceBeforeSwap);
+
+        expect(Number(amountReceived)).to.be
+            .greaterThanOrEqual(Number(newOrder.minReturnAmount));
+    });
+
     it("should simulate the order execution correctly", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",

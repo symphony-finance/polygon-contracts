@@ -29,14 +29,14 @@ library UniswapLibrary {
     {
         require(
             _tokenA != _tokenB,
-            "SushiswapUtils#sortTokens: IDENTICAL_ADDRESSES"
+            "UniswapUtils#sortTokens: IDENTICAL_ADDRESSES"
         );
         (token0, token1) = _tokenA < _tokenB
             ? (_tokenA, _tokenB)
             : (_tokenB, _tokenA);
         require(
             token0 != address(0),
-            "SushiswapUtils#sortTokens: ZERO_ADDRESS"
+            "UniswapUtils#sortTokens: ZERO_ADDRESS"
         );
     }
 
@@ -114,10 +114,10 @@ library UniswapLibrary {
             _inputAmount > 0,
             "UniswapUtils#getAmountOut: INSUFFICIENT_INPUT_AMOUNT"
         );
-        require(
-            _reserveIn > 0 && _reserveOut > 0,
-            "UniswapUtils#getAmountOut: INSUFFICIENT_LIQUIDITY"
-        );
+        // require(
+        //     _reserveIn > 0 && _reserveOut > 0,
+        //     "UniswapUtils#getAmountOut: INSUFFICIENT_LIQUIDITY"
+        // );
         uint256 inputAmountWithFee = _inputAmount.mul(997);
         uint256 numerator = inputAmountWithFee.mul(_reserveOut);
         uint256 denominator = _reserveIn.mul(1000).add(inputAmountWithFee);
