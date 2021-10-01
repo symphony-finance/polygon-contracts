@@ -340,6 +340,10 @@ contract Symphony is
             );
         }
 
+        if (depositPlusYield < myOrder.inputAmount) {
+            myOrder.inputAmount = depositPlusYield;
+        }
+
         IERC20(myOrder.inputToken).safeTransfer(_handler, myOrder.inputAmount);
 
         (, uint256 oracleAmount) = oracle.get(
