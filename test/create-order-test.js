@@ -724,13 +724,10 @@ describe("Create Order Test", () => {
     //     const MstableYield = await ethers.getContractFactory("MstableYield");
 
     //     const configParams = config.mainnet;
-    //     const mstableYield = await upgrades.deployProxy(
-    //         MstableYield,
-    //         [
-    //             configParams.musdTokenAddress,
-    //             configParams.mstableSavingContract,
-    //             symphony.address,
-    //         ]
+    //     const mstableYield = await MstableYield.deploy(
+    //         configParams.musdTokenAddress,
+    //         configParams.mstableSavingContract,
+    //         symphony.address,
     //     );
 
     //     await mstableYield.deployed();

@@ -4,20 +4,19 @@ pragma solidity 0.7.4;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
 import "../interfaces/ISavingsContract.sol";
 import "../interfaces/IERC20WithDecimal.sol";
 
-contract MstableYield is IYieldAdapter, Initializable {
+contract MstableYield is IYieldAdapter {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    address public musdToken;
-    address public symphony;
-    ISavingsContract public savingContract;
+    address public immutable musdToken;
+    address public immutable symphony;
+    ISavingsContract public immutable savingContract;
 
     modifier onlySymphony() {
         require(
@@ -33,11 +32,11 @@ contract MstableYield is IYieldAdapter, Initializable {
      * @param _savingContract the address of mstable saving manager
      * @param _symphony the address of the symphony smart contract
      **/
-    function initialize(
+    constructor(
         address _musdToken,
         ISavingsContract _savingContract,
         address _symphony
-    ) external initializer {
+    ) {
         require(
             _symphony != address(0),
             "MstableYield: Symphony:: zero address"
@@ -54,7 +53,7 @@ contract MstableYield is IYieldAdapter, Initializable {
         musdToken = _musdToken;
         symphony = _symphony;
         savingContract = _savingContract;
-        IERC20(musdToken).safeApprove(address(_savingContract), uint256(-1));
+        IERC20(_musdToken).safeApprove(address(_savingContract), uint256(-1));
     }
 
     /**
@@ -175,7 +174,7 @@ contract MstableYield is IYieldAdapter, Initializable {
         }
 
         // redeem mUSD for imUSD (IOU)
-        uint256 mAssetQuantity = savingContract.redeemUnderlying(amount);
+        savingContract.redeemUnderlying(amount);
 
         if (asset != musdToken) {
             uint256 minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
@@ -191,7 +190,7 @@ contract MstableYield is IYieldAdapter, Initializable {
                 symphony
             );
         } else {
-            IERC20(asset).safeTransfer(symphony, mAssetQuantity);
+            IERC20(asset).safeTransfer(symphony, amount);
         }
     }
 }

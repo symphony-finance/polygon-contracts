@@ -58,4 +58,19 @@ interface ImAsset {
         external
         view
         returns (uint256 bAssetOutput);
+
+    // Swaps
+    function swap(
+        address _input,
+        address _output,
+        uint256 _inputQuantity,
+        uint256 _minOutputQuantity,
+        address _recipient
+    ) external returns (uint256 swapOutput);
+
+    function getSwapOutput(
+        address _input,
+        address _output,
+        uint256 _inputQuantity
+    ) external view returns (uint256 swapOutput);
 }

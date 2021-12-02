@@ -13,9 +13,10 @@ const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const musdAddress = "0xe2f2a5C287993345a840Db3B0845fbC70f5935a5";
 
 describe("Mstable Yield Test", function () {
-    it("Should Work", async function () {
+    it("Should work for stablecoin as input", async function () {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -42,14 +43,12 @@ describe("Mstable Yield Test", function () {
         const MstableYield = await ethers.getContractFactory("MockMstableYield");
 
         const configParams = config.mainnet;
-        let mstableYield = await upgrades.deployProxy(
-            MstableYield,
-            [
-                configParams.musdTokenAddress,
-                configParams.mstableSavingContract,
-                symphony.address,
-            ]
+        let mstableYield = await MstableYield.deploy(
+            configParams.musdTokenAddress,
+            configParams.mstableSavingContract,
+            symphony.address,
         );
+        await mstableYield.deployed();
 
         mstableYield = new ethers.Contract(
             mstableYield.address,
@@ -71,7 +70,6 @@ describe("Mstable Yield Test", function () {
         ).toString();
 
         await usdcContract.approve(mstableYield.address, amount);
-
         await mstableYield.deposit(usdcAddress, amount);
 
         const iouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
@@ -88,5 +86,69 @@ describe("Mstable Yield Test", function () {
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
         expect(Number(newIouTokenBalance)).lessThanOrEqual(Number(remainingAmount));
+    });
+
+    it("Should work for mUSD token as input", async function () {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xC3747113fF14ec359b482594Fd3260758453b141"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xC3747113fF14ec359b482594Fd3260758453b141"
+        );
+        deployer.address = deployer._address;
+
+        // Deploy Symphony Contract
+        const Symphony = await ethers.getContractFactory("Symphony");
+
+        let symphony = await upgrades.deployProxy(
+            Symphony,
+            [
+                deployer.address,
+                deployer.address,
+                40, // 40 for 0.4 %
+                ZERO_ADDRESS,
+            ]
+        );
+
+        const MstableYield = await ethers.getContractFactory("MockMstableYield");
+
+        const configParams = config.mainnet;
+        let mstableYield = await MstableYield.deploy(
+            configParams.musdTokenAddress,
+            configParams.mstableSavingContract,
+            symphony.address,
+        );
+        await mstableYield.deployed();
+
+        mstableYield = new ethers.Contract(
+            mstableYield.address,
+            MstableYieldArtifacts.abi,
+            deployer
+        );
+
+        const musdContract = new ethers.Contract(
+            musdAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        const amount = new BigNumber(1).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
+        await musdContract.approve(mstableYield.address, amount);
+        await mstableYield.deposit(musdAddress, amount);
+
+        const iouTokenBalance = await mstableYield.getTotalUnderlying(musdAddress);
+        const outputAmount = new BigNumber(1).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+
+        expect(Number(iouTokenBalance)).greaterThanOrEqual(Number(outputAmount));
+
+        await mstableYield.withdraw(musdAddress, outputAmount, 0, 0, ZERO_ADDRESS, ZERO_BYTES32);
+        expect(await mstableYield.getTotalUnderlying(musdAddress)).eq(0);
     });
 });
