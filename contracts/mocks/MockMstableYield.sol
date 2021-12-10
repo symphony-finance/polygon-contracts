@@ -15,9 +15,9 @@ contract MockMstableYield is Initializable {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    address public musdToken;
-    address public symphony;
-    ISavingsContract public savingContract;
+    address public immutable musdToken;
+    address public immutable symphony;
+    ISavingsContract public immutable savingContract;
 
     modifier onlySymphony() {
         require(
@@ -33,11 +33,11 @@ contract MockMstableYield is Initializable {
      * @param _savingContract the address of mstable saving manager
      * @param _symphony the address of the symphony smart contract
      **/
-    function initialize(
+    constructor(
         address _musdToken,
         ISavingsContract _savingContract,
         address _symphony
-    ) external initializer {
+    ) {
         require(
             _symphony != address(0),
             "MstableYield: Symphony:: zero address"
@@ -54,7 +54,7 @@ contract MockMstableYield is Initializable {
         musdToken = _musdToken;
         symphony = _symphony;
         savingContract = _savingContract;
-        IERC20(musdToken).safeApprove(address(_savingContract), uint256(-1));
+        IERC20(_musdToken).safeApprove(address(_savingContract), uint256(-1));
     }
 
     /**
@@ -127,7 +127,7 @@ contract MockMstableYield is Initializable {
      * @return amount amount of underlying tokens
      **/
     function getTotalUnderlying(address asset)
-        external
+        public
         view
         returns (uint256 amount)
     {
@@ -167,12 +167,19 @@ contract MockMstableYield is Initializable {
         if (decimal < 18) {
             amount = amount.mul(10**(18 - decimal));
         }
+        console.log("total underlying %s", getTotalUnderlying(asset));
         console.log("amount %s tokens", amount);
 
+        console.log(
+            "musd before %s",
+            IERC20(musdToken).balanceOf(address(this))
+        );
         // redeem mUSD for imUSD (IOU)
-        uint256 mAssetQuantity = savingContract.redeemUnderlying(amount);
-        console.log("mAssetQuantity %s tokens", mAssetQuantity);
-
+        savingContract.redeemUnderlying(amount);
+        console.log(
+            "musd after %s",
+            IERC20(musdToken).balanceOf(address(this))
+        );
         if (asset != musdToken) {
             uint256 minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
                 asset,
@@ -181,6 +188,8 @@ contract MockMstableYield is Initializable {
 
             console.log("minOutputQuantity %s tokens", minOutputQuantity);
 
+            console.log("adhjwd %s", IERC20(asset).balanceOf(symphony));
+
             // redeem mUSD for base asset
             ImAsset(musdToken).redeem(
                 asset,
@@ -188,8 +197,10 @@ contract MockMstableYield is Initializable {
                 minOutputQuantity,
                 symphony
             );
+
+            console.log("ewd %s", IERC20(asset).balanceOf(symphony));
         } else {
-            IERC20(asset).safeTransfer(recipient, mAssetQuantity);
+            IERC20(asset).safeTransfer(recipient, amount);
         }
     }
 }

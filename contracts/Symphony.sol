@@ -803,15 +803,14 @@ contract Symphony is
      */
     function _updateAssetStrategy(address _asset, address _strategy) internal {
         // max approve token
-        if (
-            _strategy != address(0) &&
-            IERC20(_asset).allowance(address(this), _strategy) == 0
-        ) {
+        if (_strategy != address(0)) {
             emit AssetStrategyUpdated(_asset, _strategy);
 
-            // caution: external call to unknown address
-            IERC20(_asset).safeApprove(_strategy, uint256(-1));
-            IYieldAdapter(_strategy).maxApprove(_asset);
+            if (IERC20(_asset).allowance(address(this), _strategy) == 0) {
+                // caution: external call to unknown address
+                IERC20(_asset).safeApprove(_strategy, uint256(-1));
+                IYieldAdapter(_strategy).maxApprove(_asset);
+            }
 
             strategy[_asset] = _strategy;
             rebalanceAsset(_asset);

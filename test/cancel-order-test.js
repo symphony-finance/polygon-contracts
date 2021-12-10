@@ -553,13 +553,10 @@ describe("Cancel Order Test", () => {
     //     const MstableYield = await ethers.getContractFactory("MstableYield");
 
     //     const configParams = config.mainnet;
-    //     let mstableYield = await upgrades.deployProxy(
-    //         MstableYield,
-    //         [
-    //             configParams.musdTokenAddress,
-    //             configParams.mstableSavingContract,
-    //             symphony.address,
-    //         ]
+    //     let mstableYield = await MstableYield.deploy(
+    //         configParams.musdTokenAddress,
+    //         configParams.mstableSavingContract,
+    //         symphony.address,
     //     );
 
     //     await mstableYield.deployed();

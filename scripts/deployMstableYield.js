@@ -17,13 +17,10 @@ const main = () => {
         // Deploy MstableYield Contract
         const MstableYield = await hre.ethers.getContractFactory("MstableYield");
 
-        upgrades.deployProxy(
-            MstableYield,
-            [
-                configParams.musdTokenAddress,
-                configParams.mstableSavingContract,
-                configParams.symphonyAddress,
-            ]
+        MstableYield.deploy(
+            configParams.musdTokenAddress,
+            configParams.mstableSavingContract,
+            configParams.symphonyAddress,
         ).then(async (mstableYield) => {
             await mstableYield.deployed();
 

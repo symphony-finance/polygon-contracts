@@ -11,7 +11,8 @@
     "setup:symphony": "hardhat run scripts/setupSymphony.js --network",
     "setup:strategy": "hardhat run scripts/setupStrategy.js --network",
     "deploy:reward": "hardhat run scripts/deployReward.js --network",
-    "deploy:timelock": "hardhat run scripts/deployTimelock.js --network"
+    "deploy:timelock": "hardhat run scripts/deployTimelock.js --network",
+    "prepare:upgrade": "hardhat run temp/prepareUpgrade.js --network"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
