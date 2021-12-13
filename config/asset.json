@@ -12,7 +12,7 @@
       "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "feed": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
       "strategy": "0x16BD9b71939d1A4B234A14Ec35Ba65b93C78cB15",
-      "buffer": 2000
+      "buffer": 0
     },
     {
       "token": "aave",
@@ -26,7 +26,7 @@
       "address": "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
       "feed": "0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D",
       "strategy": "0x9950a9Ca97F9d48fa717763cfaE7137E87Ac718d",
-      "buffer": 2000
+      "buffer": 0
     },
     {
       "token": "weth",
@@ -47,7 +47,7 @@
       "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
       "feed": "0x0A6513e40db6EB1b165753AD52E80663aeA50545",
       "strategy": "0x9F87c0Bf859cc0863741fA2808d18CD152d4265C",
-      "buffer": 2000
+      "buffer": 0
     }
   ],
   "mumbai": [
@@ -57,7 +57,7 @@
       "address": "",
       "feed": "0xd0D5e3DB44DE05E9F294BB0a3bEEaF030DE24Ada",
       "strategy": "",
-      "buffer": 2000
+      "buffer": 0
     },
     {
       "token": "usdc",

@@ -1,18 +1,18 @@
 {
-  "name": "symphony-finance",
+  "name": "yolo-polygon-contracts",
   "version": "1.0.0",
-  "description": "Symphony finance smart contracts",
+  "description": "YOLO polygon smart contracts",
+  "author": "Symphony Finance",
   "scripts": {
     "compile": "SKIP_LOAD=true hardhat compile",
     "console:fork": "MAINNET_FORK=true hardhat console",
     "start:node": "hardhat node",
     "start:fork": "MAINNET_FORK=true hardhat node",
     "test": "hardhat compile && hardhat test",
-    "setup:symphony": "hardhat run scripts/setupSymphony.js --network",
+    "setup:yolo": "hardhat run scripts/setupYolo.js --network",
     "setup:strategy": "hardhat run scripts/setupStrategy.js --network",
     "deploy:reward": "hardhat run scripts/deployReward.js --network",
-    "deploy:timelock": "hardhat run scripts/deployTimelock.js --network",
-    "prepare:upgrade": "hardhat run temp/prepareUpgrade.js --network"
+    "deploy:timelock": "hardhat run scripts/deployTimelock.js --network"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
@@ -24,14 +24,14 @@
     "chai": "^4.3.0",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.2.2",
-    "ethers": "^5.1.0",
+    "ethers": "^5.5.1",
     "hardhat": "^2.1.2",
     "hardhat-gas-reporter": "^1.0.4",
     "ts-node": "^9.1.1",
     "typescript": "^4.2.4"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^3.4.2",
-    "@openzeppelin/contracts-upgradeable": "^3.4.1"
+    "@openzeppelin/contracts": "^4.4.0",
+    "@openzeppelin/contracts-upgradeable": "^4.4.0"
   }
 }

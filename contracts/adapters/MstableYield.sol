@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
+pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
@@ -12,16 +11,15 @@ import "../interfaces/IERC20WithDecimal.sol";
 
 contract MstableYield is IYieldAdapter {
     using SafeERC20 for IERC20;
-    using SafeMath for uint256;
 
+    address public immutable yolo;
     address public immutable musdToken;
-    address public immutable symphony;
     ISavingsContract public immutable savingContract;
 
-    modifier onlySymphony() {
+    modifier onlyYolo() {
         require(
-            msg.sender == symphony,
-            "MstableYield: Only symphony contract can invoke this function"
+            msg.sender == yolo,
+            "MstableYield: Only yolo contract can invoke this function"
         );
         _;
     }
@@ -30,17 +28,14 @@ contract MstableYield is IYieldAdapter {
      * @dev To initialize the contract addresses interacting with this contract
      * @param _musdToken the address of mUSD token
      * @param _savingContract the address of mstable saving manager
-     * @param _symphony the address of the symphony smart contract
+     * @param _yolo the address of the yolo smart contract
      **/
     constructor(
         address _musdToken,
         ISavingsContract _savingContract,
-        address _symphony
+        address _yolo
     ) {
-        require(
-            _symphony != address(0),
-            "MstableYield: Symphony:: zero address"
-        );
+        require(_yolo != address(0), "MstableYield: Symphony:: zero address");
         require(
             address(_musdToken) != address(0),
             "MstableYield: MUSD Token: zero address"
@@ -51,9 +46,12 @@ contract MstableYield is IYieldAdapter {
         );
 
         musdToken = _musdToken;
-        symphony = _symphony;
+        yolo = _yolo;
         savingContract = _savingContract;
-        IERC20(_musdToken).safeApprove(address(_savingContract), uint256(-1));
+        IERC20(_musdToken).safeApprove(
+            address(_savingContract),
+            type(uint256).max
+        );
     }
 
     /**
@@ -61,17 +59,8 @@ contract MstableYield is IYieldAdapter {
      * @param asset the address of token to invest
      * @param amount the amount of asset
      **/
-    function deposit(address asset, uint256 amount)
-        external
-        override
-        onlySymphony
-    {
+    function deposit(address asset, uint256 amount) external override onlyYolo {
         require(amount != 0, "MstableYield: zero amount");
-
-        emit Deposit(asset, amount);
-
-        // transfer token from symphony
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
 
         if (asset != musdToken) {
             // get minimum musd token to mint
@@ -95,15 +84,11 @@ contract MstableYield is IYieldAdapter {
      * @param asset the address of underlying token
      * @param amount the amount of asset
      **/
-    function withdraw(
-        address asset,
-        uint256 amount,
-        uint256,
-        uint256,
-        address,
-        bytes32
-    ) external override onlySymphony {
-        emit Withdraw(asset, amount);
+    function withdraw(address asset, uint256 amount)
+        external
+        override
+        onlyYolo
+    {
         _withdraw(asset, amount);
     }
 
@@ -111,13 +96,8 @@ contract MstableYield is IYieldAdapter {
      * @dev Withdraw all tokens from the strategy
      * @param asset the address of token
      **/
-    function withdrawAll(address asset, bytes calldata)
-        external
-        override
-        onlySymphony
-    {
-        uint256 amount = savingContract.balanceOfUnderlying(symphony);
-        emit Withdraw(asset, amount);
+    function withdrawAll(address asset) external override onlyYolo {
+        uint256 amount = savingContract.balanceOfUnderlying(yolo);
         _withdraw(asset, amount);
     }
 
@@ -125,8 +105,9 @@ contract MstableYield is IYieldAdapter {
      * @dev Used to approve max token from yield provider contract
      * @param asset the address of token
      **/
-    function maxApprove(address asset) external override {
-        IERC20(asset).safeApprove(address(musdToken), uint256(-1));
+    function maxApprove(address asset) external {
+        IERC20(asset).safeApprove(address(musdToken), 0);
+        IERC20(asset).safeApprove(address(musdToken), type(uint256).max);
     }
 
     /**
@@ -143,7 +124,7 @@ contract MstableYield is IYieldAdapter {
 
         uint8 decimal = IERC20WithDecimal(asset).decimals();
         if (decimal < 18) {
-            amount = amount.div(10**(18 - decimal));
+            amount = amount / (10**(18 - decimal));
         }
     }
 
@@ -160,17 +141,10 @@ contract MstableYield is IYieldAdapter {
         iouToken = savingContract.underlying();
     }
 
-    function setOrderRewardDebt(
-        bytes32,
-        address,
-        uint256,
-        uint256
-    ) external override {}
-
     function _withdraw(address asset, uint256 amount) internal {
         uint8 decimal = IERC20WithDecimal(asset).decimals();
         if (decimal < 18) {
-            amount = amount.mul(10**(18 - decimal));
+            amount = amount * (10**(18 - decimal));
         }
 
         // redeem mUSD for imUSD (IOU)
@@ -183,14 +157,9 @@ contract MstableYield is IYieldAdapter {
             );
 
             // redeem mUSD for base asset
-            ImAsset(musdToken).redeem(
-                asset,
-                amount,
-                minOutputQuantity,
-                symphony
-            );
+            ImAsset(musdToken).redeem(asset, amount, minOutputQuantity, yolo);
         } else {
-            IERC20(asset).safeTransfer(symphony, amount);
+            IERC20(asset).safeTransfer(yolo, amount);
         }
     }
 }

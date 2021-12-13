@@ -7,9 +7,8 @@ const SymphonyArtifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
-const { deploySymphony } = require('./deploySymphony');
+const { deployYolo } = require('./deployYolo');
 const { deployTreasury } = require('./deployTreasury');
-const { deployWmaticGateway } = require('./deployWmaticGateway');
 const { deployChainlinkOracle } = require('./deployChainlinkOracle');
 const { deploySushiswapHandler } = require('./deploySushiswapHandler');
 const { deployQuickswapHandler } = require('./deployQuickswapHandler');
@@ -25,11 +24,8 @@ async function main() {
     console.log("\nDeploying ChainlinkOracle..");
     await deployChainlinkOracle();
 
-    console.log("\nDeploying Symphony..");
-    await deploySymphony();
-
-    console.log("\nDeploying WMaticGateway..");
-    await deployWmaticGateway();
+    console.log("\nDeploying Yolo..");
+    await deployYolo();
 
     console.log("\nDeploying Treasury..");
     await deployTreasury();
@@ -75,9 +71,15 @@ async function main() {
 
     console.log("\nupdating protocol fee in contract");
     const tx2 = await symphony.updateProtocolFee(
-        globalArgs.symphony.protocolFee
+        globalArgs.symphony.protocolFeePercent
     );
     await tx2.wait();
+
+    console.log("\nupdating cancellation fee in contract");
+    const tx3 = await symphony.updateCancellationFee(
+        globalArgs.symphony.cancellationFeePercent
+    );
+    await tx3.wait();
 
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];

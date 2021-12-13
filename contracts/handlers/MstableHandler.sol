@@ -1,38 +1,33 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/ImAsset.sol";
 import "../interfaces/IHandler.sol";
-import "../libraries/PercentageMath.sol";
 
 /// @notice Mstable Handler used to execute an order
 contract MstableHandler is IHandler {
-    using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    using PercentageMath for uint256;
 
-    address public immutable musdToken;
-    address public immutable symphony;
+    address public immutable yolo;
+    address public immutable musdAddress;
 
     /**
      * @dev To initialize the contract addresses interacting with this contract
-     * @param _musdToken the address of mUSD token
-     * @param _symphony the address of the symphony smart contract
+     * @param _musdAddress the address of mUSD token
+     * @param _yolo the address of the yolo smart contract
      **/
-    constructor(address _musdToken, address _symphony) {
-        symphony = _symphony;
-        musdToken = _musdToken;
+    constructor(address _musdAddress, address _yolo) {
+        yolo = _yolo;
+        musdAddress = _musdAddress;
     }
 
-    modifier onlySymphony() {
+    modifier onlyYolo() {
         require(
-            msg.sender == symphony,
-            "MstableHandler: Only symphony contract can invoke this function"
+            msg.sender == yolo,
+            "MstableHandler: Only yolo contract can invoke this function"
         );
         _;
     }
@@ -43,20 +38,16 @@ contract MstableHandler is IHandler {
     function handle(
         IOrderStructs.Order memory order,
         uint256 oracleAmount,
-        uint256 feePercent,
-        uint256 protcolFeePercent,
-        address executor,
-        address treasury,
         bytes calldata
-    ) external override onlySymphony {
+    ) external override onlyYolo returns (uint256 actualAmtOut) {
         uint256 minOutputQuantity = 0;
-        if (order.inputToken == musdToken) {
-            minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
+        if (order.inputToken == musdAddress) {
+            minOutputQuantity = ImAsset(musdAddress).getRedeemOutput(
                 order.outputToken,
                 order.inputAmount
             );
         } else {
-            minOutputQuantity = ImAsset(musdToken).getSwapOutput(
+            minOutputQuantity = ImAsset(musdAddress).getSwapOutput(
                 order.inputToken,
                 order.outputToken,
                 order.inputAmount
@@ -74,21 +65,25 @@ contract MstableHandler is IHandler {
             "MstableHandler: Oracle amount doesn't match."
         );
 
-        uint256 actualAmtOut = 0;
-        if (order.inputToken == musdToken) {
-            actualAmtOut = ImAsset(musdToken).redeem(
+        IERC20(order.inputToken).safeIncreaseAllowance(
+            musdAddress,
+            order.inputAmount
+        );
+
+        if (order.inputToken == musdAddress) {
+            actualAmtOut = ImAsset(musdAddress).redeem(
                 order.outputToken,
                 order.inputAmount,
                 minOutputQuantity,
-                address(this)
+                order.recipient
             );
         } else {
-            actualAmtOut = ImAsset(musdToken).swap(
+            actualAmtOut = ImAsset(musdAddress).swap(
                 order.inputToken,
                 order.outputToken,
                 order.inputAmount,
                 minOutputQuantity,
-                address(this)
+                order.recipient
             );
         }
 
@@ -96,62 +91,5 @@ contract MstableHandler is IHandler {
             actualAmtOut >= minOutputQuantity,
             "MstableHandler: Actual swap amount less than min output amount."
         );
-
-        _transferTokens(
-            order.outputToken,
-            actualAmtOut,
-            order.recipient,
-            executor,
-            treasury,
-            feePercent,
-            protcolFeePercent
-        );
     }
-
-    function maxApproveAssets(address[] memory tokens) external {
-        for (uint8 i = 0; i < tokens.length; i++) {
-            require(
-                IERC20(tokens[i]).allowance(address(this), musdToken) == 0,
-                "MstableHandler::maxApproveAssets: already has allowance"
-            );
-            IERC20(tokens[i]).safeApprove(musdToken, uint256(-1));
-        }
-    }
-
-    /**
-     * @notice Simulate an order execution
-     */
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        uint256 _oracleAmount,
-        bytes calldata
-    ) external view override returns (bool success, uint256 amountOut) {}
-
-    function _transferTokens(
-        address token,
-        uint256 amount,
-        address recipient,
-        address executor,
-        address treasury,
-        uint256 feePercent,
-        uint256 protcolFeePercent
-    ) internal {
-        uint256 protocolFee;
-        uint256 totalFee = amount.percentMul(feePercent);
-
-        IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
-
-        if (treasury != address(0)) {
-            protocolFee = totalFee.percentMul(protcolFeePercent);
-            IERC20(token).safeTransfer(treasury, protocolFee);
-        }
-
-        IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
-    }
-
-    receive() external payable override {}
 }

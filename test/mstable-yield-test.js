@@ -3,11 +3,10 @@ const { default: BigNumber } = require("bignumber.js");
 const config = require("../config/index.json");
 const {
     ZERO_ADDRESS,
-    ZERO_BYTES32,
 } = require("@openzeppelin/test-helpers/src/constants");
 
 const MstableYieldArtifacts = require(
-    "../artifacts/contracts/mocks/MockMstableYield.sol/MockMstableYield.json"
+    "../artifacts/contracts/adapters/MstableYield.sol/MstableYield.json"
 );
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
@@ -27,11 +26,11 @@ describe("Mstable Yield Test", function () {
         );
         deployer.address = deployer._address;
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -40,13 +39,13 @@ describe("Mstable Yield Test", function () {
             ]
         );
 
-        const MstableYield = await ethers.getContractFactory("MockMstableYield");
+        const MstableYield = await ethers.getContractFactory("MstableYield");
 
         const configParams = config.mainnet;
         let mstableYield = await MstableYield.deploy(
             configParams.musdTokenAddress,
             configParams.mstableSavingContract,
-            symphony.address,
+            deployer.address, // false yolo address
         );
         await mstableYield.deployed();
 
@@ -69,7 +68,7 @@ describe("Mstable Yield Test", function () {
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
-        await usdcContract.approve(mstableYield.address, amount);
+        await usdcContract.transfer(mstableYield.address, amount);
         await mstableYield.deposit(usdcAddress, amount);
 
         const iouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
@@ -79,7 +78,7 @@ describe("Mstable Yield Test", function () {
 
         expect(Number(iouTokenBalance)).greaterThanOrEqual(Number(outputAmount));
 
-        await mstableYield.withdraw(usdcAddress, outputAmount, 0, 0, ZERO_ADDRESS, ZERO_BYTES32);
+        await mstableYield.withdraw(usdcAddress, outputAmount);
 
         const newIouTokenBalance = await mstableYield.getTotalUnderlying(usdcAddress);
         const remainingAmount = new BigNumber(0.01).times(
@@ -99,11 +98,11 @@ describe("Mstable Yield Test", function () {
         );
         deployer.address = deployer._address;
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -112,13 +111,13 @@ describe("Mstable Yield Test", function () {
             ]
         );
 
-        const MstableYield = await ethers.getContractFactory("MockMstableYield");
+        const MstableYield = await ethers.getContractFactory("MstableYield");
 
         const configParams = config.mainnet;
         let mstableYield = await MstableYield.deploy(
             configParams.musdTokenAddress,
             configParams.mstableSavingContract,
-            symphony.address,
+            deployer.address, // false yolo address
         );
         await mstableYield.deployed();
 
@@ -138,7 +137,7 @@ describe("Mstable Yield Test", function () {
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
-        await musdContract.approve(mstableYield.address, amount);
+        await musdContract.transfer(mstableYield.address, amount);
         await mstableYield.deposit(musdAddress, amount);
 
         const iouTokenBalance = await mstableYield.getTotalUnderlying(musdAddress);
@@ -148,7 +147,7 @@ describe("Mstable Yield Test", function () {
 
         expect(Number(iouTokenBalance)).greaterThanOrEqual(Number(outputAmount));
 
-        await mstableYield.withdraw(musdAddress, outputAmount, 0, 0, ZERO_ADDRESS, ZERO_BYTES32);
+        await mstableYield.withdraw(musdAddress, outputAmount);
         expect(await mstableYield.getTotalUnderlying(musdAddress)).eq(0);
     });
 });

@@ -10,13 +10,14 @@ const IERC20Artifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
-const SushiswapHandlerArtifacts = require(
-    "../artifacts/contracts/handlers/SushiswapHandler.sol/SushiswapHandler.json"
+const MstableHandlerArtifacts = require(
+    "../artifacts/contracts/handlers/MstableHandler.sol/MstableHandler.json"
 );
 
 const configParams = config.mainnet;
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const musdAddress = "0xe2f2a5C287993345a840Db3B0845fbC70f5935a5";
 
 const recipient = "0x1fd565b0f45e2f39518f64e2668f6dca4e313d71";
 const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
@@ -29,11 +30,7 @@ const minReturnAmount = new BigNumber(10.2).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
-const stoplossAmount = new BigNumber(9.98).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
-).toString();
-
-const expectedReturn = new BigNumber(9.9).times(
+const stoplossAmount = new BigNumber(9.99).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
@@ -49,8 +46,8 @@ const order = {
     executor,
 };
 
-describe("Sushiswap Handler Test", () => {
-    it("should swap asset", async () => {
+describe("Mstable Handler Test", () => {
+    it("should swap asset for Stable-Stable pair", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -75,10 +72,8 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
 
-        // Deploy Sushiswap Handler
-        const SushiswapHandler = await ethers.getContractFactory(
-            "SushiswapHandler"
-        );
+        // Deploy Mstable Handler
+        const MstableHandler = await ethers.getContractFactory("MstableHandler");
 
         // Deploy Chainlink Oracle
         const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
@@ -92,32 +87,27 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
         await chainlinkOracle.updateTokenFeeds(
-            [usdcAddress],
-            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
+            [usdcAddress, daiAddress],
+            [
+                "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+                "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+            ],
         );
 
-        await chainlinkOracle.updateTokenFeeds(
-            [daiAddress],
-            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
+        let mstableHandler = await MstableHandler.deploy(
+            configParams.musdTokenAddress,
+            deployer.address, // Fake Yolo Address
         );
 
-        let sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter,
-            configParams.wethAddress,
-            configParams.wmaticAddress,
-            configParams.sushiswapCodeHash,
-            deployer.address // false yolo address
-        );
+        await mstableHandler.deployed();
 
-        await sushiswapHandler.deployed();
-
-        sushiswapHandler = new ethers.Contract(
-            sushiswapHandler.address,
-            SushiswapHandlerArtifacts.abi,
+        mstableHandler = new ethers.Contract(
+            mstableHandler.address,
+            MstableHandlerArtifacts.abi,
             deployer
         );
 
-        await usdcContract.transfer(sushiswapHandler.address, order.inputAmount);
+        await usdcContract.transfer(mstableHandler.address, order.inputAmount);
 
         const balanceBeforeSwap = await daiContract.balanceOf(recipient);
 
@@ -127,29 +117,44 @@ describe("Sushiswap Handler Test", () => {
             order.inputAmount
         );
 
-        await sushiswapHandler.handle(
+        await mstableHandler.handle(
             order,
             oracleResult.amountOutWithSlippage,
             ZERO_BYTES32
         );
 
         const balanceAfterSwap = await daiContract.balanceOf(recipient);
-        const amountReceived = balanceAfterSwap.sub(balanceBeforeSwap);
 
-        expect(Number(amountReceived)).to.be
-            .greaterThanOrEqual(Number(expectedReturn));
+        const oracleAmount = Number(oracleResult.amountOutWithSlippage);
+        const amountOutMin = oracleAmount <= Number(order.stoplossAmount) ||
+            oracleAmount > Number(order.minReturnAmount)
+            ? oracleAmount
+            : Number(order.minReturnAmount);
+
+        expect(Number(balanceAfterSwap)).to.be.greaterThanOrEqual(
+            Number(new BigNumber(amountOutMin).plus(
+                new BigNumber(balanceBeforeSwap.toString()))
+            )
+        );
     });
 
-    it("should swap asset with hops", async () => {
+    it("should swap asset for mUSD-Stable pair", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
-            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+            params: ["0x5C80E54f903458edD0723e268377f5768C7869d7"]
         });
 
         const deployer = await ethers.provider.getSigner(
-            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+            "0x5C80E54f903458edD0723e268377f5768C7869d7"
         );
         deployer.address = deployer._address;
+
+        // Create mUSD contract instance
+        const musdContract = new ethers.Contract(
+            musdAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
 
         // Create USDC contract instance
         const usdcContract = new ethers.Contract(
@@ -158,19 +163,8 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
 
-        const balAddress = "0xba100000625a3754423978a60c9317c58a424e3d";
-
-        // Create BAL contract instance
-        const balContract = new ethers.Contract(
-            balAddress,
-            IERC20Artifacts.abi,
-            deployer
-        );
-
-        // Deploy Sushiswap Handler
-        const SushiswapHandler = await ethers.getContractFactory(
-            "SushiswapHandler"
-        );
+        // Deploy Mstable Handler
+        const MstableHandler = await ethers.getContractFactory("MstableHandler");
 
         // Deploy Chainlink Oracle
         const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
@@ -184,69 +178,65 @@ describe("Sushiswap Handler Test", () => {
             deployer
         );
         await chainlinkOracle.updateTokenFeeds(
-            [usdcAddress],
-            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
+            [musdAddress, usdcAddress],
+            [
+                "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9", // DAI-USD
+                "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6", // USDC-USD
+            ],
         );
 
-        await chainlinkOracle.updateTokenFeeds(
-            [balAddress],
-            ["0xC1438AA3823A6Ba0C159CfA8D98dF5A994bA120b"], // BAL-ETH
+        let mstableHandler = await MstableHandler.deploy(
+            configParams.musdTokenAddress,
+            deployer.address, // Fake Yolo Address
         );
 
-        await chainlinkOracle.updatePriceSlippage(300); // 3%
+        await mstableHandler.deployed();
 
-        let sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter,
-            configParams.wethAddress,
-            configParams.wmaticAddress,
-            configParams.sushiswapCodeHash,
-            deployer.address // false yolo address
-        );
-
-        await sushiswapHandler.deployed();
-
-        sushiswapHandler = new ethers.Contract(
-            sushiswapHandler.address,
-            SushiswapHandlerArtifacts.abi,
+        mstableHandler = new ethers.Contract(
+            mstableHandler.address,
+            MstableHandlerArtifacts.abi,
             deployer
         );
 
-        const balanceBeforeSwap = await balContract.balanceOf(recipient);
+        const balanceBeforeSwap = await usdcContract.balanceOf(recipient);
 
-        const newOrder = {
-            inputToken: usdcAddress,
-            outputToken: balAddress,
-            inputAmount,
-            minReturnAmount: '0',
-            stoplossAmount: '0',
-            shares: 0,
-            creator: recipient,
-            recipient,
-            executor,
-        };
-
-        newOrder.minReturnAmount = new BigNumber(0.5).times(
+        // Override Inputs
+        order.inputToken = musdAddress;
+        order.outputToken = usdcAddress;
+        order.inputAmount = new BigNumber(10).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
+        order.minReturnAmount = new BigNumber(9.9).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
+        order.stoplossAmount = "0";
 
-        await usdcContract.transfer(sushiswapHandler.address, newOrder.inputAmount);
+        await musdContract.transfer(mstableHandler.address, order.inputAmount);
 
         const oracleResult = await chainlinkOracle.get(
-            newOrder.inputToken,
-            newOrder.outputToken,
-            newOrder.inputAmount
+            order.inputToken,
+            order.outputToken,
+            order.inputAmount
         );
+        const oracleAmount = Number(oracleResult.amountOutWithSlippage);
 
-        await sushiswapHandler.handle(
-            newOrder,
-            oracleResult.amountOutWithSlippage,
+        await mstableHandler.handle(
+            order,
+            oracleAmount.toString(),
             ZERO_BYTES32
         );
 
-        const balanceAfterSwap = await balContract.balanceOf(recipient);
-        const amountReceived = balanceAfterSwap.sub(balanceBeforeSwap);
+        const balanceAfterSwap = await usdcContract.balanceOf(recipient);
 
-        expect(Number(amountReceived)).to.be
-            .greaterThanOrEqual(Number(newOrder.minReturnAmount));
+        const amountOutMin = oracleAmount <= Number(order.stoplossAmount) ||
+            oracleAmount > Number(order.minReturnAmount)
+            ? oracleAmount
+            : Number(order.minReturnAmount);
+
+        expect(Number(balanceAfterSwap)).to.be.greaterThanOrEqual(
+            Number(new BigNumber(amountOutMin).plus(
+                new BigNumber(balanceBeforeSwap.toString()))
+            )
+        );
     });
 });

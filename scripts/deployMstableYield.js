@@ -20,7 +20,7 @@ const main = () => {
         MstableYield.deploy(
             configParams.musdTokenAddress,
             configParams.mstableSavingContract,
-            configParams.symphonyAddress,
+            configParams.yoloAddress,
         ).then(async (mstableYield) => {
             await mstableYield.deployed();
 

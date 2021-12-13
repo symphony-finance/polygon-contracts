@@ -1,7 +1,6 @@
 {
   "matic": {
-    "symphonyAddress": "0xa9938c13F2C446c7dECd9D9Ebee6db8100Ca4157",
-    "wmaticGateway": "0x9756FB4d149e07dF9844282a0aF8F6527e37015B",
+    "yoloAddress": "0xa9938c13F2C446c7dECd9D9Ebee6db8100Ca4157",
     "chainlinkOracle": "0x38eBF16d656ca64157B503364D052313893eD5fc",
     "aaveLendingPool": "0x8dFf5E27EA6b7AC08EbFdf9eB090F32ee9a30fcf",
     "aaveProtocolDataProvider": "0x7551b5D2763519d4e37e8B81929D336De671d46d",
@@ -28,8 +27,7 @@
     "multisig": "0xEBB9194eDbe62494a43d253ab230dA96a457fdB1"
   },
   "mumbai": {
-    "symphonyAddress": "0x93f5eCBBc2AE8B1b251599904f982092cb1A86aB",
-    "wmaticGateway": "0xB4c6fd66801762fdfFFB3E0a59B3bf3431d29990",
+    "yoloAddress": "0x93f5eCBBc2AE8B1b251599904f982092cb1A86aB",
     "chainlinkOracle": "0xc4B4a55D0BB3db065BbbEE9feBfcc8e31cA31572",
     "aaveLendingPool": "0x9198F13B08E299d85E096929fA9781A1E3d5d827",
     "aaveProtocolDataProvider": "0xFA3bD19110d986c5e5E9DD5F69362d05035D045B",
@@ -55,8 +53,7 @@
     "emergencyAdmin": "0xEcE66059152428D526A966C1A86165EB81543633"
   },
   "mainnet": {
-    "symphonyAddress": "",
-    "wmaticGateway": "",
+    "yoloAddress": "",
     "chainlinkOracle": "",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",
@@ -68,12 +65,12 @@
     "sushiswapRouter": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
     "sushiswapCodeHash": "0xe18a34eb0e04b04f7a0ac29a6e80748dca96319b42c54d679cb821dca90c6303",
     "quickswapHandlerAddress": "",
-    "quickswapRouter": "",
-    "quickswapCodeHash": "",
+    "quickswapRouter": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+    "quickswapCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
     "balancerHandlerAddress": "",
     "balancerVault": "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
-    "wethAddress": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    "wmaticAddress": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    "wethAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "wmaticAddress": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "treasury": "",
     "timelockAddress": "",
     "symphonyToken": "",
@@ -82,8 +79,7 @@
     "emergencyAdmin": ""
   },
   "development": {
-    "symphonyAddress": "",
-    "wmaticGateway": "",
+    "yoloAddress": "",
     "chainlinkOracle": "",
     "aaveLendingPool": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     "aaveProtocolDataProvider": "0x057835Ad21a177dbdd3090bB1CAE03EaCF78Fc6d",

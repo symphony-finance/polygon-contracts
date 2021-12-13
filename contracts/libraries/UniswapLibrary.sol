@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
+pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../interfaces/IUniswapPair.sol";
 
 library UniswapLibrary {
-    using SafeMath for uint256;
-
     /**
      * @notice Returns the current block timestamp within the range of uint32, i.e. [0, 2**32 - 1]
      * @return uint32 - block timestamp
@@ -34,10 +31,7 @@ library UniswapLibrary {
         (token0, token1) = _tokenA < _tokenB
             ? (_tokenA, _tokenB)
             : (_tokenB, _tokenA);
-        require(
-            token0 != address(0),
-            "UniswapUtils#sortTokens: ZERO_ADDRESS"
-        );
+        require(token0 != address(0), "UniswapUtils#sortTokens: ZERO_ADDRESS");
     }
 
     /**
@@ -56,13 +50,15 @@ library UniswapLibrary {
     ) internal pure returns (address pair) {
         (address token0, address token1) = sortTokens(_tokenA, _tokenB);
         pair = address(
-            uint256(
-                keccak256(
-                    abi.encodePacked(
-                        hex"ff",
-                        _factory,
-                        keccak256(abi.encodePacked(token0, token1)),
-                        _initCodeHash // init code hash
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            _factory,
+                            keccak256(abi.encodePacked(token0, token1)),
+                            _initCodeHash // init code hash
+                        )
                     )
                 )
             )
@@ -85,13 +81,15 @@ library UniswapLibrary {
         bytes32 _initCodeHash
     ) internal pure returns (address pair) {
         pair = address(
-            uint256(
-                keccak256(
-                    abi.encodePacked(
-                        hex"ff",
-                        _factory,
-                        keccak256(abi.encodePacked(_token0, _token1)),
-                        _initCodeHash // init code hash
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            _factory,
+                            keccak256(abi.encodePacked(_token0, _token1)),
+                            _initCodeHash // init code hash
+                        )
                     )
                 )
             )
@@ -118,9 +116,9 @@ library UniswapLibrary {
         //     _reserveIn > 0 && _reserveOut > 0,
         //     "UniswapUtils#getAmountOut: INSUFFICIENT_LIQUIDITY"
         // );
-        uint256 inputAmountWithFee = _inputAmount.mul(997);
-        uint256 numerator = inputAmountWithFee.mul(_reserveOut);
-        uint256 denominator = _reserveIn.mul(1000).add(inputAmountWithFee);
+        uint256 inputAmountWithFee = _inputAmount * 997;
+        uint256 numerator = inputAmountWithFee * _reserveOut;
+        uint256 denominator = (_reserveIn * 1000) + inputAmountWithFee;
         if (denominator > 0) {
             amountOut = numerator / denominator;
         }

@@ -13,7 +13,6 @@ const ChainlinkArtifacts = require(
 );
 const { AbiCoder } = require("ethers/lib/utils");
 const { expectRevert } = require("@openzeppelin/test-helpers");
-const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -25,9 +24,9 @@ const usdcBalPool = "0x9c08c7a7a89cfd671c79eacdc6f07c1996277ed500020000000000000
 const configParams = config.mainnet;
 const totalFeePercent = 40; // 0.4%;
 const protocolFeePercent = 2500; // 0.1%
+const creator = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const executor = "0x86A2EE8FAf9A840F7a2c64CA3d51209F9A02081D";
-const treasury = "0x49fd2BE640DB2910c2fAb69bB8531Ab6E76127ff";
 
 const inputAmount = new BigNumber(1).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -63,23 +62,20 @@ describe("Balancer Handler Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.updateTokenFeed(
-            balAddress,
-            "0xC1438AA3823A6Ba0C159CfA8D98dF5A994bA120b", // BAL-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress, balAddress],
+            [
+                "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+                "0xC1438AA3823A6Ba0C159CfA8D98dF5A994bA120b", // BAL-ETH
+            ],
         );
 
         // Deploy Balancer Handler
-        const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
+        const BalancerHandler = await ethers.getContractFactory("BalancerHandler");
 
         let balancerHandler = await BalancerHandler.deploy(
             configParams.balancerVault,
-            ZERO_ADDRESS
+            deployer.address, // false Yolo address
         );
 
         await balancerHandler.deployed();
@@ -97,6 +93,7 @@ describe("Balancer Handler Test", () => {
         ).toString();
 
         const order = {
+            creator,
             recipient,
             inputToken: usdcAddress,
             outputToken: balAddress,
@@ -104,6 +101,7 @@ describe("Balancer Handler Test", () => {
             minReturnAmount,
             stoplossAmount: 0,
             shares: 0,
+            executor,
         };
 
         // Create Bal contract instance
@@ -114,8 +112,6 @@ describe("Balancer Handler Test", () => {
         );
 
         const recipientBalBefore = await balContract.balanceOf(recipient);
-        const executorBalBefore = await balContract.balanceOf(executor);
-        const treasuryBalBefore = await balContract.balanceOf(treasury);
 
         const oracleResult = await chainlinkOracle.get(
             order.inputToken,
@@ -136,33 +132,20 @@ describe("Balancer Handler Test", () => {
         await balancerHandler.handle(
             order,
             oracleResult.amountOutWithSlippage,
-            totalFeePercent,
-            protocolFeePercent,
-            executor,
-            treasury,
             data
         );
 
         const recipientBalAfter = await balContract.balanceOf(recipient);
-        const executorBalAfter = await balContract.balanceOf(executor);
-        const treasuryBalAfter = await balContract.balanceOf(treasury);
 
-        const result = getParticipantsDividend(minReturnAmount);
+        const oracleAmount = Number(oracleResult.amountOutWithSlippage);
+        const amountOutMin = oracleAmount <= Number(order.stoplossAmount) ||
+            oracleAmount > Number(order.minReturnAmount)
+            ? oracleAmount
+            : Number(order.minReturnAmount);
 
         expect(Number(recipientBalAfter)).to.be.greaterThanOrEqual(
-            Number(result.recipientAmount.plus(
+            Number(new BigNumber(amountOutMin).plus(
                 new BigNumber(recipientBalBefore.toString()))
-            )
-        );
-
-        expect(Number(executorBalAfter)).to.be.greaterThanOrEqual(
-            Number(result.executorFee.plus(
-                new BigNumber(executorBalBefore.toString()))
-            )
-        );
-        expect(Number(treasuryBalAfter)).to.be.greaterThanOrEqual(
-            Number(result.protocolFee.plus(
-                new BigNumber(treasuryBalBefore.toString()))
             )
         );
     });
@@ -196,24 +179,22 @@ describe("Balancer Handler Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress, daiAddress],
+            [
+                "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+                "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+            ],
         );
 
         await chainlinkOracle.updatePriceSlippage(450);
 
         // Deploy Balancer Handler
-        const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
+        const BalancerHandler = await ethers.getContractFactory("BalancerHandler");
 
         let balancerHandler = await BalancerHandler.deploy(
             configParams.balancerVault,
-            ZERO_ADDRESS
+            deployer.address, // false Yolo address
         );
 
         await balancerHandler.deployed();
@@ -242,10 +223,9 @@ describe("Balancer Handler Test", () => {
         );
 
         const recipientBalBefore = await daiContract.balanceOf(recipient);
-        const executorBalBefore = await daiContract.balanceOf(executor);
-        const treasuryBalBefore = await daiContract.balanceOf(treasury);
 
         const order = {
+            creator,
             recipient,
             inputToken: usdcAddress,
             outputToken: daiAddress,
@@ -253,6 +233,7 @@ describe("Balancer Handler Test", () => {
             minReturnAmount,
             stoplossAmount,
             shares: 0,
+            executor,
         };
 
         const oracleResult = await chainlinkOracle.get(
@@ -280,43 +261,20 @@ describe("Balancer Handler Test", () => {
         await balancerHandler.handle(
             order,
             oracleResult.amountOutWithSlippage,
-            totalFeePercent,
-            protocolFeePercent,
-            executor,
-            treasury,
             data
         );
 
         const recipientBalAfter = await daiContract.balanceOf(recipient);
-        const executorBalAfter = await daiContract.balanceOf(executor);
-        const treasuryBalAfter = await daiContract.balanceOf(treasury);
 
-        const result = getParticipantsDividend(stoplossAmount);
+        const oracleAmount = Number(oracleResult.amountOutWithSlippage);
+        const amountOutMin = oracleAmount <= Number(order.stoplossAmount) ||
+            oracleAmount > Number(order.minReturnAmount)
+            ? oracleAmount
+            : Number(order.minReturnAmount);
 
-        expect(Number(recipientBalAfter)).to.be
-            .greaterThan(Number(recipientBalBefore));
-
-        expect(Number(recipientBalAfter)).to.be.lessThan(
-            Number(result.recipientAmount.plus(
+        expect(Number(recipientBalAfter)).to.be.greaterThanOrEqual(
+            Number(new BigNumber(amountOutMin).plus(
                 new BigNumber(recipientBalBefore.toString()))
-            )
-        );
-
-        expect(Number(recipientBalAfter)).to.be
-            .greaterThan(Number(recipientBalBefore));
-
-        expect(Number(executorBalAfter)).to.be.lessThan(
-            Number(result.executorFee.plus(
-                new BigNumber(executorBalBefore.toString()))
-            )
-        );
-
-        expect(Number(recipientBalAfter)).to.be
-            .greaterThan(Number(recipientBalBefore));
-
-        expect(Number(treasuryBalAfter)).to.be.lessThan(
-            Number(result.protocolFee.plus(
-                new BigNumber(treasuryBalBefore.toString()))
             )
         );
     });
@@ -340,11 +298,11 @@ describe("Balancer Handler Test", () => {
         );
 
         // Deploy Balancer Handler
-        const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
+        const BalancerHandler = await ethers.getContractFactory("BalancerHandler");
 
         let balancerHandler = await BalancerHandler.deploy(
             configParams.balancerVault,
-            ZERO_ADDRESS
+            deployer.address, // false Yolo address
         );
 
         await balancerHandler.deployed();
@@ -366,6 +324,7 @@ describe("Balancer Handler Test", () => {
         ).toString();
 
         const order = {
+            creator,
             recipient,
             inputToken: usdcAddress,
             outputToken: daiAddress,
@@ -373,6 +332,7 @@ describe("Balancer Handler Test", () => {
             minReturnAmount,
             stoplossAmount,
             shares: 0,
+            executor,
         };
 
         const addresses = [usdcAddress, balAddress];
@@ -389,13 +349,9 @@ describe("Balancer Handler Test", () => {
             balancerHandler.handle(
                 order,
                 order.minReturnAmount + 1, // false oracle amount
-                totalFeePercent,
-                protocolFeePercent,
-                executor,
-                treasury,
                 data
             ),
-            "BalancerHandler: Incorrect output token recieved !!"
+            "BalancerHandler: Incorrect output token amount recieved !!"
         )
     });
 
@@ -428,25 +384,22 @@ describe("Balancer Handler Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress, daiAddress],
+            [
+                "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+                "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+            ],
         );
 
         await chainlinkOracle.updatePriceSlippage(450);
 
         // Deploy Balancer Handler
-        const BalancerHandler = await ethers.getContractFactory("MockBalancerHandler");
+        const BalancerHandler = await ethers.getContractFactory("BalancerHandler");
 
         let balancerHandler = await BalancerHandler.deploy(
             configParams.balancerVault,
-            ZERO_ADDRESS
+            deployer.address, // false Yolo address
         );
 
         await balancerHandler.deployed();
@@ -468,6 +421,7 @@ describe("Balancer Handler Test", () => {
         ).toString();
 
         const order = {
+            creator,
             recipient,
             inputToken: usdcAddress,
             outputToken: daiAddress,
@@ -475,6 +429,7 @@ describe("Balancer Handler Test", () => {
             minReturnAmount,
             stoplossAmount,
             shares: 0,
+            executor,
         };
 
         const oracleResult = await chainlinkOracle.get(
@@ -508,10 +463,6 @@ describe("Balancer Handler Test", () => {
             balancerHandler.handle(
                 order,
                 oracleResult.amountOutWithSlippage,
-                totalFeePercent,
-                protocolFeePercent,
-                executor,
-                treasury,
                 data1
             ),
             "BalancerHandler: Oracle amount doesn't match with return amount !!"
@@ -540,10 +491,6 @@ describe("Balancer Handler Test", () => {
             balancerHandler.handle(
                 order,
                 oracleResult.amountOutWithSlippage,
-                totalFeePercent,
-                protocolFeePercent,
-                executor,
-                treasury,
                 data2
             ),
             "ERC20: transfer amount exceeds allowance"
@@ -568,10 +515,6 @@ describe("Balancer Handler Test", () => {
             balancerHandler.handle(
                 order,
                 oracleResult.amountOutWithSlippage,
-                totalFeePercent,
-                protocolFeePercent,
-                executor,
-                treasury,
                 data3
             ),
             "BalancerHandler: Oracle amount doesn't match with return amount !!"

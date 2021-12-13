@@ -1,6 +1,6 @@
-# Symphony Finance Contracts
+# Symphony Finance YOLO Contracts
 
-This is the core contracts of [symphony finance](https://symphony.finance/).
+This is the core contracts of Yield optimized limit order (YOLO) by [symphony finance](https://symphony.finance/) for Polygon.
 
 ## Setup
 
@@ -26,8 +26,8 @@ You can use postgress directly or pgadmin.
 
 1. The **contracts** code lives in the `/contracts` folder.
 
-   This code gets deployed to the blockchain when you run `npm run setup:symphony`. 
-   - The best place to start is `symphony.sol`, which is the main contract.
+   This code gets deployed to the blockchain when you run `npm run setup:yolo`. 
+   - The best place to start is `Yolo.sol`, which is the main contract.
    - All handlers are present in `/handlers`, which is used to execute orders.
    - The adapters are used to generate yield and are present inside `/adapters` folder.
 
@@ -37,4 +37,3 @@ You can use postgress directly or pgadmin.
  
 ##
 For any ❓: [Discord](https://discord.gg/APwngPCjdT)
-

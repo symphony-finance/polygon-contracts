@@ -16,31 +16,31 @@ const main = () => {
             configParams = config.mumbai;
         }
 
-        // Deploy Symphony Contract
-        const Symphony = await hre.ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await hre.ethers.getContractFactory("Yolo");
 
         upgrades.deployProxy(
-            Symphony,
+            Yolo,
             [
                 configParams.admin,
                 configParams.emergencyAdmin,
-                globalArgs.symphony.executionFee,
+                globalArgs.yolo.executionFee,
                 configParams.chainlinkOracle,
             ]
-        ).then(async (symphony) => {
-            await symphony.deployed();
+        ).then(async (yolo) => {
+            await yolo.deployed();
 
             console.log(
-                "Symphony contract deployed to:",
-                symphony.address, "\n"
+                "Yolo contract deployed to:",
+                yolo.address, "\n"
             );
 
             if (network.name === "mumbai") {
-                file.mumbai.symphonyAddress = symphony.address;
+                file.mumbai.symphonyAddress = yolo.address;
             } else if (network.name === "matic") {
-                file.matic.symphonyAddress = symphony.address;
+                file.matic.symphonyAddress = yolo.address;
             } else {
-                file.development.symphonyAddress = symphony.address;
+                file.development.symphonyAddress = yolo.address;
             }
 
             fs.writeFileSync(
@@ -53,4 +53,4 @@ const main = () => {
     });
 }
 
-module.exports = { deploySymphony: main }
+module.exports = { deployYolo: main }

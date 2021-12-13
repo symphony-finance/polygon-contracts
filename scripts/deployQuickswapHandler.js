@@ -5,8 +5,8 @@ const { network } = require("hardhat");
 const fileName = "../config/index.json";
 const file = require("../config/index.json");
 const config = require("../config/index.json");
-const SymphonyArtifacts = require(
-    '../artifacts/contracts/Symphony.sol/Symphony.json'
+const YoloArtifacts = require(
+    '../artifacts/contracts/Yolo.sol/Yolo.json'
 );
 
 const main = () => {
@@ -27,7 +27,7 @@ const main = () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.quickswapCodeHash,
-            configParams.symphonyAddress
+            configParams.yoloAddress
         ).then(async (quickswapHandler) => {
             await quickswapHandler.deployed();
 
@@ -51,14 +51,14 @@ const main = () => {
 
             const [deployer] = await ethers.getSigners();
 
-            // Set Handler In Symphony Contract
-            const symphony = new ethers.Contract(
-                configParams.symphonyAddress,
-                SymphonyArtifacts.abi,
+            // Set Handler In Yolo Contract
+            const yolo = new ethers.Contract(
+                configParams.yoloAddress,
+                YoloArtifacts.abi,
                 deployer
             );
 
-            const tx = await symphony.addHandler(quickswapHandler.address);
+            const tx = await yolo.addHandler(quickswapHandler.address);
             await tx.wait();
 
             resolve(true);

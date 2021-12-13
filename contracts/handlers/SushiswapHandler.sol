@@ -1,124 +1,68 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/IHandler.sol";
-import "../interfaces/IUniswapRouter.sol";
-import "../libraries/PercentageMath.sol";
 import "../libraries/UniswapLibrary.sol";
+import {IUniswapRouter as ISushiswapRouter} from "../interfaces/IUniswapRouter.sol";
 
 /// @notice Sushiswap Handler used to execute an order
 contract SushiswapHandler is IHandler {
-    using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    using PercentageMath for uint256;
 
     address public immutable WETH;
     address public immutable WMATIC;
     address public immutable FACTORY;
     bytes32 public immutable FACTORY_CODE_HASH;
-    IUniswapRouter internal immutable UniswapRouter;
-    address public immutable symphony;
+    ISushiswapRouter internal immutable sushiswapRouter;
+    address public immutable yolo;
 
     /**
      * @notice Creates the handler
      * @param _router - Address of the Sushiswap router contract
-     * @param _weth - Address of WETH contract
      * @param _wmatic - Address of WMATIC contract
-     * @param _codeHash - Bytes32 of the Sushiswap v2 pair contract unit code hash
+     * @param _codeHash - Bytes32 of the Sushiswap pair contract unit code hash
+     * @param _yolo - Address of Yolo Contract
      */
     constructor(
-        IUniswapRouter _router,
+        ISushiswapRouter _router,
         address _weth,
         address _wmatic,
         bytes32 _codeHash,
-        address _symphony
+        address _yolo
     ) {
-        UniswapRouter = _router;
+        sushiswapRouter = _router;
         WETH = _weth;
         WMATIC = _wmatic;
         FACTORY_CODE_HASH = _codeHash;
         FACTORY = _router.factory();
-        symphony = _symphony;
+        yolo = _yolo;
     }
 
-    modifier onlySymphony() {
+    modifier onlyYolo() {
         require(
-            msg.sender == symphony,
-            "SushiswapHandler: Only symphony contract can invoke this function"
+            msg.sender == yolo,
+            "SushiswapHandler: Only yolo contract can invoke this function"
         );
         _;
     }
 
-    /// @notice receive MATIC
-    receive() external payable override {}
-
-    /**
-     * @notice Handle an order execution
-     */
     /**
      * @notice Handle an order execution
      */
     function handle(
         IOrderStructs.Order memory order,
         uint256 oracleAmount,
-        uint256 feePercent,
-        uint256 protcolFeePercent,
-        address executor,
-        address treasury,
         bytes calldata
-    ) external override onlySymphony {
+    ) external override onlyYolo returns (uint256 actualAmtOut) {
         uint256 amountOutMin = oracleAmount <= order.stoplossAmount ||
             oracleAmount > order.minReturnAmount
             ? oracleAmount
             : order.minReturnAmount;
 
-        uint256 actualAmtOut = _swap(order, amountOutMin);
-
-        _transferTokens(
-            order.outputToken,
-            actualAmtOut,
-            order.recipient,
-            executor,
-            treasury,
-            feePercent,
-            protcolFeePercent
-        );
-    }
-
-    /**
-     * @notice Simulate an order execution
-     */
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        uint256 _oracleAmount,
-        bytes calldata
-    ) external view override returns (bool success, uint256 amountOut) {
-        uint256 amountOutMin = _oracleAmount <= _stoplossAmount ||
-            _oracleAmount > _minReturnAmount
-            ? _oracleAmount
-            : _minReturnAmount;
-
-        (amountOut, ) = _getPathAndAmountOut(
-            _inputToken,
-            _outputToken,
-            _inputAmount,
-            amountOutMin
-        );
-
-        return (
-            ((amountOut >= _minReturnAmount || amountOut <= _stoplossAmount) &&
-                amountOut >= _oracleAmount),
-            amountOut
-        );
+        actualAmtOut = _swap(order, amountOutMin);
     }
 
     function _swap(IOrderStructs.Order memory order, uint256 amountOutMin)
@@ -132,43 +76,31 @@ contract SushiswapHandler is IHandler {
             amountOutMin
         );
 
-        IERC20(order.inputToken).safeApprove(
-            address(UniswapRouter),
+        IERC20(order.inputToken).safeIncreaseAllowance(
+            address(sushiswapRouter),
             order.inputAmount
         );
 
-        // Swap Tokens
-        uint256[] memory returnAmount = UniswapRouter.swapExactTokensForTokens(
-            order.inputAmount,
-            amountOutMin,
-            path,
-            address(this),
-            block.timestamp.add(1800)
-        );
-
-        return returnAmount[returnAmount.length - 1];
-    }
-
-    function _transferTokens(
-        address token,
-        uint256 amount,
-        address recipient,
-        address executor,
-        address treasury,
-        uint256 feePercent,
-        uint256 protcolFeePercent
-    ) internal {
-        uint256 protocolFee;
-        uint256 totalFee = amount.percentMul(feePercent);
-
-        IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
-
-        if (treasury != address(0)) {
-            protocolFee = totalFee.percentMul(protcolFeePercent);
-            IERC20(token).safeTransfer(treasury, protocolFee);
+        uint256[] memory returnAmount;
+        if (order.outputToken == WMATIC) {
+            returnAmount = sushiswapRouter.swapExactTokensForETH(
+                order.inputAmount,
+                amountOutMin,
+                path,
+                order.recipient,
+                block.timestamp
+            );
+        } else {
+            returnAmount = sushiswapRouter.swapExactTokensForTokens(
+                order.inputAmount,
+                amountOutMin,
+                path,
+                order.recipient,
+                block.timestamp
+            );
         }
 
-        IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
+        return returnAmount[returnAmount.length - 1];
     }
 
     function _getPathAndAmountOut(
@@ -192,7 +124,7 @@ contract SushiswapHandler is IHandler {
             path = new address[](3);
 
             path[0] = inputToken;
-            path[1] = WETH; // WETH address
+            path[1] = WETH;
             path[2] = outputToken;
 
             _amounts = UniswapLibrary.getAmountsOut(
@@ -203,7 +135,7 @@ contract SushiswapHandler is IHandler {
             );
 
             if (_amounts[_amounts.length - 1] < amountOutMin) {
-                path[1] = WMATIC; // WMATIC address
+                path[1] = WMATIC;
 
                 _amounts = UniswapLibrary.getAmountsOut(
                     FACTORY,

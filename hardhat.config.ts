@@ -16,7 +16,6 @@ const BUIDLEREVM_CHAINID = 31337;
 const POLYGONSCAN_KEY = process.env.POLYGONSCAN_KEY || '';
 const mainnetFork = MAINNET_FORK
     ? {
-        // blockNumber: 12317479,
         blockNumber: 12721512,
         url: ALCHEMY_KEY
             ? `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_KEY}`
@@ -74,7 +73,7 @@ module.exports = {
         apiKey: POLYGONSCAN_KEY
     },
     solidity: {
-        version: "0.7.4",
+        version: "0.8.10",
         settings: {
             optimizer: {
                 enabled: true,

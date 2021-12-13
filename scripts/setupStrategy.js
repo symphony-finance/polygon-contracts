@@ -4,8 +4,8 @@ const fileName = "../config/asset.json";
 const file = require("../config/asset.json");
 const config = require("../config/index.json");
 const assetConfig = require("../config/asset.json");
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
+const YoloArtifacts = require(
+    "../artifacts/contracts/Yolo.sol/Yolo.json"
 );
 const { deployAaveYield } = require('./deployAaveYield');
 
@@ -20,9 +20,9 @@ async function main() {
         configParams = config.mumbai;
     }
 
-    const symphony = new ethers.Contract(
-        configParams.symphonyAddress,
-        SymphonyArtifacts.abi,
+    const yolo = new ethers.Contract(
+        configParams.yoloAddress,
+        YoloArtifacts.abi,
         deployer
     );
 
@@ -36,23 +36,23 @@ async function main() {
 
         if (data.address && !data.strategy) {
             console.log("\nSetting up strategy for", data.token);
-            const strategyAddr = await deployAaveYield();
+            const strategyAddr = await deployAaveYield(data.token);
 
-            const tx1 = await symphony.updateStrategy(
+            const tx1 = await yolo.setStrategy(
                 data.address,
                 strategyAddr,
             );
             await tx1.wait();
 
             if (data.buffer > 0) {
-                const tx2 = await symphony.updateBufferPercentage(
+                const tx2 = await yolo.updateBufferPercentage(
                     data.address,
                     data.buffer,
                 );
                 await tx2.wait();
             }
 
-            const tx3 = await symphony.addWhitelistAsset(data.address);
+            const tx3 = await yolo.addWhitelistAsset(data.address);
             await tx3.wait();
 
             if (network.name === "mumbai") {

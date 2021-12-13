@@ -1,15 +1,14 @@
 const hre = require("hardhat");
 const { expect } = require("chai");
 const config = require("../config/index.json");
-const { AbiCoder } = require("ethers/lib/utils");
 const { BigNumber: EthersBN } = require("ethers");
 const { default: BigNumber } = require("bignumber.js");
 const { time, expectRevert } = require("@openzeppelin/test-helpers");
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
+const YoloArtifacts = require(
+    "../artifacts/contracts/Yolo.sol/Yolo.json"
 );
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
@@ -17,17 +16,17 @@ const AaveYieldArtifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
-const {
-    ZERO_ADDRESS, ZERO_BYTES32
-} = require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
 const configParams = config.mainnet;
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
-const balAddress = "0xba100000625a3754423978a60c9317c58a424e3D";
 
-const daiBalPool = "0x148ce9b50be946a96e94a4f5479b771bab9b1c59000100000000000000000054";
-const usdcBalPool = "0x9c08c7a7a89cfd671c79eacdc6f07c1996277ed5000200000000000000000025";
+const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
+const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
+
+const totalFeePercent = 20; // 0.2%;
+const protocolFeePercent = 4000; // 0.08%
 
 const inputAmount = new BigNumber(10).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
@@ -89,51 +88,48 @@ describe("Execute Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress],
+            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
 
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
         );
 
         await chainlinkOracle.updatePriceSlippage(100);
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
-                40,
+                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
@@ -144,38 +140,36 @@ describe("Execute Order Test", () => {
             deployer
         );
 
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(daiAddress, 4000);
+        await yolo.setStrategy(daiAddress, aaveYield.address);
+        await yolo.updateBufferPercentage(daiAddress, 4000);
 
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
 
         const sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
             configParams.sushiswapCodeHash,
-            symphony.address
+            yolo.address
         );
 
         await sushiswapHandler.deployed();
 
-        // Add Handler
-        await symphony.addHandler(sushiswapHandler.address);
+        await yolo.addHandler(sushiswapHandler.address);
+        await yolo.addWhitelistAsset(daiAddress);
 
-        await daiContract.approve(symphony.address, approveAmount);
-        await usdcContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
+        await daiContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
+        const tx = await yolo.createOrder(
+            recipient,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
         const receipt = await tx.wait();
@@ -204,12 +198,15 @@ describe("Execute Order Test", () => {
             ? oracleAmount
             : Number(minReturnAmount);
 
-        const totalTokens = await symphony.getTotalFunds(daiAddress);
+        const contractBal = await daiContract.balanceOf(yolo.address);
+        const totalTokens = await yolo.callStatic.getTotalFunds(
+            daiAddress, contractBal, aaveYield.address
+        );
         const depositPlusYield = totalTokens; // as there is only one order
         const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmount));
 
         // Execute Order
-        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        await yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
 
         const daiBalAfterExecute = await daiContract.balanceOf(deployer.address);
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
@@ -222,167 +219,6 @@ describe("Execute Order Test", () => {
             .to.be.greaterThanOrEqual(
                 Number(daiBalBeforeExecute) + Number(yieldEarned)
             );
-    });
-
-    it("Should execute order with Balancer Handler & Aave Yield", async () => {
-        await network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
-        });
-
-        const deployer = await ethers.provider.getSigner(
-            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
-        );
-        deployer.address = deployer._address;
-
-        // Create USDC contract instance
-        const usdcContract = new ethers.Contract(
-            usdcAddress,
-            IERC20Artifacts.abi,
-            deployer
-        );
-
-        // Create DAI contract instance
-        const daiContract = new ethers.Contract(
-            daiAddress,
-            IERC20Artifacts.abi,
-            deployer
-        );
-
-        // Deploy Chainlink Oracle
-        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
-        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
-
-        await chainlinkOracle.deployed();
-
-        chainlinkOracle = new ethers.Contract(
-            chainlinkOracle.address,
-            ChainlinkArtifacts.abi,
-            deployer
-        );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
-        );
-
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
-        );
-
-        await chainlinkOracle.updatePriceSlippage(80);
-
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
-
-        let symphony = await upgrades.deployProxy(
-            Symphony,
-            [
-                deployer.address,
-                deployer.address,
-                40,
-                chainlinkOracle.address,
-            ]
-        );
-
-        await symphony.deployed();
-
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
-            deployer
-        );
-
-        // Deploy AaveYield Contract
-        const AaveYield = await hre.ethers.getContractFactory("AaveYield");
-
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
-        );
-
-        await aaveYield.deployed();
-
-        aaveYield = new ethers.Contract(
-            aaveYield.address,
-            AaveYieldArtifacts.abi,
-            deployer
-        );
-
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(daiAddress, 4000);
-
-        // Deploy Sushiswap Handler
-        const BalancerHandler = await ethers.getContractFactory("BalancerHandler");
-
-        const balancerHandler = await BalancerHandler.deploy(
-            configParams.balancerVault,
-            symphony.address
-        );
-
-        await balancerHandler.deployed();
-
-        // Add Handler
-        await symphony.addHandler(balancerHandler.address);
-
-        await daiContract.approve(symphony.address, approveAmount);
-        await usdcContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
-
-        // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
-            daiAddress,
-            usdcAddress,
-            inputAmount,
-            minReturnAmount,
-            stoplossAmount
-        );
-
-        const receipt = await tx.wait();
-        const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
-
-        const orderId = events[0].args[0];
-        const orderData = events[0].args[1];
-
-        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
-
-        // Advancing 100 blocks
-        for (let i = 0; i < 100; ++i) {
-            await time.advanceBlock();
-        };
-
-        const addresses = [daiAddress, balAddress, usdcAddress];
-        const swapSteps = [{
-            poolId: daiBalPool,
-            assetInIndex: '0',
-            assetOutIndex: '1',
-            amount: inputAmount,
-            userData: 0x0,
-        }, {
-            poolId: usdcBalPool,
-            assetInIndex: '1',
-            assetOutIndex: '2',
-            amount: 0,
-            userData: 0x0,
-        }];
-        const data = encodeBalHandlerData(addresses, swapSteps);
-
-        // Execute Order
-        await symphony.executeOrder(orderId, orderData, balancerHandler.address, data)
-
-        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
-
-        expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(
-            Number(usdcBalBeforeExecute) + Number(expectedReturn)
-        );
     });
 
     it("Should execute existing order if strategy removed", async () => {
@@ -421,77 +257,74 @@ describe("Execute Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress],
+            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
 
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
         );
 
         await chainlinkOracle.updatePriceSlippage(100);
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
-                40,
+                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
 
-        await symphony.deployed();
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        await yolo.deployed();
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
+
         aaveYield = new ethers.Contract(
             aaveYield.address,
             AaveYieldArtifacts.abi,
             deployer
         );
 
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(daiAddress, 4000);
+        await yolo.setStrategy(daiAddress, aaveYield.address);
 
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
 
         const sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
             configParams.sushiswapCodeHash,
-            symphony.address
+            yolo.address
         );
 
         await sushiswapHandler.deployed();
 
         // Add Handler
-        await symphony.addHandler(sushiswapHandler.address);
+        await yolo.addHandler(sushiswapHandler.address);
 
         const approveAmount = new BigNumber(100)
             .times(
@@ -500,19 +333,19 @@ describe("Execute Order Test", () => {
             )
             .toString();
 
-        await daiContract.approve(symphony.address, approveAmount);
-        await usdcContract.approve(symphony.address, approveAmount);
+        await daiContract.approve(yolo.address, approveAmount);
 
-        await symphony.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistAsset(daiAddress);
 
         // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
+        const tx = await yolo.createOrder(
+            recipient,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
         const receipt = await tx.wait();
@@ -521,26 +354,323 @@ describe("Execute Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        const data = encodeData(
-            ZERO_ADDRESS,
-            0,
-            ZERO_BYTES32,
-            []
-        );
-
         // Remove yield strategy
-        await symphony.migrateStrategy(daiAddress, ZERO_ADDRESS, data);
+        await yolo.migrateStrategy(daiAddress, ZERO_ADDRESS);
 
         const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
 
         // Execute Order
-        await symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+        await yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
         expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(
             Number(usdcBalBeforeExecute) + Number(expectedReturn)
         );
+    });
+
+    it("Should execute order if MATIC is the output token", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9"], // DAI-USD
+        );
+
+        await chainlinkOracle.updateTokenFeeds(
+            [configParams.wethAddress],
+            ["0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"], // ETH-USD
+        );
+
+        await chainlinkOracle.updatePriceSlippage(100);
+
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
+
+        let yolo = await upgrades.deployProxy(
+            Yolo,
+            [
+                deployer.address,
+                deployer.address,
+                totalFeePercent,
+                chainlinkOracle.address,
+            ]
+        );
+
+        await yolo.deployed();
+
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
+            deployer
+        );
+
+        // Deploy Treasury Contract
+        const Treasury = await hre.ethers.getContractFactory("Treasury");
+        const treasury = await upgrades.deployProxy(
+            Treasury,
+            [deployer.address],
+        );
+        await treasury.deployed();
+
+        await yolo.updateTreasury(treasury.address);
+        await yolo.updateProtocolFee(2500);
+
+        // Deploy AaveYield Contract
+        const AaveYield = await hre.ethers.getContractFactory("AaveYield");
+
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
+        );
+
+        await aaveYield.deployed();
+
+        aaveYield = new ethers.Contract(
+            aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
+
+        await yolo.setStrategy(daiAddress, aaveYield.address);
+
+        // Deploy Sushiswap Handler
+        const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
+
+        const sushiswapHandler = await SushiswapHandler.deploy(
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
+            configParams.sushiswapCodeHash,
+            yolo.address
+        );
+
+        await sushiswapHandler.deployed();
+
+        // Add Handler
+        await yolo.addHandler(sushiswapHandler.address);
+
+        await daiContract.approve(yolo.address, approveAmount);
+
+        await yolo.addWhitelistAsset(daiAddress);
+
+        // Create Order
+        const tx = await yolo.createOrder(
+            recipient,
+            daiAddress,
+            configParams.wethAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount,
+            executor,
+        );
+
+        const receipt = await tx.wait();
+        const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
+
+        const orderId = events[0].args[0];
+        const orderData = events[0].args[1];
+
+        const daiBalBeforeExecute = await daiContract.balanceOf(deployer.address);
+
+        // Advancing 100 blocks
+        for (let i = 0; i < 100; ++i) {
+            await time.advanceBlock();
+        };
+
+        const contractBal = await daiContract.balanceOf(yolo.address);
+        const totalTokens = await yolo.callStatic.getTotalFunds(
+            daiAddress, contractBal, aaveYield.address
+        );
+        const depositPlusYield = totalTokens; // as there is only one order
+        const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmount));
+
+        // Execute Order
+        await yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+
+        const daiBalAfterExecute = await daiContract.balanceOf(deployer.address);
+
+        expect(Number(daiBalAfterExecute))
+            .to.be.greaterThanOrEqual(
+                Number(daiBalBeforeExecute) + Number(yieldEarned)
+            );
+    });
+
+    it("Should transfer correct amount to recipient, executor & treasury", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Chainlink Oracle
+        const ChainlinkOracle = await hre.ethers.getContractFactory("ChainlinkOracle");
+        let chainlinkOracle = await ChainlinkOracle.deploy(deployer.address);
+
+        await chainlinkOracle.deployed();
+
+        chainlinkOracle = new ethers.Contract(
+            chainlinkOracle.address,
+            ChainlinkArtifacts.abi,
+            deployer
+        );
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress],
+            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
+        );
+
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
+        );
+
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
+
+        let yolo = await upgrades.deployProxy(
+            Yolo,
+            [
+                deployer.address,
+                deployer.address,
+                totalFeePercent,
+                chainlinkOracle.address,
+            ]
+        );
+
+        await yolo.deployed();
+
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
+            deployer
+        );
+
+        const Treasury = await ethers.getContractFactory("Treasury");
+        const treasury = await upgrades.deployProxy(
+            Treasury,
+            [deployer.address]
+        );
+        await treasury.deployed();
+        await yolo.updateTreasury(treasury.address);
+        await yolo.updateProtocolFee(protocolFeePercent);
+
+        // Deploy Sushiswap Handler
+        const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
+
+        const sushiswapHandler = await SushiswapHandler.deploy(
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
+            configParams.sushiswapCodeHash,
+            yolo.address
+        );
+
+        await sushiswapHandler.deployed();
+
+        await yolo.addHandler(sushiswapHandler.address);
+        await yolo.addWhitelistAsset(daiAddress);
+
+        await daiContract.approve(yolo.address, approveAmount);
+
+        // Create Order
+        const tx = await yolo.createOrder(
+            recipient,
+            daiAddress,
+            usdcAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount,
+            executor,
+        );
+
+        const receipt = await tx.wait();
+        const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
+
+        const orderId = events[0].args[0];
+        const orderData = events[0].args[1];
+
+        // Advancing 100 blocks
+        for (let i = 0; i < 100; ++i) {
+            await time.advanceBlock();
+        };
+
+        const recipientBalBefore = await usdcContract.balanceOf(recipient);
+        const executorBalBefore = await daiContract.balanceOf(executor);
+
+        // Execute Order
+        await yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0);
+
+        const recipientBalAfter = await usdcContract.balanceOf(recipient);
+        const executorBalAfter = await daiContract.balanceOf(executor);
+        const treasuryBalAfter = await daiContract.balanceOf(treasury.address);
+
+        const totalFee = getFee(new BigNumber(inputAmount));
+        const oracleResult = await chainlinkOracle.get(
+            daiAddress,
+            usdcAddress,
+            new BigNumber(inputAmount).minus(totalFee).toString()
+        );
+        const oracleAmount = Number(oracleResult.amountOutWithSlippage);
+
+        const amountOutMin = oracleAmount <= Number(stoplossAmount) ||
+            oracleAmount > Number(minReturnAmount)
+            ? oracleAmount
+            : Number(minReturnAmount);
+
+        const result = getParticipantsDividend(inputAmount);
+
+        expect(Number(result.executorFee)).to.be
+            .eq(Number(executorBalAfter.sub(executorBalBefore)));
+        expect(Number(result.protocolFee)).to.be.eq(Number(treasuryBalAfter));
+        expect(Number(recipientBalAfter.sub(recipientBalBefore))).to
+            .be.greaterThanOrEqual(Number(amountOutMin));
     });
 
     it("Should revert if condition doesn't satisfy (sushiswap handler)", async () => {
@@ -579,36 +709,36 @@ describe("Execute Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress],
+            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
 
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
         );
 
         await chainlinkOracle.updatePriceSlippage(100);
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
-                40,
+                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
@@ -616,35 +746,33 @@ describe("Execute Order Test", () => {
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
 
         const sushiswapHandler = await SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
-            configParams.wethAddress, // WETH
-            configParams.wmaticAddress, // WMATIC
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
             configParams.sushiswapCodeHash,
-            symphony.address
+            yolo.address
         );
 
         await sushiswapHandler.deployed();
 
-        // Add Handler
-        await symphony.addHandler(sushiswapHandler.address);
+        await yolo.addHandler(sushiswapHandler.address);
+        await yolo.addWhitelistAsset(daiAddress);
 
-        await daiContract.approve(symphony.address, approveAmount);
-        await usdcContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
+        await daiContract.approve(yolo.address, approveAmount);
 
         const stoplossAmount1 = new BigNumber(9).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
 
         // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
+        const tx = await yolo.createOrder(
+            recipient,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount1
+            stoplossAmount1,
+            executor,
         );
 
         const receipt = await tx.wait();
@@ -654,28 +782,21 @@ describe("Execute Order Test", () => {
         const orderData = events[0].args[1];
 
         await expectRevert(
-            symphony.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0),
+            yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0),
             'UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT'
         );
     });
 
-    it("Should revert if condition doesn't satisfy (balancer handler)", async () => {
+    it("Should ececute order with allowed executor", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
         });
 
-        const deployer = await ethers.provider.getSigner(
+        let deployer = await ethers.provider.getSigner(
             "0xAb7677859331f95F25A3e7799176f7239feb5C44"
         );
         deployer.address = deployer._address;
-
-        // Create USDC contract instance
-        const usdcContract = new ethers.Contract(
-            usdcAddress,
-            IERC20Artifacts.abi,
-            deployer
-        );
 
         // Create DAI contract instance
         const daiContract = new ethers.Contract(
@@ -695,117 +816,221 @@ describe("Execute Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress],
+            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
-
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
         );
 
         await chainlinkOracle.updatePriceSlippage(100);
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
-                40,
+                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
-        // Deploy Balancer Handler
-        const BalancerHandler = await ethers.getContractFactory("BalancerHandler");
+        // Deploy Sushiswap Handler
+        const SushiswapHandler = await ethers
+            .getContractFactory("SushiswapHandler");
 
-        const balancerHandler = await BalancerHandler.deploy(
-            configParams.balancerVault,
-            symphony.address
+        const sushiswapHandler = await SushiswapHandler.deploy(
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
+            configParams.sushiswapCodeHash,
+            yolo.address
         );
 
-        await balancerHandler.deployed();
+        await sushiswapHandler.deployed();
 
-        // Add Handler
-        await symphony.addHandler(balancerHandler.address);
+        await yolo.addHandler(sushiswapHandler.address);
+        await yolo.addWhitelistAsset(daiAddress);
 
-        await daiContract.approve(symphony.address, approveAmount);
-        await usdcContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
-
-        const stoplossAmount1 = new BigNumber(9).times(
-            new BigNumber(10).exponentiatedBy(new BigNumber(6))
-        ).toString();
+        await daiContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
+        const tx = await yolo.createOrder(
+            recipient,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount1
+            stoplossAmount,
+            executor,
         );
 
         const receipt = await tx.wait();
-        const events = receipt.events.filter((x) => { return x.event == "OrderCreated" });
+        const events = receipt.events.filter((x) => {
+            return x.event == "OrderCreated"
+        });
 
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        const addresses = [daiAddress, balAddress, usdcAddress];
-        const swapSteps = [{
-            poolId: daiBalPool,
-            assetInIndex: '0',
-            assetOutIndex: '1',
-            amount: inputAmount,
-            userData: 0x0,
-        }, {
-            poolId: usdcBalPool,
-            assetInIndex: '1',
-            assetOutIndex: '2',
-            amount: 0,
-            userData: 0x0,
-        }];
-        const data = encodeBalHandlerData(addresses, swapSteps);
+        const newExecutor = "0x606d09A4b4684b297308C358B4dC8Dc169776bBC";
+
+        await yolo.approveExecutor(newExecutor);
+
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: [newExecutor]
+        });
+        deployer = await ethers.provider.getSigner(newExecutor);
+
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
+            deployer
+        );
+
+        const executeTx = await yolo.executeOrder(
+            orderId,
+            orderData,
+            sushiswapHandler.address,
+            0x0,
+        );
+
+        const executeRecipt = await executeTx.wait();
+        const executeEvents = executeRecipt.events.filter((x) => {
+            return x.event == "OrderExecuted"
+        });
+
+        const executeOrderId = executeEvents[0].args[0];
+        expect(executeOrderId).to.eq(orderId);
+    });
+
+    it("Should revert if invalid executor or executor not allowed", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
+
+        let deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
+
+        // Create DAI contract instance
+        const daiContract = new ethers.Contract(
+            daiAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
+
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
+
+        let yolo = await upgrades.deployProxy(
+            Yolo,
+            [
+                deployer.address,
+                deployer.address,
+                totalFeePercent,
+                ZERO_ADDRESS, // false chainlink oracle
+            ]
+        );
+
+        await yolo.deployed();
+
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
+            deployer
+        );
+
+        // Deploy Sushiswap Handler
+        const SushiswapHandler = await ethers
+            .getContractFactory("SushiswapHandler");
+
+        const sushiswapHandler = await SushiswapHandler.deploy(
+            configParams.sushiswapRouter,
+            configParams.wethAddress,
+            configParams.wmaticAddress,
+            configParams.sushiswapCodeHash,
+            yolo.address
+        );
+
+        await sushiswapHandler.deployed();
+
+        await yolo.addHandler(sushiswapHandler.address);
+        await yolo.addWhitelistAsset(daiAddress);
+
+        await daiContract.approve(yolo.address, approveAmount);
+
+        // Create Order
+        const tx = await yolo.createOrder(
+            recipient,
+            daiAddress,
+            usdcAddress,
+            inputAmount,
+            minReturnAmount,
+            stoplossAmount,
+            executor,
+        );
+
+        const receipt = await tx.wait();
+        const events = receipt.events.filter((x) => {
+            return x.event == "OrderCreated"
+        });
+
+        const orderId = events[0].args[0];
+        const orderData = events[0].args[1];
+
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0x606d09A4b4684b297308C358B4dC8Dc169776bBC"]
+        });
+        deployer = await ethers.provider.getSigner(
+            "0x606d09A4b4684b297308C358B4dC8Dc169776bBC"
+        );
+
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
+            deployer
+        );
 
         await expectRevert(
-            symphony.executeOrder(orderId, orderData, balancerHandler.address, data),
-            "BalancerHandler: Order condition doesn't satisfy !!"
+            yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0),
+            'Yolo::executeOrder: Order executor mismatch'
         );
     });
 });
 
-const encodeData = (router, slippage, codeHash, path) => {
-    const abiCoder = new AbiCoder();
-
-    return abiCoder.encode(
-        ['address', 'uint256', 'bytes32', 'address[]'],
-        [router, slippage, codeHash, path]
-    )
+const getFee = (amount) => {
+    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
+    return amount.multipliedBy(_totalFeePercent).dividedBy(100);
 }
 
-const encodeBalHandlerData = (addresses, swapSteps) => {
-    const abiCoder = new AbiCoder();
+const getParticipantsDividend = (inputAmount) => {
+    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
 
-    return abiCoder.encode(
-        [
-            'address[]',
-            "tuple(bytes32 poolId, uint256 assetInIndex, uint256 assetOutIndex, uint256 amount, bytes userData)[]"
-        ],
-        [addresses, swapSteps]
-    )
+    const _protocolFeePercent = _totalFeePercent.times(protocolFeePercent / 10000);
+    const _executorFeePercent = _totalFeePercent.minus(_protocolFeePercent);
+
+    const executorFee = new BigNumber(inputAmount)
+        .times(_executorFeePercent).dividedBy(100);
+    const protocolFee = new BigNumber(inputAmount)
+        .times(_protocolFeePercent).dividedBy(100);
+
+    return { executorFee, protocolFee };
 }

@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/access/TimelockController.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/governance/TimelockController.sol";
 
 contract Timelock is TimelockController {
-    using SafeMath for uint256;
-
     constructor(
         uint256 delayTime,
         address[] memory proposers,
