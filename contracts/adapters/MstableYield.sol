@@ -52,7 +52,7 @@ contract MstableYield is IYieldAdapter {
     }
 
     /**
-     * @dev Used to deposit tokens in available protocol
+     * @dev Used to deposit tokens
      **/
     function deposit(address token, uint256 amount) external override onlyYolo {
         require(amount != 0, "MstableYield: zero amount");
@@ -75,7 +75,7 @@ contract MstableYield is IYieldAdapter {
     }
 
     /**
-     * @dev Used to withdraw tokens from available protocol
+     * @dev Used to withdraw tokens
      **/
     function withdraw(address token, uint256 amount)
         external
@@ -102,7 +102,7 @@ contract MstableYield is IYieldAdapter {
     }
 
     /**
-     * @dev Used to get amount of underlying tokens
+     * @dev Get amount of underlying tokens
      * @return amount amount of underlying tokens
      **/
     function getTotalUnderlying(address token)
@@ -120,13 +120,12 @@ contract MstableYield is IYieldAdapter {
     }
 
     /**
-     * @dev Used to get IOU token address
+     * @dev Get IOU token address
      * @return iouToken address of IOU token
      **/
     function getIouTokenAddress(address)
-        public
+        external
         view
-        override
         returns (address iouToken)
     {
         iouToken = savingContract.underlying();

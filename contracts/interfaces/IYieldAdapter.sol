@@ -30,14 +30,4 @@ interface IYieldAdapter {
     function getTotalUnderlying(address token)
         external
         returns (uint256 tokensAmount);
-
-    /**
-     * @dev Used to get IOU token address
-     * @param token the address of token
-     * @return iouToken address of IOU token
-     **/
-    function getIouTokenAddress(address token)
-        external
-        view
-        returns (address iouToken);
 }

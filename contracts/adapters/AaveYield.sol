@@ -80,14 +80,14 @@ contract AaveYield is IYieldAdapter {
     }
 
     /**
-     * @dev Used to deposit tokens in available protocol
+     * @dev Used to deposit tokens
      **/
     function deposit(address, uint256 amount) external override onlyYolo {
         _depositERC20(amount);
     }
 
     /**
-     * @dev Used to withdraw tokens from available protocol
+     * @dev Used to withdraw tokens
      **/
     function withdraw(address, uint256 amount) external override onlyYolo {
         _withdrawERC20(amount);
@@ -140,7 +140,7 @@ contract AaveYield is IYieldAdapter {
     // *************** //
 
     /**
-     * @dev Used to get amount of underlying tokens
+     * @dev Get amount of underlying tokens
      **/
     function getTotalUnderlying(address)
         public
@@ -152,19 +152,18 @@ contract AaveYield is IYieldAdapter {
     }
 
     /**
-     * @dev Used to get IOU token address
+     * @dev Get IOU token address
      **/
     function getIouTokenAddress(address)
-        public
+        external
         view
-        override
         returns (address iouToken)
     {
         iouToken = aTokenAddress;
     }
 
     /**
-     * @dev Used to get available reward balance
+     * @dev Get available reward balance
      **/
     function getRewardBalance(address[] memory aTokens)
         external
