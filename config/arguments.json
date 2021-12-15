@@ -2,7 +2,7 @@
   "yolo": {
     "_comment::executionFee": "20 = 0.2%",
     "executionFee": 20,
-    "_comment::protocolFeePercent": "4000 = 0.2 * 0.4 = 0.08%",
+    "_comment::protocolFeePercent": "4000 = 0.2 / (10000/4000) = 0.08%",
     "protocolFeePercent": 4000,
     "_comment::cancellationFeePercent": "1000 = 10% of yield",
     "cancellationFeePercent": 1000

@@ -1,18 +1,16 @@
 const config = require("../config/index.json");
 const assetConfig = require("../config/asset.json");
 const globalArgs = require('../config/arguments.json');
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
-);
+const YoloArtifacts = require("../artifacts/contracts/Yolo.sol/Yolo.json");
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
 const { deployYolo } = require('./deployYolo');
 const { deployTreasury } = require('./deployTreasury');
-const { deployChainlinkOracle } = require('./deployChainlinkOracle');
-const { deploySushiswapHandler } = require('./deploySushiswapHandler');
-const { deployQuickswapHandler } = require('./deployQuickswapHandler');
-const { deployBalancerHandler } = require('./deployBalancerHandler');
+const { deployChainlinkOracle } = require('./oracles/deployChainlinkOracle');
+const { deploySushiswapHandler } = require('./handlers/deploySushiswapHandler');
+const { deployQuickswapHandler } = require('./handlers/deployQuickswapHandler');
+const { deployBalancerHandler } = require('./handlers/deployBalancerHandler');
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -48,9 +46,9 @@ async function main() {
         configParams = config.mumbai;
     }
 
-    const symphony = new ethers.Contract(
-        configParams.symphonyAddress,
-        SymphonyArtifacts.abi,
+    const yolo = new ethers.Contract(
+        configParams.yoloAddress,
+        YoloArtifacts.abi,
         deployer
     );
 
@@ -66,18 +64,18 @@ async function main() {
     }
 
     console.log("\nupdating treasury address in contract");
-    const tx1 = await symphony.updateTreasury(configParams.treasury);
+    const tx1 = await yolo.updateTreasury(configParams.treasury);
     await tx1.wait();
 
     console.log("\nupdating protocol fee in contract");
-    const tx2 = await symphony.updateProtocolFee(
-        globalArgs.symphony.protocolFeePercent
+    const tx2 = await yolo.updateProtocolFee(
+        globalArgs.yolo.protocolFeePercent
     );
     await tx2.wait();
 
     console.log("\nupdating cancellation fee in contract");
-    const tx3 = await symphony.updateCancellationFee(
-        globalArgs.symphony.cancellationFeePercent
+    const tx3 = await yolo.updateCancellationFee(
+        globalArgs.yolo.cancellationFeePercent
     );
     await tx3.wait();
 

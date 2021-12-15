@@ -3,13 +3,14 @@ pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+import "../interfaces/IOracle.sol";
+import "../interfaces/IDetailedERC20.sol";
 import "../libraries/PercentageMath.sol";
-import "../interfaces/IERC20WithDecimal.sol";
 
-contract ChainlinkOracle is Ownable {
+contract ChainlinkOracle is IOracle, Ownable {
     using PercentageMath for uint256;
 
-    uint256 public priceSlippage = 400; // 4%
+    uint256 public priceSlippage = 50; // 0.5%
 
     mapping(address => address) public oracleFeed;
 
@@ -58,11 +59,9 @@ contract ChainlinkOracle is Ownable {
         if (outputToken != address(0))
             amountOut =
                 amountOut *
-                (10**IERC20WithDecimal(outputToken).decimals());
+                (10**IDetailedERC20(outputToken).decimals());
         if (inputToken != address(0))
-            amountOut =
-                amountOut /
-                (10**IERC20WithDecimal(inputToken).decimals());
+            amountOut = amountOut / (10**IDetailedERC20(inputToken).decimals());
 
         amountOutWithSlippage = amountOut.percentMul(
             uint256(10000) - priceSlippage

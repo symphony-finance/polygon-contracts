@@ -36,11 +36,11 @@ const main = () => {
             );
 
             if (network.name === "mumbai") {
-                file.mumbai.symphonyAddress = yolo.address;
+                file.mumbai.yoloAddress = yolo.address;
             } else if (network.name === "matic") {
-                file.matic.symphonyAddress = yolo.address;
+                file.matic.yoloAddress = yolo.address;
             } else {
-                file.development.symphonyAddress = yolo.address;
+                file.development.yoloAddress = yolo.address;
             }
 
             fs.writeFileSync(

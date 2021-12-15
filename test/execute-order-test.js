@@ -565,11 +565,11 @@ describe("Execute Order Test", () => {
             [usdcAddress],
             ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
-
         await chainlinkOracle.updateTokenFeeds(
             [daiAddress],
             ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
         );
+        await chainlinkOracle.updatePriceSlippage(400);
 
         // Deploy Yolo Contract
         const Yolo = await ethers.getContractFactory("Yolo");

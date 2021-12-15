@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.10;
 
-import "../interfaces/IUniswapPair.sol";
+import "../../interfaces/uniswap/IUniswapPair.sol";
 
 library UniswapLibrary {
     /**

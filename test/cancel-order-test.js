@@ -610,7 +610,7 @@ describe("Cancel Order Test", () => {
             .greaterThanOrEqual(
                 Number(userBalBeforeCancellation.add(
                     depositPlusYield.sub(cancellationFee)
-                )));
+                )) - 1);
         expect(Number(treasuryBalAfterCancellation))
             .greaterThanOrEqual(
                 Number(treasuryBalBeforeCancellation.add(cancellationFee)));

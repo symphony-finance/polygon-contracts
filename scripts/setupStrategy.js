@@ -4,10 +4,8 @@ const fileName = "../config/asset.json";
 const file = require("../config/asset.json");
 const config = require("../config/index.json");
 const assetConfig = require("../config/asset.json");
-const YoloArtifacts = require(
-    "../artifacts/contracts/Yolo.sol/Yolo.json"
-);
-const { deployAaveYield } = require('./deployAaveYield');
+const { deployAaveYield } = require('./adapters/deployAaveYield');
+const YoloArtifacts = require( "../artifacts/contracts/Yolo.sol/Yolo.json");
 
 async function main() {
     const [deployer] = await ethers.getSigners();

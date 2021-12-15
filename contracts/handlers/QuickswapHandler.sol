@@ -5,8 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/IHandler.sol";
-import "../libraries/UniswapLibrary.sol";
-import {IUniswapRouter as IQuickswapRouter} from "../interfaces/IUniswapRouter.sol";
+import "../libraries/uniswap/UniswapLibrary.sol";
+import {IUniswapRouter as IQuickswapRouter} from "../interfaces/uniswap/IUniswapRouter.sol";
 
 /// @notice Quickswap Handler used to execute an order
 contract QuickswapHandler is IHandler {

@@ -5,11 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/IYieldAdapter.sol";
-import "../interfaces/IAaveToken.sol";
-import "../interfaces/IAavePoolCore.sol";
-import "../interfaces/IAaveLendingPool.sol";
-import "../interfaces/IAaveIncentivesController.sol";
-import "../interfaces/IUniswapRouter.sol";
+import "../interfaces/aave/IAaveLendingPool.sol";
+import "../interfaces/aave/IAaveIncentivesController.sol";
+import "../interfaces/uniswap/IUniswapRouter.sol";
 
 /**
  * @title Aave Yield contract
@@ -34,7 +32,7 @@ contract AaveYield is IYieldAdapter {
     address[] route;
     IUniswapRouter public router;
     IUniswapRouter public backupRouter;
-    uint256 public harvestGasUsage = 1000000;
+    uint256 public harvestMaxGas = 1000000; // 1000k wei
 
     modifier onlyYolo() {
         require(
@@ -121,7 +119,7 @@ contract AaveYield is IYieldAdapter {
         uint256 rewardBal = IERC20(_rewardToken).balanceOf(address(this));
 
         // reimburse function caller
-        uint256 reimbursementAmt = harvestGasUsage * tx.gasprice;
+        uint256 reimbursementAmt = harvestMaxGas * tx.gasprice;
         if (rewardBal > reimbursementAmt) {
             rewardBal -= reimbursementAmt;
             IERC20(_tokenAddress).safeTransfer(msg.sender, reimbursementAmt);
@@ -228,7 +226,7 @@ contract AaveYield is IYieldAdapter {
     }
 
     function updateHarvestGas(uint256 _gas) external onlyManager {
-        harvestGasUsage = _gas;
+        harvestMaxGas = _gas;
     }
 
     // ************************** //

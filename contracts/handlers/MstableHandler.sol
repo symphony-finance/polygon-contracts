@@ -4,8 +4,8 @@ pragma solidity 0.8.10;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "../interfaces/ImAsset.sol";
 import "../interfaces/IHandler.sol";
+import "../interfaces/mstable/ImAsset.sol";
 
 /// @notice Mstable Handler used to execute an order
 contract MstableHandler is IHandler {

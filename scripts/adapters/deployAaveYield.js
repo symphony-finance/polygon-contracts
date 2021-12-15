@@ -1,5 +1,5 @@
 const hre = require("hardhat");
-const config = require("../config/index.json");
+const config = require("../../config/index.json");
 
 const main = (tokenAddress) => {
     return new Promise(async (resolve) => {
@@ -14,7 +14,7 @@ const main = (tokenAddress) => {
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
         AaveYield.deploy(
-            configParams.symphonyAddress,
+            configParams.yoloAddress,
             configParams.emergencyAdmin,
             tokenAddress,
             configParams.aaveLendingPool,

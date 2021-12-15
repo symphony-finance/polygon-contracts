@@ -2,12 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { network } = require("hardhat");
-const fileName = "../config/index.json";
-const file = require("../config/index.json");
-const config = require("../config/index.json");
-const YoloArtifacts = require(
-    '../artifacts/contracts/Yolo.sol/Yolo.json'
-);
+const fileName = "../../config/index.json";
+const file = require("../../config/index.json");
+const config = require("../../config/index.json");
+const YoloArtifacts = require('../../artifacts/contracts/Yolo.sol/Yolo.json');
 
 const main = () => {
     return new Promise(async (resolve) => {
@@ -18,30 +16,30 @@ const main = () => {
             configParams = config.mumbai;
         }
 
-        // Deploy SushiswapHandler Contract
-        const SushiswapHandler = await hre.ethers
-            .getContractFactory("SushiswapHandler");
+        // Deploy QuickswapHandler Contract
+        const QuickswapHandler = await hre.ethers
+            .getContractFactory("QuickswapHandler");
 
-        SushiswapHandler.deploy(
-            configParams.sushiswapRouter, // Router
+        await QuickswapHandler.deploy(
+            configParams.quickswapRouter, // Router
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
-            configParams.sushiswapCodeHash,
+            configParams.quickswapCodeHash,
             configParams.yoloAddress
-        ).then(async (sushiswapHandler) => {
-            await sushiswapHandler.deployed();
+        ).then(async (quickswapHandler) => {
+            await quickswapHandler.deployed();
 
             console.log(
-                "Sushiswap Handler deployed to:",
-                sushiswapHandler.address, "\n"
+                "Quickswap Handler deployed to:",
+                quickswapHandler.address, "\n"
             );
 
             if (network.name === "mumbai") {
-                file.mumbai.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.mumbai.quickswapHandlerAddress = quickswapHandler.address;
             } else if (network.name === "matic") {
-                file.matic.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.matic.quickswapHandlerAddress = quickswapHandler.address;
             } else {
-                file.development.sushiswapHandlerAddress = sushiswapHandler.address;
+                file.development.quickswapHandlerAddress = quickswapHandler.address;
             }
 
             fs.writeFileSync(
@@ -58,12 +56,12 @@ const main = () => {
                 deployer
             );
 
-            const tx = await yolo.addHandler(sushiswapHandler.address);
+            const tx = await yolo.addHandler(quickswapHandler.address);
             await tx.wait();
 
             resolve(true);
         });
-    })
+    });
 }
 
-module.exports = { deploySushiswapHandler: main }
+module.exports = { deployQuickswapHandler: main }

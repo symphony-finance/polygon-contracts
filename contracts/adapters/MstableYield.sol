@@ -4,10 +4,10 @@ pragma solidity 0.8.10;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "../interfaces/ImAsset.sol";
 import "../interfaces/IYieldAdapter.sol";
-import "../interfaces/ISavingsContract.sol";
-import "../interfaces/IERC20WithDecimal.sol";
+import "../interfaces/IDetailedERC20.sol";
+import "../interfaces/mstable/ImAsset.sol";
+import "../interfaces/mstable/ISavingsContract.sol";
 
 contract MstableYield is IYieldAdapter {
     using SafeERC20 for IERC20;
@@ -35,14 +35,11 @@ contract MstableYield is IYieldAdapter {
         ISavingsContract _savingContract,
         address _yolo
     ) {
-        require(_yolo != address(0), "MstableYield: Symphony:: zero address");
-        require(
-            address(_musdToken) != address(0),
-            "MstableYield: MUSD Token: zero address"
-        );
+        require(_yolo != address(0), "yolo: zero address");
+        require(address(_musdToken) != address(0), "mUSD token: zero address");
         require(
             address(_savingContract) != address(0),
-            "MstableYield: SavingContract:: zero address"
+            "saving contract: zero address"
         );
 
         musdToken = _musdToken;
@@ -122,7 +119,7 @@ contract MstableYield is IYieldAdapter {
     {
         amount = savingContract.balanceOfUnderlying(address(this));
 
-        uint8 decimal = IERC20WithDecimal(asset).decimals();
+        uint8 decimal = IDetailedERC20(asset).decimals();
         if (decimal < 18) {
             amount = amount / (10**(18 - decimal));
         }
@@ -142,7 +139,7 @@ contract MstableYield is IYieldAdapter {
     }
 
     function _withdraw(address asset, uint256 amount) internal {
-        uint8 decimal = IERC20WithDecimal(asset).decimals();
+        uint8 decimal = IDetailedERC20(asset).decimals();
         if (decimal < 18) {
             amount = amount * (10**(18 - decimal));
         }
