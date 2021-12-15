@@ -141,7 +141,7 @@ describe("Execute Order Test", () => {
         );
 
         await yolo.setStrategy(daiAddress, aaveYield.address);
-        await yolo.updateBufferPercentage(daiAddress, 4000);
+        await yolo.updateTokenBuffer(daiAddress, 4000);
 
         // Deploy Sushiswap Handler
         const SushiswapHandler = await ethers.getContractFactory("SushiswapHandler");
@@ -157,7 +157,7 @@ describe("Execute Order Test", () => {
         await sushiswapHandler.deployed();
 
         await yolo.addHandler(sushiswapHandler.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -199,7 +199,7 @@ describe("Execute Order Test", () => {
             : Number(minReturnAmount);
 
         const contractBal = await daiContract.balanceOf(yolo.address);
-        const totalTokens = await yolo.callStatic.getTotalFunds(
+        const totalTokens = await yolo.callStatic.getTotalTokens(
             daiAddress, contractBal, aaveYield.address
         );
         const depositPlusYield = totalTokens; // as there is only one order
@@ -335,7 +335,7 @@ describe("Execute Order Test", () => {
 
         await daiContract.approve(yolo.address, approveAmount);
 
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         // Create Order
         const tx = await yolo.createOrder(
@@ -481,7 +481,7 @@ describe("Execute Order Test", () => {
 
         await daiContract.approve(yolo.address, approveAmount);
 
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         // Create Order
         const tx = await yolo.createOrder(
@@ -508,7 +508,7 @@ describe("Execute Order Test", () => {
         };
 
         const contractBal = await daiContract.balanceOf(yolo.address);
-        const totalTokens = await yolo.callStatic.getTotalFunds(
+        const totalTokens = await yolo.callStatic.getTotalTokens(
             daiAddress, contractBal, aaveYield.address
         );
         const depositPlusYield = totalTokens; // as there is only one order
@@ -615,7 +615,7 @@ describe("Execute Order Test", () => {
         await sushiswapHandler.deployed();
 
         await yolo.addHandler(sushiswapHandler.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -756,7 +756,7 @@ describe("Execute Order Test", () => {
         await sushiswapHandler.deployed();
 
         await yolo.addHandler(sushiswapHandler.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -863,7 +863,7 @@ describe("Execute Order Test", () => {
         await sushiswapHandler.deployed();
 
         await yolo.addHandler(sushiswapHandler.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -972,7 +972,7 @@ describe("Execute Order Test", () => {
         await sushiswapHandler.deployed();
 
         await yolo.addHandler(sushiswapHandler.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -1011,7 +1011,7 @@ describe("Execute Order Test", () => {
 
         await expectRevert(
             yolo.executeOrder(orderId, orderData, sushiswapHandler.address, 0x0),
-            'Yolo::executeOrder: Order executor mismatch'
+            'Yolo::executeOrder: order executor mismatch'
         );
     });
 });

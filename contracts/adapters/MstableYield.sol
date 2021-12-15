@@ -53,19 +53,17 @@ contract MstableYield is IYieldAdapter {
 
     /**
      * @dev Used to deposit tokens in available protocol
-     * @param asset the address of token to invest
-     * @param amount the amount of asset
      **/
-    function deposit(address asset, uint256 amount) external override onlyYolo {
+    function deposit(address token, uint256 amount) external override onlyYolo {
         require(amount != 0, "MstableYield: zero amount");
 
-        if (asset != musdToken) {
+        if (token != musdToken) {
             // get minimum musd token to mint
-            uint256 minOutput = ImAsset(musdToken).getMintOutput(asset, amount);
+            uint256 minOutput = ImAsset(musdToken).getMintOutput(token, amount);
 
-            // mint mUSD from base asset
+            // mint mUSD from base token
             amount = ImAsset(musdToken).mint(
-                asset,
+                token,
                 amount,
                 minOutput,
                 address(this)
@@ -78,40 +76,36 @@ contract MstableYield is IYieldAdapter {
 
     /**
      * @dev Used to withdraw tokens from available protocol
-     * @param asset the address of underlying token
-     * @param amount the amount of asset
      **/
-    function withdraw(address asset, uint256 amount)
+    function withdraw(address token, uint256 amount)
         external
         override
         onlyYolo
     {
-        _withdraw(asset, amount);
+        _withdraw(token, amount);
     }
 
     /**
      * @dev Withdraw all tokens from the strategy
-     * @param asset the address of token
      **/
-    function withdrawAll(address asset) external override onlyYolo {
+    function withdrawAll(address token) external override onlyYolo {
         uint256 amount = savingContract.balanceOfUnderlying(yolo);
-        _withdraw(asset, amount);
+        _withdraw(token, amount);
     }
 
     /**
      * @dev Used to approve max token from yield provider contract
-     * @param asset the address of token
      **/
-    function maxApprove(address asset) external {
-        IERC20(asset).safeApprove(address(musdToken), 0);
-        IERC20(asset).safeApprove(address(musdToken), type(uint256).max);
+    function maxApprove(address token) external {
+        IERC20(token).safeApprove(address(musdToken), 0);
+        IERC20(token).safeApprove(address(musdToken), type(uint256).max);
     }
 
     /**
      * @dev Used to get amount of underlying tokens
      * @return amount amount of underlying tokens
      **/
-    function getTotalUnderlying(address asset)
+    function getTotalUnderlying(address token)
         external
         view
         override
@@ -119,7 +113,7 @@ contract MstableYield is IYieldAdapter {
     {
         amount = savingContract.balanceOfUnderlying(address(this));
 
-        uint8 decimal = IDetailedERC20(asset).decimals();
+        uint8 decimal = IDetailedERC20(token).decimals();
         if (decimal < 18) {
             amount = amount / (10**(18 - decimal));
         }
@@ -129,7 +123,7 @@ contract MstableYield is IYieldAdapter {
      * @dev Used to get IOU token address
      * @return iouToken address of IOU token
      **/
-    function getYieldTokenAddress(address)
+    function getIouTokenAddress(address)
         public
         view
         override
@@ -138,8 +132,8 @@ contract MstableYield is IYieldAdapter {
         iouToken = savingContract.underlying();
     }
 
-    function _withdraw(address asset, uint256 amount) internal {
-        uint8 decimal = IDetailedERC20(asset).decimals();
+    function _withdraw(address token, uint256 amount) internal {
+        uint8 decimal = IDetailedERC20(token).decimals();
         if (decimal < 18) {
             amount = amount * (10**(18 - decimal));
         }
@@ -147,16 +141,16 @@ contract MstableYield is IYieldAdapter {
         // redeem mUSD for imUSD (IOU)
         savingContract.redeemUnderlying(amount);
 
-        if (asset != musdToken) {
+        if (token != musdToken) {
             uint256 minOutputQuantity = ImAsset(musdToken).getRedeemOutput(
-                asset,
+                token,
                 amount
             );
 
-            // redeem mUSD for base asset
-            ImAsset(musdToken).redeem(asset, amount, minOutputQuantity, yolo);
+            // redeem mUSD for base token
+            ImAsset(musdToken).redeem(token, amount, minOutputQuantity, yolo);
         } else {
-            IERC20(asset).safeTransfer(yolo, amount);
+            IERC20(token).safeTransfer(yolo, amount);
         }
     }
 }

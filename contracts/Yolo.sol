@@ -34,53 +34,53 @@ contract Yolo is
     address public emergencyAdmin;
 
     /// Total fee (protocol_fee + relayer_fee)
-    uint256 public BASE_FEE; // 1 for 0.01%
+    uint256 public baseFeePercent; // 1 for 0.01%
 
-    /// Protocol fee: BASE_FEE - RELAYER_FEE
-    uint256 public PROTOCOL_FEE_PERCENT;
+    /// Protocol fee: base_fee_percent - relayer_ee
+    uint256 public protocolFeePercent;
 
     /// Cancellation fee: x% of total yield
-    uint256 public CANCELLATION_FEE_PERCENT; // 1 for 0.01%
+    uint256 public cancellationFeePercent; // 1 for 0.01%
 
     /// Oracle
     IOracle public oracle;
 
-    // Wrapped WMATIC token
+    // Wrapped MATIC token address
     address internal constant WMATIC =
         0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
 
     mapping(address => address) public strategy;
     mapping(bytes32 => bytes32) public orderHash;
-    mapping(address => uint256) public assetBuffer;
+    mapping(address => uint256) public tokenBuffer;
 
     mapping(address => bool) public whitelistedTokens;
+    mapping(address => uint256) public totalTokenShares;
     mapping(address => bool) public allowedHandlers;
-    mapping(address => uint256) public totalAssetShares;
     mapping(address => mapping(address => bool)) public allowedExecutors;
 
     // ************** //
     // *** EVENTS *** //
     // ************** //
     event OrderCreated(bytes32 orderId, bytes data);
-    event OrderCancelled(bytes32 orderId, uint256 depositPlusYield);
+    event OrderCancelled(bytes32 orderId, uint256 amountReceived);
     event OrderExecuted(
         bytes32 orderId,
-        uint256 totalAmountOut,
+        uint256 amountReceived,
         uint256 depositPlusYield
     );
     event OrderUpdated(bytes32 oldOrderId, bytes32 newOrderId, bytes data);
-    event AssetStrategyUpdated(address asset, address strategy);
+    event TokenStrategyUpdated(address token, address strategy);
     event HandlerAdded(address handler);
     event HandlerRemoved(address handler);
-    event UpdatedBaseFee(uint256 fee);
-    event ProtocolFeeUpdated(uint256 fee);
-    event UpdatedBufferPercentage(address asset, uint256 percent);
-    event AddedWhitelistAsset(address asset);
-    event RemovedWhitelistAsset(address asset);
+    event BaseFeeUpdated(uint256 feePercent);
+    event ProtocolFeeUpdated(uint256 feePercent);
+    event CancellationFeeUpdated(uint256 feePercent);
+    event TokenBufferUpdated(address token, uint256 bufferPercent);
+    event AddedWhitelistToken(address token);
+    event RemovedWhitelistToken(address token);
     event OracleAddressUpdated(address oracle);
-    event EmergencyWithdraw(address asset);
-    event EmergencyAdminUpdated(address emergenycyAdmin);
-    event AssetsRebalanced(uint256 txCost);
+    event EmergencyAdminUpdated(address admin);
+    event TokensRebalanced(uint256 txCost);
 
     modifier onlyEmergencyAdminOrOwner() {
         require(
@@ -96,10 +96,10 @@ contract Yolo is
     function initialize(
         address _owner,
         address _emergencyAdmin,
-        uint256 _baseFee,
+        uint256 _baseFeePercent,
         IOracle _oracle
     ) external initializer {
-        BASE_FEE = _baseFee;
+        baseFeePercent = _baseFeePercent;
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
@@ -127,23 +127,17 @@ contract Yolo is
     {
         require(
             whitelistedTokens[inputToken],
-            "Yolo::createOrder: Input asset not in whitelist"
+            "Yolo::createOrder: unsupported input token"
         );
         require(
             recipient != address(0),
-            "Yolo::createOrder: Recipient shouldn't be zero address"
+            "Yolo::createOrder: zero recipient address"
         );
-        require(
-            inputAmount > 0,
-            "Yolo::createOrder: Input amount can't be zero"
-        );
-        require(
-            minReturnAmount > 0,
-            "Yolo::createOrder: Amount out can't be zero"
-        );
+        require(inputAmount > 0, "Yolo::createOrder: zero input amount");
+        require(minReturnAmount > 0, "Yolo::createOrder: zero return amount");
         require(
             stoplossAmount < minReturnAmount,
-            "Yolo::createOrder: stoploss amount should be less than amount out"
+            "Yolo::createOrder: stoploss amount greater than return amount"
         );
 
         orderId = getOrderId(
@@ -160,28 +154,28 @@ contract Yolo is
 
         require(
             orderHash[orderId] == bytes32(0),
-            "Yolo::createOrder: There is already an existing order with same id"
+            "Yolo::createOrder: order already exists with the same id"
         );
 
-        uint256 previousTotalShares = totalAssetShares[inputToken];
+        uint256 prevTotalShares = totalTokenShares[inputToken];
 
         uint256 shares = inputAmount;
-        address assetStrategy = strategy[inputToken];
-        if (previousTotalShares > 0) {
-            uint256 previousTotalTokens = IERC20(inputToken).balanceOf(
+        address tokenStrategy = strategy[inputToken];
+        if (prevTotalShares > 0) {
+            uint256 prevTotalTokens = IERC20(inputToken).balanceOf(
                 address(this)
             );
 
-            if (assetStrategy != address(0)) {
-                previousTotalTokens = getTotalFunds(
+            if (tokenStrategy != address(0)) {
+                prevTotalTokens = getTotalTokens(
                     inputToken,
-                    previousTotalTokens,
-                    assetStrategy
+                    prevTotalTokens,
+                    tokenStrategy
                 );
             }
 
-            shares = (inputAmount * previousTotalShares) / previousTotalTokens;
-            require(shares > 0, "Yolo::createOrder: shares can't be 0");
+            shares = (inputAmount * prevTotalShares) / prevTotalTokens;
+            require(shares > 0, "Yolo::createOrder: shares can't be zero");
         }
 
         // caution: trusting user input
@@ -191,7 +185,7 @@ contract Yolo is
             inputAmount
         );
 
-        totalAssetShares[inputToken] = previousTotalShares + shares;
+        totalTokenShares[inputToken] = prevTotalShares + shares;
 
         orderData = abi.encode(
             msg.sender,
@@ -209,10 +203,10 @@ contract Yolo is
 
         emit OrderCreated(orderId, orderData);
 
-        if (assetStrategy != address(0)) {
-            address[] memory assets = new address[](1);
-            assets[0] = inputToken;
-            rebalanceAssets(assets);
+        if (tokenStrategy != address(0)) {
+            address[] memory tokens = new address[](1);
+            tokens[0] = inputToken;
+            rebalanceTokens(tokens);
         }
     }
 
@@ -237,19 +231,16 @@ contract Yolo is
 
         require(
             recipient != address(0),
-            "Yolo::createWmaticOrder: Recipient shouldn't be zero address"
+            "Yolo::createNativeOrder: zero recipient address"
         );
-        require(
-            inputAmount > 0,
-            "Yolo::createWmaticOrder: Input amount can't be zero"
-        );
+        require(inputAmount > 0, "Yolo::createNativeOrder: zero input amount");
         require(
             minReturnAmount > 0,
-            "Yolo::createWmaticOrder: Amount out can't be zero"
+            "Yolo::createNativeOrder: zero return amount"
         );
         require(
             stoplossAmount < minReturnAmount,
-            "Yolo::createWmaticOrder: stoploss amount should be less than amount out"
+            "Yolo::createNativeOrder: stoploss amount greater than return amount"
         );
 
         orderId = getOrderId(
@@ -266,33 +257,36 @@ contract Yolo is
 
         require(
             orderHash[orderId] == bytes32(0),
-            "Yolo::createWmaticOrder: There is already an existing order with same id"
+            "Yolo::createNativeOrder: order already exists with the same id"
         );
 
-        uint256 previousTotalShares = totalAssetShares[inputToken];
+        uint256 prevTotalShares = totalTokenShares[inputToken];
 
         uint256 shares = inputAmount;
-        address assetStrategy = strategy[inputToken];
-        if (previousTotalShares > 0) {
-            uint256 previousTotalTokens = IERC20(inputToken).balanceOf(
+        address tokenStrategy = strategy[inputToken];
+        if (prevTotalShares > 0) {
+            uint256 prevTotalTokens = IERC20(inputToken).balanceOf(
                 address(this)
             );
 
-            if (assetStrategy != address(0)) {
-                previousTotalTokens = getTotalFunds(
+            if (tokenStrategy != address(0)) {
+                prevTotalTokens = getTotalTokens(
                     inputToken,
-                    previousTotalTokens,
-                    assetStrategy
+                    prevTotalTokens,
+                    tokenStrategy
                 );
             }
 
-            shares = (inputAmount * previousTotalShares) / previousTotalTokens;
-            require(shares > 0, "Yolo::createWmaticOrder: shares can't be 0");
+            shares = (inputAmount * prevTotalShares) / prevTotalTokens;
+            require(
+                shares > 0,
+                "Yolo::createNativeOrder: shares can't be zero"
+            );
         }
 
         IWMATIC(inputToken).deposit{value: inputAmount}();
 
-        totalAssetShares[inputToken] = previousTotalShares + shares;
+        totalTokenShares[inputToken] = prevTotalShares + shares;
 
         orderData = abi.encode(
             msg.sender,
@@ -310,10 +304,10 @@ contract Yolo is
 
         emit OrderCreated(orderId, orderData);
 
-        if (assetStrategy != address(0)) {
-            address[] memory assets = new address[](1);
-            assets[0] = inputToken;
-            rebalanceAssets(assets);
+        if (tokenStrategy != address(0)) {
+            address[] memory tokens = new address[](1);
+            tokens[0] = inputToken;
+            rebalanceTokens(tokens);
         }
     }
 
@@ -336,26 +330,23 @@ contract Yolo is
     {
         require(
             recipient != address(0),
-            "Yolo::updateOrder: Recipient shouldn't be zero address"
+            "Yolo::updateOrder: zero recipient address"
         );
         require(
             orderHash[orderId] == keccak256(orderData),
-            "Yolo::updateOrder: Order doesn't match"
+            "Yolo::updateOrder: order doesn't match"
         );
 
         IOrderStructs.Order memory myOrder = decodeOrder(orderData);
 
         require(
             msg.sender == myOrder.creator,
-            "Yolo::updateOrder: Only creator can update the order"
+            "Yolo::updateOrder: only creator can update the order"
         );
-        require(
-            minReturnAmount > 0,
-            "Yolo::updateOrder: Amount out can't be zero"
-        );
+        require(minReturnAmount > 0, "Yolo::updateOrder: zero return amount");
         require(
             stoplossAmount < minReturnAmount,
-            "Yolo::updateOrder: stoploss amount should be less than amount out"
+            "Yolo::updateOrder: stoploss amount greater than return amount"
         );
 
         delete orderHash[orderId];
@@ -374,7 +365,7 @@ contract Yolo is
 
         require(
             orderHash[newOrderId] == bytes32(0),
-            "Yolo::updateOrder: There is already an existing order with same id"
+            "Yolo::updateOrder: order already exists with the same id"
         );
 
         newOrderData = abi.encode(
@@ -404,29 +395,27 @@ contract Yolo is
     {
         require(
             orderHash[orderId] == keccak256(orderData),
-            "Yolo::cancelOrder: Order doesn't match"
+            "Yolo::cancelOrder: order doesn't match"
         );
 
         IOrderStructs.Order memory myOrder = decodeOrder(orderData);
 
         require(
             msg.sender == myOrder.creator,
-            "Yolo::cancelOrder: Only creator can cancel the order"
+            "Yolo::cancelOrder: only creator can cancel the order"
         );
 
-        depositPlusYield = removeOrder(
+        depositPlusYield = _removeOrder(
             orderId,
             myOrder.inputToken,
             myOrder.shares
         );
 
         uint256 cancellationFee = 0;
-        uint256 cancellationFeePercent = CANCELLATION_FEE_PERCENT;
-        if (
-            depositPlusYield > myOrder.inputAmount && cancellationFeePercent > 0
-        ) {
+        uint256 feePercent = cancellationFeePercent;
+        if (depositPlusYield > myOrder.inputAmount && feePercent > 0) {
             uint256 yieldEarned = depositPlusYield - myOrder.inputAmount;
-            cancellationFee = yieldEarned.percentMul(cancellationFeePercent);
+            cancellationFee = yieldEarned.percentMul(feePercent);
             if (cancellationFee > 0) {
                 IERC20(myOrder.inputToken).safeTransfer(
                     treasury,
@@ -436,8 +425,8 @@ contract Yolo is
         }
 
         uint256 transferAmount = depositPlusYield - cancellationFee;
-        emit OrderCancelled(orderId, transferAmount);
         IERC20(myOrder.inputToken).safeTransfer(msg.sender, transferAmount);
+        emit OrderCancelled(orderId, transferAmount);
     }
 
     /**
@@ -451,7 +440,7 @@ contract Yolo is
     ) external nonReentrant whenNotPaused {
         require(
             orderHash[orderId] == keccak256(orderData),
-            "Yolo::executeOrder: Order doesn't match"
+            "Yolo::executeOrder: order doesn't match"
         );
 
         IOrderStructs.Order memory myOrder = decodeOrder(orderData);
@@ -459,16 +448,15 @@ contract Yolo is
         if (myOrder.executor != address(0) && myOrder.executor != msg.sender) {
             require(
                 allowedExecutors[myOrder.executor][msg.sender],
-                "Yolo::executeOrder: Order executor mismatch"
+                "Yolo::executeOrder: order executor mismatch"
             );
         }
-
         require(
             allowedHandlers[handler],
-            "Yolo::executeOrder: Not registered handler"
+            "Yolo::executeOrder: unregistered handler"
         );
 
-        uint256 depositPlusYield = removeOrder(
+        uint256 depositPlusYield = _removeOrder(
             orderId,
             myOrder.inputToken,
             myOrder.shares
@@ -477,9 +465,9 @@ contract Yolo is
             myOrder.inputAmount = depositPlusYield;
         }
 
-        uint256 totalFee = getTotalFee(myOrder.inputAmount);
+        uint256 totalFee = _getTotalFee(myOrder.inputAmount);
         if (totalFee > 0) {
-            transferFee(myOrder.inputToken, totalFee, msg.sender);
+            _transferFee(myOrder.inputToken, totalFee, msg.sender);
         }
 
         myOrder.inputAmount = myOrder.inputAmount - totalFee;
@@ -520,7 +508,7 @@ contract Yolo is
     ) external nonReentrant whenNotPaused {
         require(
             orderHash[orderId] == keccak256(orderData),
-            "Yolo::fillOrder: Order doesn't match"
+            "Yolo::fillOrder: order doesn't match"
         );
 
         IOrderStructs.Order memory myOrder = decodeOrder(orderData);
@@ -528,11 +516,11 @@ contract Yolo is
         if (myOrder.executor != address(0) && myOrder.executor != msg.sender) {
             require(
                 allowedExecutors[myOrder.executor][msg.sender],
-                "Yolo::fillOrder: Order executor mismatch"
+                "Yolo::fillOrder: order executor mismatch"
             );
         }
 
-        uint256 depositPlusYield = removeOrder(
+        uint256 depositPlusYield = _removeOrder(
             orderId,
             myOrder.inputToken,
             myOrder.shares
@@ -541,7 +529,7 @@ contract Yolo is
             myOrder.inputAmount = depositPlusYield;
         }
 
-        uint256 totalFee = getTotalFee(myOrder.inputAmount);
+        uint256 totalFee = _getTotalFee(myOrder.inputAmount);
 
         (uint256 oracleAmount, ) = oracle.get(
             myOrder.inputToken,
@@ -553,13 +541,17 @@ contract Yolo is
             quoteAmount <= myOrder.stoplossAmount) &&
             quoteAmount >= oracleAmount);
 
-        require(success, "Yolo::fillOrder: Fill condition doesn't satisfy");
+        require(success, "Yolo::fillOrder: fill condition doesn't satisfy");
 
         emit OrderExecuted(orderId, quoteAmount, depositPlusYield);
 
         uint256 protocolFee = 0;
         if (totalFee > 0) {
-            protocolFee = transferFee(myOrder.inputToken, totalFee, address(0));
+            protocolFee = _transferFee(
+                myOrder.inputToken,
+                totalFee,
+                address(0)
+            );
         }
 
         // caution: external calls to unknown address
@@ -584,42 +576,42 @@ contract Yolo is
     }
 
     /**
-     * @notice rebalance asset according to buffer percent
+     * @notice rebalance token according to buffer
      */
-    function rebalanceAssets(address[] memory assets) public {
+    function rebalanceTokens(address[] memory tokens) public {
         uint256 totalGas = gasleft();
-        for (uint256 i = 0; i < assets.length; i++) {
-            address assetStrategy = strategy[assets[i]];
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address tokenStrategy = strategy[tokens[i]];
             require(
-                assetStrategy != address(0),
-                "Yolo::rebalanceAsset: Rebalance needs some strategy"
+                tokenStrategy != address(0),
+                "Yolo::rebalanceTokens: strategy doesn't exist"
             );
 
-            uint256 balanceInContract = IERC20(assets[i]).balanceOf(
+            uint256 balanceInContract = IERC20(tokens[i]).balanceOf(
                 address(this)
             );
 
-            uint256 balanceInStrategy = IYieldAdapter(assetStrategy)
-                .getTotalUnderlying(assets[i]);
+            uint256 balanceInStrategy = IYieldAdapter(tokenStrategy)
+                .getTotalUnderlying(tokens[i]);
 
             uint256 totalBalance = balanceInContract + balanceInStrategy;
 
             uint256 bufferBalanceNeeded = totalBalance.percentMul(
-                assetBuffer[assets[i]]
+                tokenBuffer[tokens[i]]
             );
 
             if (balanceInContract > bufferBalanceNeeded) {
                 uint256 depositAmount = balanceInContract - bufferBalanceNeeded;
-                IERC20(assets[i]).safeTransfer(assetStrategy, depositAmount);
-                IYieldAdapter(assetStrategy).deposit(assets[i], depositAmount);
+                IERC20(tokens[i]).safeTransfer(tokenStrategy, depositAmount);
+                IYieldAdapter(tokenStrategy).deposit(tokens[i], depositAmount);
             } else if (balanceInContract < bufferBalanceNeeded) {
-                IYieldAdapter(assetStrategy).withdraw(
-                    assets[i],
+                IYieldAdapter(tokenStrategy).withdraw(
+                    tokens[i],
                     bufferBalanceNeeded - balanceInContract
                 );
             }
-            if (i == assets.length - 1) {
-                emit AssetsRebalanced((totalGas - gasleft()) * tx.gasprice);
+            if (i == tokens.length - 1) {
+                emit TokensRebalanced((totalGas - gasleft()) * tx.gasprice);
             }
         }
     }
@@ -655,20 +647,20 @@ contract Yolo is
             );
     }
 
-    function getTotalFunds(
-        address asset,
+    function getTotalTokens(
+        address token,
         uint256 contractBalance,
-        address assetStrategy
-    ) public returns (uint256 totalBalance) {
-        totalBalance = contractBalance;
-        if (assetStrategy != address(0)) {
-            totalBalance =
-                totalBalance +
-                IYieldAdapter(assetStrategy).getTotalUnderlying(asset);
+        address tokenStrategy
+    ) public returns (uint256 totalTokens) {
+        totalTokens = contractBalance;
+        if (tokenStrategy != address(0)) {
+            totalTokens =
+                totalTokens +
+                IYieldAdapter(tokenStrategy).getTotalUnderlying(token);
         }
     }
 
-    function decodeOrder(bytes memory _data)
+    function decodeOrder(bytes memory orderData)
         public
         view
         returns (IOrderStructs.Order memory order)
@@ -684,7 +676,7 @@ contract Yolo is
             uint256 shares,
             address executor
         ) = abi.decode(
-                _data,
+                orderData,
                 (
                     address,
                     address,
@@ -739,15 +731,15 @@ contract Yolo is
     }
 
     /**
-     * @notice Update base execution fee
+     * @notice Update base execution fee oercent
      */
-    function updateBaseFee(uint256 _fee) external onlyOwner {
+    function updateBaseFee(uint256 _feePercent) external onlyOwner {
         require(
-            _fee < 10000,
-            "Yolo::updateBaseFee: value should be less than 10000"
+            _feePercent < 10000,
+            "Yolo::updateBaseFee: fee percent exceeds max threshold"
         );
-        BASE_FEE = _fee;
-        emit UpdatedBaseFee(_fee);
+        baseFeePercent = _feePercent;
+        emit BaseFeeUpdated(_feePercent);
     }
 
     /**
@@ -756,9 +748,9 @@ contract Yolo is
     function updateProtocolFee(uint256 _feePercent) external onlyOwner {
         require(
             _feePercent <= 10000,
-            "Yolo::updateProtocolFee: value exceeds max threshold of 10000"
+            "Yolo::updateProtocolFee: fee percent exceeds max threshold"
         );
-        PROTOCOL_FEE_PERCENT = _feePercent;
+        protocolFeePercent = _feePercent;
         emit ProtocolFeeUpdated(_feePercent);
     }
 
@@ -768,9 +760,10 @@ contract Yolo is
     function updateCancellationFee(uint256 _feePercent) external onlyOwner {
         require(
             _feePercent <= 10000,
-            "Yolo::updateCancellationFee: value exceeds max threshold of 10000"
+            "Yolo::updateCancellationFee: fee percent exceeds max threshold"
         );
-        CANCELLATION_FEE_PERCENT = _feePercent;
+        cancellationFeePercent = _feePercent;
+        emit CancellationFeeUpdated(_feePercent);
     }
 
     /**
@@ -786,60 +779,60 @@ contract Yolo is
     }
 
     /**
-     * @notice Add an asset into whitelist
+     * @notice Add an token into whitelist
      */
-    function addWhitelistAsset(address _asset) external onlyOwner {
-        whitelistedTokens[_asset] = true;
-        emit AddedWhitelistAsset(_asset);
+    function addWhitelistToken(address _token) external onlyOwner {
+        whitelistedTokens[_token] = true;
+        emit AddedWhitelistToken(_token);
     }
 
     /**
-     * @notice Remove a whitelisted asset
+     * @notice Remove a whitelisted token
      */
-    function removeWhitelistAsset(address _asset) external onlyOwner {
-        whitelistedTokens[_asset] = false;
-        emit RemovedWhitelistAsset(_asset);
+    function removeWhitelistToken(address _token) external onlyOwner {
+        whitelistedTokens[_token] = false;
+        emit RemovedWhitelistToken(_token);
     }
 
     /**
-     * @notice set strategy of an asset
+     * @notice Set strategy of an token
      */
-    function setStrategy(address _asset, address _strategy) external onlyOwner {
+    function setStrategy(address _token, address _strategy) external onlyOwner {
         require(
-            strategy[_asset] == address(0),
-            "Yolo::setStrategy: Strategy already exists"
+            strategy[_token] == address(0),
+            "Yolo::setStrategy: strategy already exists"
         );
-        _updateAssetStrategy(_asset, _strategy);
+        _updateTokenStrategy(_token, _strategy);
     }
 
     /**
      * @notice Migrate to new strategy
      */
-    function migrateStrategy(address asset, address newStrategy)
+    function migrateStrategy(address _token, address _newStrategy)
         external
         onlyOwner
     {
-        address previousStrategy = strategy[asset];
+        address previousStrategy = strategy[_token];
         require(
             previousStrategy != address(0),
-            "Yolo::migrateStrategy: no strategy for asset exists"
+            "Yolo::migrateStrategy: no previous strategy exists"
         );
         require(
-            previousStrategy != newStrategy,
-            "Yolo::migrateStrategy: new strategy shouldn't be same"
+            previousStrategy != _newStrategy,
+            "Yolo::migrateStrategy: new strategy same as previous"
         );
 
-        IYieldAdapter(previousStrategy).withdrawAll(asset);
+        IYieldAdapter(previousStrategy).withdrawAll(_token);
 
         require(
-            IYieldAdapter(previousStrategy).getTotalUnderlying(asset) == 0,
-            "Yolo::migrateStrategy: strategy withdrawAll failed"
+            IYieldAdapter(previousStrategy).getTotalUnderlying(_token) == 0,
+            "Yolo::migrateStrategy: withdraw from strategy failed"
         );
 
-        if (newStrategy != address(0)) {
-            _updateAssetStrategy(asset, newStrategy);
+        if (_newStrategy != address(0)) {
+            _updateTokenStrategy(_token, _newStrategy);
         } else {
-            strategy[asset] = newStrategy;
+            strategy[_token] = _newStrategy;
         }
     }
 
@@ -862,35 +855,34 @@ contract Yolo is
     }
 
     /**
-     * @notice Withdraw all assets from strategies including rewards
+     * @notice Withdraw all tokens from strategies including rewards
      * @dev Only in emergency case. Transfer rewards to Yolo contract
      */
-    function emergencyWithdrawFromStrategy(address[] calldata assets)
+    function emergencyWithdrawFromStrategy(address[] calldata _tokens)
         external
         onlyEmergencyAdminOrOwner
     {
-        for (uint256 i = 0; i < assets.length; i++) {
-            address asset = assets[i];
-            address assetStrategy = strategy[asset];
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            address token = _tokens[i];
+            address tokenStrategy = strategy[token];
 
-            IYieldAdapter(assetStrategy).withdrawAll(asset);
-            emit EmergencyWithdraw(asset);
+            IYieldAdapter(tokenStrategy).withdrawAll(token);
         }
     }
 
     /**
-     * @notice Update asset buffer percentage
+     * @notice Update token buffer percent
      */
-    function updateBufferPercentage(address asset, uint256 value)
+    function updateTokenBuffer(address _token, uint256 _bufferPercent)
         external
         onlyEmergencyAdminOrOwner
     {
         require(
-            value <= 10000,
-            "Yolo::updateBufferPercentage: not correct buffer percent."
+            _bufferPercent <= 10000,
+            "Yolo::updateTokenBuffer: buffer percent exceeds max threshold"
         );
-        assetBuffer[asset] = value;
-        emit UpdatedBufferPercentage(asset, value);
+        tokenBuffer[_token] = _bufferPercent;
+        emit TokenBufferUpdated(_token, _bufferPercent);
     }
 
     /**
@@ -920,67 +912,67 @@ contract Yolo is
     // ************************** //
 
     /**
-     * @notice Update Strategy of an asset
+     * @notice Update Strategy of an token
      */
-    function _updateAssetStrategy(address _asset, address _strategy) internal {
+    function _updateTokenStrategy(address _token, address _strategy) internal {
         if (_strategy != address(0)) {
-            emit AssetStrategyUpdated(_asset, _strategy);
-            strategy[_asset] = _strategy;
-            address[] memory assets = new address[](1);
-            assets[0] = _asset;
-            rebalanceAssets(assets);
+            emit TokenStrategyUpdated(_token, _strategy);
+            strategy[_token] = _strategy;
+            address[] memory tokens = new address[](1);
+            tokens[0] = _token;
+            rebalanceTokens(tokens);
         }
     }
 
-    function getTotalFee(uint256 _amount)
+    function _getTotalFee(uint256 _amount)
         internal
         view
         returns (uint256 totalFee)
     {
-        totalFee = _amount.percentMul(BASE_FEE);
+        totalFee = _amount.percentMul(baseFeePercent);
     }
 
-    function transferFee(
-        address token,
-        uint256 totalFee,
-        address executor
+    function _transferFee(
+        address _token,
+        uint256 _totalFee,
+        address _executor
     ) internal returns (uint256 protocolFee) {
         address treasuryAddress = treasury;
-        uint256 protocolFeePercent = PROTOCOL_FEE_PERCENT;
+        uint256 _protocolFeePercent = protocolFeePercent;
 
-        if (treasuryAddress != address(0) && protocolFeePercent > 0) {
-            protocolFee = totalFee.percentMul(protocolFeePercent);
-            IERC20(token).safeTransfer(treasuryAddress, protocolFee);
+        if (treasuryAddress != address(0) && _protocolFeePercent > 0) {
+            protocolFee = _totalFee.percentMul(_protocolFeePercent);
+            IERC20(_token).safeTransfer(treasuryAddress, protocolFee);
         }
 
-        if (executor != address(0) && protocolFee < totalFee) {
-            IERC20(token).safeTransfer(executor, totalFee - protocolFee);
+        if (_executor != address(0) && protocolFee < _totalFee) {
+            IERC20(_token).safeTransfer(_executor, _totalFee - protocolFee);
         }
     }
 
-    function removeOrder(
-        bytes32 orderId,
-        address inputToken,
-        uint256 shares
+    function _removeOrder(
+        bytes32 _orderId,
+        address _token,
+        uint256 _shares
     ) internal returns (uint256 depositPlusYield) {
-        delete orderHash[orderId];
-        address assetStrategy = strategy[inputToken];
-        uint256 contractBal = IERC20(inputToken).balanceOf(address(this));
-        uint256 totalTokens = getTotalFunds(
-            inputToken,
+        delete orderHash[_orderId];
+        address tokenStrategy = strategy[_token];
+        uint256 contractBal = IERC20(_token).balanceOf(address(this));
+        uint256 totalTokens = getTotalTokens(
+            _token,
             contractBal,
-            assetStrategy
+            tokenStrategy
         );
-        uint256 totalShares = totalAssetShares[inputToken];
-        totalAssetShares[inputToken] = totalShares - shares;
-        depositPlusYield = (shares * totalTokens) / (totalShares);
+        uint256 totalShares = totalTokenShares[_token];
+        totalTokenShares[_token] = totalShares - _shares;
+        depositPlusYield = (_shares * totalTokens) / (totalShares);
 
-        if (contractBal < depositPlusYield && assetStrategy != address(0)) {
+        if (contractBal < depositPlusYield && tokenStrategy != address(0)) {
             uint256 neededAmountInBuffer = (totalTokens - depositPlusYield)
-                .percentMul(assetBuffer[inputToken]);
+                .percentMul(tokenBuffer[_token]);
 
-            IYieldAdapter(assetStrategy).withdraw(
-                inputToken,
+            IYieldAdapter(tokenStrategy).withdraw(
+                _token,
                 depositPlusYield + neededAmountInBuffer - contractBal
             );
         }

@@ -43,14 +43,14 @@ async function main() {
             await tx1.wait();
 
             if (data.buffer > 0) {
-                const tx2 = await yolo.updateBufferPercentage(
+                const tx2 = await yolo.updateTokenBuffer(
                     data.address,
                     data.buffer,
                 );
                 await tx2.wait();
             }
 
-            const tx3 = await yolo.addWhitelistAsset(data.address);
+            const tx3 = await yolo.addWhitelistToken(data.address);
             await tx3.wait();
 
             if (network.name === "mumbai") {

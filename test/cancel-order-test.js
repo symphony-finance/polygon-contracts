@@ -82,7 +82,7 @@ describe("Cancel Order Test", () => {
 
         await usdcContract.approve(yolo.address, approveAmount);
 
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
         const createTx = await yolo.createOrder(
@@ -188,7 +188,7 @@ describe("Cancel Order Test", () => {
         );
 
         await yolo.setStrategy(usdcAddress, aaveYield.address);
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
         const tx1 = await yolo.createOrder(
@@ -308,7 +308,7 @@ describe("Cancel Order Test", () => {
         const bufferPercent = 0;
 
         await yolo.setStrategy(usdcAddress, aaveYield.address);
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         await usdcContract.approve(yolo.address, approveAmount);
 
@@ -420,7 +420,7 @@ describe("Cancel Order Test", () => {
         const bufferPercent = 0;
 
         await yolo.setStrategy(usdcAddress, aaveYield.address);
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         await usdcContract.approve(yolo.address, approveAmount);
 
@@ -556,7 +556,7 @@ describe("Cancel Order Test", () => {
         );
 
         await yolo.setStrategy(usdcAddress, aaveYield.address);
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
         await yolo.updateCancellationFee(1000); // 10%
         await yolo.updateTreasury(treasury);
 
@@ -588,7 +588,7 @@ describe("Cancel Order Test", () => {
         };
 
         const yoloContractBal = await usdcContract.balanceOf(yolo.address);
-        const depositPlusYield = await yolo.callStatic.getTotalFunds(
+        const depositPlusYield = await yolo.callStatic.getTotalTokens(
             usdcAddress, yoloContractBal, aaveYield.address
         );
         const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmt));

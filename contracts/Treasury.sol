@@ -13,7 +13,7 @@ contract Treasury is Initializable, OwnableUpgradeable {
         super.transferOwnership(_admin);
     }
 
-    function withdrawMatic(address payable receiver, uint256 amount)
+    function withdrawNativeToken(address payable receiver, uint256 amount)
         external
         onlyOwner
     {
@@ -21,11 +21,11 @@ contract Treasury is Initializable, OwnableUpgradeable {
     }
 
     function withdrawToken(
-        IERC20 asset,
+        IERC20 token,
         address receiver,
         uint256 amount
     ) external onlyOwner {
-        asset.safeTransfer(receiver, amount);
+        token.safeTransfer(receiver, amount);
     }
 
     /**

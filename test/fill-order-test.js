@@ -137,8 +137,8 @@ describe("Fill Order Test", () => {
         );
 
         await yolo.setStrategy(daiAddress, aaveYield.address);
-        await yolo.updateBufferPercentage(daiAddress, 4000);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.updateTokenBuffer(daiAddress, 4000);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -197,7 +197,7 @@ describe("Fill Order Test", () => {
         };
 
         const contractBal = await daiContract.balanceOf(yolo.address);
-        const totalTokens = await yolo.callStatic.getTotalFunds(
+        const totalTokens = await yolo.callStatic.getTotalTokens(
             daiAddress, contractBal, aaveYield.address
         );
         const depositPlusYield = totalTokens; // as there is only one order

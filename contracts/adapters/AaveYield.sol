@@ -154,7 +154,7 @@ contract AaveYield is IYieldAdapter {
     /**
      * @dev Used to get IOU token address
      **/
-    function getYieldTokenAddress(address)
+    function getIouTokenAddress(address)
         public
         view
         override

@@ -101,11 +101,11 @@ describe("Update Order Test", () => {
         );
 
         await yolo.setStrategy(daiAddress, aaveYield.address);
-        await yolo.updateBufferPercentage(daiAddress, 4000);
+        await yolo.updateTokenBuffer(daiAddress, 4000);
 
         await daiContract.approve(yolo.address, approveAmount);
 
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         // Create Order
         const tx = await yolo.createOrder(
@@ -124,7 +124,7 @@ describe("Update Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        await yolo.rebalanceAssets([daiAddress]);
+        await yolo.rebalanceTokens([daiAddress]);
 
         // Advancing 100 blocks
         for (let i = 0; i < 100; ++i) {

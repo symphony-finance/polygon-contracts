@@ -30,12 +30,12 @@ contract ChainlinkOracle is IOracle, Ownable {
         require(inputToken != outputToken, "same input and output token");
         require(
             oracleFeed[inputToken] != address(0),
-            "Oracle feed doesn't exist for the input asset"
+            "oracle feed doesn't exist for the input token"
         );
 
         require(
             oracleFeed[outputToken] != address(0),
-            "Oracle feed doesn't exist for the output asset"
+            "oracle feed doesn't exist for the output token"
         );
 
         if (inputToken != address(0)) {
@@ -68,12 +68,12 @@ contract ChainlinkOracle is IOracle, Ownable {
         );
     }
 
-    function updateTokenFeeds(address[] memory assets, address[] memory feeds)
+    function updateTokenFeeds(address[] memory tokens, address[] memory feeds)
         external
         onlyOwner
     {
-        for (uint256 i = 0; i < assets.length; i++) {
-            oracleFeed[assets[i]] = feeds[i];
+        for (uint256 i = 0; i < tokens.length; i++) {
+            oracleFeed[tokens[i]] = feeds[i];
         }
     }
 

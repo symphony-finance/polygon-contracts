@@ -46,7 +46,7 @@ const approveAmount = new BigNumber(100)
     .toString();
 
 describe("Migrate Strategy Test", () => {
-    it("Should migrate existing strategy to new strategy and transfer assets to new stratregy", async () => {
+    it("Should migrate existing strategy to new strategy and transfer tokens to new stratregy", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -105,7 +105,7 @@ describe("Migrate Strategy Test", () => {
         );
 
         await yolo.setStrategy(daiAddress, aaveYield.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         const approveAmount = new BigNumber(100)
             .times(
@@ -174,7 +174,7 @@ describe("Migrate Strategy Test", () => {
             );
     });
 
-    it("Should remove strategy of an asset", async () => {
+    it("Should remove strategy of a token", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -233,7 +233,7 @@ describe("Migrate Strategy Test", () => {
         );
 
         await yolo.setStrategy(daiAddress, aaveYield.address);
-        await yolo.addWhitelistAsset(daiAddress);
+        await yolo.addWhitelistToken(daiAddress);
 
         await daiContract.approve(yolo.address, approveAmount);
 
@@ -297,7 +297,7 @@ describe("Migrate Strategy Test", () => {
         await expect(
             yolo.migrateStrategy(usdcAddress, ZERO_ADDRESS)
         ).to.be.revertedWith(
-            "Yolo::migrateStrategy: no strategy for asset exists"
+            "Yolo::migrateStrategy: no previous strategy exists"
         );
     });
 
@@ -358,7 +358,7 @@ describe("Migrate Strategy Test", () => {
         await expect(
             yolo.migrateStrategy(usdcAddress, aaveYield.address)
         ).to.be.revertedWith(
-            "Yolo::migrateStrategy: new strategy shouldn't be same"
+            "Yolo::migrateStrategy: new strategy same as previous"
         );
     });
 });

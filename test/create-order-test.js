@@ -87,9 +87,9 @@ describe("Create Order Test", () => {
         await daiContract.approve(yolo.address, approveAmount);
         await usdcContract.approve(yolo.address, approveAmount);
 
-        expect(await yolo.totalAssetShares(usdcAddress)).to.eq(0);
+        expect(await yolo.totalTokenShares(usdcAddress)).to.eq(0);
 
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create 1st Order
         await yolo.createOrder(
@@ -161,7 +161,7 @@ describe("Create Order Test", () => {
         await treasury.deployed();
         await yolo.updateTreasury(treasury.address);
 
-        await yolo.addWhitelistAsset(configParams.wethAddress);
+        await yolo.addWhitelistToken(configParams.wethAddress);
 
         const depositAmount = new BigNumber(10).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
@@ -200,7 +200,7 @@ describe("Create Order Test", () => {
         );
 
         expect(
-            await yolo.totalAssetShares(configParams.wethAddress)
+            await yolo.totalTokenShares(configParams.wethAddress)
         ).to.eq(depositAmount);
 
         const orderHash = await yolo.orderHash(orderId);
@@ -287,12 +287,12 @@ describe("Create Order Test", () => {
         await daiContract.approve(yolo.address, approveAmount);
         await usdcContract.approve(yolo.address, approveAmount);
 
-        expect(await yolo.totalAssetShares(usdcAddress)).to.eq(0);
+        expect(await yolo.totalTokenShares(usdcAddress)).to.eq(0);
 
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // check the state changes
-        let totalSharesBefore = await yolo.totalAssetShares(
+        let totalSharesBefore = await yolo.totalTokenShares(
             usdcAddress
         );
 
@@ -313,13 +313,13 @@ describe("Create Order Test", () => {
         );
 
         // check the state changes
-        let totalSharesAfter = await yolo.totalAssetShares(
+        let totalSharesAfter = await yolo.totalTokenShares(
             usdcAddress
         );
 
         expect(totalSharesAfter).to.eq(1);
 
-        totalSharesBefore = await yolo.totalAssetShares(
+        totalSharesBefore = await yolo.totalTokenShares(
             usdcAddress
         );
 
@@ -343,7 +343,7 @@ describe("Create Order Test", () => {
             executor
         );
 
-        totalSharesAfter = await yolo.totalAssetShares(
+        totalSharesAfter = await yolo.totalTokenShares(
             usdcAddress
         );
         expect(totalSharesAfter).to.eq(10000000000001);
@@ -414,12 +414,12 @@ describe("Create Order Test", () => {
             aaveYield.address,
         );
 
-        await yolo.updateBufferPercentage(
+        await yolo.updateTokenBuffer(
             usdcAddress,
             0, // 40%
         );
 
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
         const tx = await yolo.createOrder(
@@ -519,12 +519,12 @@ describe("Create Order Test", () => {
             aaveYield.address,
         );
 
-        await yolo.updateBufferPercentage(
+        await yolo.updateTokenBuffer(
             usdcAddress,
             10000, // 100%
         );
 
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
         const tx = await yolo.createOrder(
@@ -591,7 +591,7 @@ describe("Create Order Test", () => {
 
         await usdcContract.approve(yolo.address, approveAmount);
 
-        expect(await yolo.totalAssetShares(usdcAddress)).to.eq(0);
+        expect(await yolo.totalTokenShares(usdcAddress)).to.eq(0);
 
         const AaveYield = await ethers.getContractFactory("AaveYield");
 
@@ -619,12 +619,12 @@ describe("Create Order Test", () => {
 
         const bufferPercent = 40; // 40%
 
-        await yolo.updateBufferPercentage(
+        await yolo.updateTokenBuffer(
             usdcAddress,
             bufferPercent * 100, // 4000
         );
 
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
         const tx = await yolo.createOrder(
@@ -637,7 +637,7 @@ describe("Create Order Test", () => {
             executor
         );
 
-        expect(await yolo.totalAssetShares(usdcAddress)).to.eq(inputAmount);
+        expect(await yolo.totalTokenShares(usdcAddress)).to.eq(inputAmount);
 
         const receipt = await tx.wait();
 
@@ -711,7 +711,7 @@ describe("Create Order Test", () => {
         await usdcContract.approve(yolo.address, approveAmount);
 
         await yolo.pause();
-        await yolo.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         await expect(
             yolo.createOrder(
@@ -791,7 +791,7 @@ describe("Create Order Test", () => {
 
     //     await usdcContract.approve(yolo.address, approveAmount);
 
-    //     await yolo.addWhitelistAsset(usdcAddress);
+    //     await yolo.addWhitelistToken(usdcAddress);
 
     //     // Create Order
     //     await yolo.createOrder(

@@ -163,7 +163,7 @@ describe("Chainlink Oracle Test", () => {
                 usdcAddress, daiAddress, inputAmount
             )
         ).to.be.revertedWith(
-            "Oracle feed doesn't exist for the input asset"
+            "oracle feed doesn't exist for the input token"
         );
 
         await chainlinkOracle.updateTokenFeeds(
@@ -176,7 +176,7 @@ describe("Chainlink Oracle Test", () => {
                 usdcAddress, daiAddress, inputAmount
             )
         ).to.be.revertedWith(
-            "Oracle feed doesn't exist for the output asset"
+            "oracle feed doesn't exist for the output token"
         );
     });
 

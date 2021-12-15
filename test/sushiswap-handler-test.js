@@ -50,7 +50,7 @@ const order = {
 };
 
 describe("Sushiswap Handler Test", () => {
-    it("should swap asset", async () => {
+    it("should swap token", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -140,7 +140,7 @@ describe("Sushiswap Handler Test", () => {
             .greaterThanOrEqual(Number(expectedReturn));
     });
 
-    it("should swap asset with hops", async () => {
+    it("should swap token with hops", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]

@@ -47,7 +47,7 @@ const order = {
 };
 
 describe("Mstable Handler Test", () => {
-    it("should swap asset for Stable-Stable pair", async () => {
+    it("should swap token for Stable-Stable pair", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -138,7 +138,7 @@ describe("Mstable Handler Test", () => {
         );
     });
 
-    it("should swap asset for mUSD-Stable pair", async () => {
+    it("should swap token for mUSD-Stable pair", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0x5C80E54f903458edD0723e268377f5768C7869d7"]
