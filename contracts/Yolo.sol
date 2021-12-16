@@ -36,7 +36,7 @@ contract Yolo is
     /// Total fee (protocol_fee + relayer_fee)
     uint256 public baseFeePercent; // 1 for 0.01%
 
-    /// Protocol fee: base_fee_percent - relayer_ee
+    /// Protocol fee: base_fee_percent - relayer_fee
     uint256 public protocolFeePercent;
 
     /// Cancellation fee: x% of total yield
