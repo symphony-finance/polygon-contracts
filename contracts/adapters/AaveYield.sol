@@ -25,7 +25,7 @@ contract AaveYield is IYieldAdapter {
     address internal immutable aTokenAddress;
     IAaveLendingPool public immutable lendingPool;
     IAaveIncentivesController public immutable incentivesController;
-    address public immutable rewardToken;
+    address public immutable rewardToken;  // can only be native token i.e WMATIC
     uint16 internal constant referralCode = 43915;
 
     // Addresses related to swap
