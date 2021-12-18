@@ -19,7 +19,7 @@ contract MstableYield is IYieldAdapter {
     modifier onlyYolo() {
         require(
             msg.sender == yolo,
-            "MstableYield: Only yolo contract can invoke this function"
+            "MstableYield: only yolo contract can invoke this function"
         );
         _;
     }

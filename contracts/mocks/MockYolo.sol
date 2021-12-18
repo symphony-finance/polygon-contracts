@@ -85,7 +85,7 @@ contract MockYolo is
     modifier onlyEmergencyAdminOrOwner() {
         require(
             _msgSender() == emergencyAdmin || _msgSender() == owner(),
-            "Yolo: Only emergency admin or owner can invoke this function"
+            "Yolo: only emergency admin or owner can invoke this function"
         );
         _;
     }

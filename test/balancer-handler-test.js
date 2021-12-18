@@ -351,7 +351,7 @@ describe("Balancer Handler Test", () => {
                 order.minReturnAmount + 1, // false oracle amount
                 data
             ),
-            "BalancerHandler: Incorrect output token amount recieved !!"
+            "BalancerHandler: incorrect output token amount recieved"
         )
     });
 
@@ -465,7 +465,7 @@ describe("Balancer Handler Test", () => {
                 oracleResult.amountOutWithSlippage,
                 data1
             ),
-            "BalancerHandler: Oracle amount doesn't match with return amount !!"
+            "BalancerHandler: oracle amount doesn't match with return amount"
         );
 
         const increasedInputAmt = new BigNumber(1.5).times(
@@ -517,7 +517,7 @@ describe("Balancer Handler Test", () => {
                 oracleResult.amountOutWithSlippage,
                 data3
             ),
-            "BalancerHandler: Oracle amount doesn't match with return amount !!"
+            "BalancerHandler: oracle amount doesn't match with return amount"
         );
     });
 });

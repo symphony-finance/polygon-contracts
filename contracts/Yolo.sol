@@ -85,7 +85,7 @@ contract Yolo is
     modifier onlyEmergencyAdminOrOwner() {
         require(
             _msgSender() == emergencyAdmin || _msgSender() == owner(),
-            "Yolo: Only emergency admin or owner can invoke this function"
+            "Yolo: only emergency admin or owner can invoke this function"
         );
         _;
     }
@@ -795,7 +795,7 @@ contract Yolo is
     }
 
     /**
-     * @notice Set strategy of an token
+     * @notice Set strategy of a token
      */
     function setStrategy(address _token, address _strategy) external onlyOwner {
         require(

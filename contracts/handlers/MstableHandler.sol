@@ -27,7 +27,7 @@ contract MstableHandler is IHandler {
     modifier onlyYolo() {
         require(
             msg.sender == yolo,
-            "MstableHandler: Only yolo contract can invoke this function"
+            "MstableHandler: only yolo contract can invoke this function"
         );
         _;
     }
@@ -57,12 +57,12 @@ contract MstableHandler is IHandler {
         require(
             minOutputQuantity >= order.minReturnAmount ||
                 minOutputQuantity <= order.stoplossAmount,
-            "MstableHandler: Order condition doesn't satisfy."
+            "MstableHandler: order condition doesn't satisfy."
         );
 
         require(
             minOutputQuantity >= oracleAmount,
-            "MstableHandler: Oracle amount doesn't match."
+            "MstableHandler: oracle amount doesn't match."
         );
 
         IERC20(order.inputToken).safeIncreaseAllowance(
@@ -89,7 +89,7 @@ contract MstableHandler is IHandler {
 
         require(
             actualAmtOut >= minOutputQuantity,
-            "MstableHandler: Actual swap amount less than min output amount."
+            "MstableHandler: actual swap amount less than min output amount"
         );
     }
 }

@@ -40,7 +40,7 @@ contract Reward is Initializable, OwnableUpgradeable {
 
         require(
             unclaimedReward > 0,
-            "claimReward: You don't have any unclaimed rewards"
+            "claimReward: you don't have any unclaimed rewards"
         );
 
         reward[msg.sender] = 0;

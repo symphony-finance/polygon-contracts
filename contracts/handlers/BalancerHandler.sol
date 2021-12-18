@@ -54,7 +54,7 @@ contract BalancerHandler is IHandler {
     modifier onlyYolo() {
         require(
             msg.sender == yolo,
-            "BalancerHandler: Only yolo contract can invoke this function"
+            "BalancerHandler: only yolo contract can invoke this function"
         );
         _;
     }
@@ -84,18 +84,18 @@ contract BalancerHandler is IHandler {
         );
         require(
             balAfterSwap - balBeforeSwap >= actualAmtOut,
-            "BalancerHandler: Incorrect output token amount recieved !!"
+            "BalancerHandler: incorrect output token amount recieved"
         );
 
         require(
             actualAmtOut >= order.minReturnAmount ||
                 actualAmtOut <= order.stoplossAmount,
-            "BalancerHandler: Order condition doesn't satisfy !!"
+            "BalancerHandler: order condition doesn't satisfy"
         );
 
         require(
             actualAmtOut >= oracleAmount,
-            "BalancerHandler: Oracle amount doesn't match with return amount !!"
+            "BalancerHandler: oracle amount doesn't match with return amount"
         );
     }
 

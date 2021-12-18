@@ -37,7 +37,7 @@ contract AaveYield is IYieldAdapter {
     modifier onlyYolo() {
         require(
             msg.sender == yolo,
-            "AaveYield: Only yolo contract can invoke this function"
+            "AaveYield: only yolo contract can invoke this function"
         );
         _;
     }
@@ -45,7 +45,7 @@ contract AaveYield is IYieldAdapter {
     modifier onlyManager() {
         require(
             msg.sender == manager,
-            "AaveYield: Only manager contract can invoke this function"
+            "AaveYield: only manager contract can invoke this function"
         );
         _;
     }
@@ -60,8 +60,8 @@ contract AaveYield is IYieldAdapter {
         IAaveLendingPool _lendingPool,
         IAaveIncentivesController _incentivesController
     ) {
-        require(_yolo != address(0), "Yolo:: zero address");
-        require(_manager != address(0), "Manager:: zero address");
+        require(_yolo != address(0), "yolo: zero address");
+        require(_manager != address(0), "manager: zero address");
         require(
             address(_lendingPool) != address(0),
             "lendingPool:: zero address"
@@ -219,7 +219,7 @@ contract AaveYield is IYieldAdapter {
         require(
             _route[0] == rewardToken &&
                 _route[_route.length - 1] == tokenAddress,
-            "AaveYield::updateRoute: Incorrect route"
+            "AaveYield::updateRoute: incorrect route"
         );
         route = _route;
     }
@@ -247,7 +247,7 @@ contract AaveYield is IYieldAdapter {
 
     function _swapRewards(uint256 _amount) internal {
         try
-            IUniswapRouter(router).swapExactTokensForTokens(
+            router.swapExactTokensForTokens(
                 _amount,
                 0,
                 route,
@@ -255,7 +255,7 @@ contract AaveYield is IYieldAdapter {
                 block.timestamp
             )
         {} catch {
-            IUniswapRouter(backupRouter).swapExactTokensForTokens(
+            backupRouter.swapExactTokensForTokens(
                 _amount,
                 0,
                 route,

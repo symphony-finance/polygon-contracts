@@ -44,7 +44,7 @@ contract QuickswapHandler is IHandler {
     modifier onlyYolo() {
         require(
             msg.sender == yolo,
-            "QuickswapHandler: Only yolo contract can invoke this function"
+            "QuickswapHandler: only yolo contract can invoke this function"
         );
         _;
     }

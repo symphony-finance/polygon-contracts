@@ -44,7 +44,7 @@ contract SushiswapHandler is IHandler {
     modifier onlyYolo() {
         require(
             msg.sender == yolo,
-            "SushiswapHandler: Only yolo contract can invoke this function"
+            "SushiswapHandler: only yolo contract can invoke this function"
         );
         _;
     }
