@@ -55,12 +55,10 @@ module.exports = {
         },
         mumbai: {
             hardfork: HARDFORK,
-            url: `https://rpc-mumbai.maticvigil.com/`,
+            url: `https://rpc-mumbai.maticvigil.com`,
             accounts: [`0x${process.env.TESTNET_PRIVATE_KEY}`],
             chainId: 80001,
-            blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
-            gasMultiplier: DEFAULT_GAS_MUL,
-            gasPrice: 1 * GWEI
+            gasPrice: 30 * GWEI
         },
         rinkeby: {
             url: `https://eth-rinkeby.alchemyapi.io/v2/${ALCHEMY_KEY}`,

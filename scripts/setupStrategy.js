@@ -5,7 +5,7 @@ const file = require("../config/asset.json");
 const config = require("../config/index.json");
 const assetConfig = require("../config/asset.json");
 const { deployAaveYield } = require('./adapters/deployAaveYield');
-const YoloArtifacts = require( "../artifacts/contracts/Yolo.sol/Yolo.json");
+const YoloArtifacts = require("../artifacts/contracts/Yolo.sol/Yolo.json");
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -32,9 +32,9 @@ async function main() {
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];
 
-        if (data.address && !data.strategy) {
+        if (data.address && !data.aaveStrategy) {
             console.log("\nSetting up strategy for", data.token);
-            const strategyAddr = await deployAaveYield(data.token);
+            const strategyAddr = await deployAaveYield(data.address);
 
             const tx1 = await yolo.setStrategy(
                 data.address,
@@ -50,14 +50,7 @@ async function main() {
                 await tx2.wait();
             }
 
-            const tx3 = await yolo.addWhitelistToken(data.address);
-            await tx3.wait();
-
-            if (network.name === "mumbai") {
-                file.mumbai[i].strategy = strategyAddr;
-            } else if (network.name === "matic") {
-                file.matic[i].strategy = strategyAddr;
-            }
+            file[network.name][i].aaveStrategy = strategyAddr;
 
             fs.writeFileSync(
                 path.join(__dirname, fileName),

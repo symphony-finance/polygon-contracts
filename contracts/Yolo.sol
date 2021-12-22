@@ -99,13 +99,14 @@ contract Yolo is
         uint256 _baseFeePercent,
         IOracle _oracle
     ) external initializer {
-        baseFeePercent = _baseFeePercent;
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         super.transferOwnership(_owner);
-        emergencyAdmin = _emergencyAdmin;
         oracle = _oracle;
+        baseFeePercent = _baseFeePercent;
+        emergencyAdmin = _emergencyAdmin;
+        emit BaseFeeUpdated(_baseFeePercent);
     }
 
     /**

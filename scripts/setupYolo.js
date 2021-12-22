@@ -32,12 +32,14 @@ async function main() {
     await deploySushiswapHandler();
 
     // Note: Only deploy on matic mainnet (not on testnet)
-    console.log("\nDeploying QuickswapHandler..");
-    await deployQuickswapHandler();
+    if (network.name === "matic") {
+        console.log("\nDeploying QuickswapHandler..");
+        await deployQuickswapHandler();
 
-    // Note: Only deploy on matic mainnet (not on testnet)
-    console.log("\nDeploying BalancerHandler..");
-    await deployBalancerHandler();
+        // Note: Only deploy on matic mainnet (not on testnet)
+        console.log("\nDeploying BalancerHandler..");
+        await deployBalancerHandler();
+    }
 
     let configParams = config.development;
     if (network.name === "matic") {
@@ -79,14 +81,27 @@ async function main() {
     );
     await tx3.wait();
 
+    const tokenAddresses = [];
+    const priceFeeds = [];
+
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];
-        console.log("\nsetting feed & startegy for asset ", i + 1);
 
-        if (data.feed) {
-            await chainlinkOracle.updateTokenFeed(
-                data.address,
-                data.feed,
+        if (data.address) {
+            const tx = await yolo.addWhitelistToken(data.address);
+            await tx.wait();
+
+            if (data.feed) {
+                tokenAddresses.push(data.address)
+                priceFeeds.push(data.feed)
+            }
+        }
+
+        if (i === assetsData.length - 1) {
+            console.log("\nupdating oracle price feeds..");
+            await chainlinkOracle.updateTokenFeeds(
+                tokenAddresses,
+                priceFeeds,
             );
         }
     }
