@@ -13,25 +13,49 @@ contract Treasury is Initializable, OwnableUpgradeable {
         super.transferOwnership(_admin);
     }
 
-    function withdrawNativeToken(address payable receiver, uint256 amount)
+    /**
+        @notice Allows to withdraw native token. Only callable by the owner.
+        @param amount The amount of token to withdraw
+        @param receiver The address of the receiver
+     */
+    function withdrawNativeToken(uint256 amount, address payable receiver)
         external
         onlyOwner
     {
         _safeTransferMatic(receiver, amount);
     }
 
-    function withdrawToken(
-        IERC20 token,
-        address receiver,
-        uint256 amount
+    /**
+        @notice Allows to withdraw tokens. Only callable by the owner.
+        @param tokens Array of token addresses
+        @param amounts Array of amounts of each token
+        @param receivers Address of each token receiver
+     */
+    function withdrawTokens(
+        IERC20[] memory tokens,
+        uint256[] memory amounts,
+        address[] memory receivers
     ) external onlyOwner {
-        token.safeTransfer(receiver, amount);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            tokens[i].safeTransfer(receivers[i], amounts[i]);
+        }
     }
 
     /**
-     * @dev transfer WMATIC to an address, revert if it fails.
-     * @param to recipient of the transfer
-     * @param value the amount to send
+        @notice Allows the owner to make arbitary call.
+        @param target The contract to call
+        @param data The calldata
+     */
+    function call(address payable target, bytes calldata data)
+        external
+        onlyOwner
+    {
+        (bool success, ) = target.call{value: 0}(data);
+        require(success, "CALL_FAILED");
+    }
+
+    /**
+     * @dev Transfer matic token to the address, revert if it fails.
      */
     function _safeTransferMatic(address to, uint256 value) internal {
         (bool success, ) = to.call{value: value}(new bytes(0));
