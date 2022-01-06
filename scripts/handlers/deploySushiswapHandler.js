@@ -2,12 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { network } = require("hardhat");
-const fileName = "../config/index.json";
-const file = require("../config/index.json");
-const config = require("../config/index.json");
-const SymphonyArtifacts = require(
-    '../artifacts/contracts/Symphony.sol/Symphony.json'
-);
+const fileName = "../../config/index.json";
+const file = require("../../config/index.json");
+const config = require("../../config/index.json");
+const YoloArtifacts = require('../../artifacts/contracts/Yolo.sol/Yolo.json');
 
 const main = () => {
     return new Promise(async (resolve) => {
@@ -27,7 +25,7 @@ const main = () => {
             configParams.wethAddress, // WETH
             configParams.wmaticAddress, // WMATIC
             configParams.sushiswapCodeHash,
-            configParams.symphonyAddress
+            configParams.yoloAddress
         ).then(async (sushiswapHandler) => {
             await sushiswapHandler.deployed();
 
@@ -51,14 +49,14 @@ const main = () => {
 
             const [deployer] = await ethers.getSigners();
 
-            // Set Handler In Symphony Contract
-            const symphony = new ethers.Contract(
-                configParams.symphonyAddress,
-                SymphonyArtifacts.abi,
+            // Set Handler In Yolo Contract
+            const yolo = new ethers.Contract(
+                configParams.yoloAddress,
+                YoloArtifacts.abi,
                 deployer
             );
 
-            const tx = await symphony.addHandler(sushiswapHandler.address);
+            const tx = await yolo.addHandler(sushiswapHandler.address);
             await tx.wait();
 
             resolve(true);

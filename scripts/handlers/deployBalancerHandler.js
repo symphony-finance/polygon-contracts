@@ -2,12 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
 const { network } = require("hardhat");
-const fileName = "../config/index.json";
-const file = require("../config/index.json");
-const config = require("../config/index.json");
-const SymphonyArtifacts = require(
-    '../artifacts/contracts/Symphony.sol/Symphony.json'
-);
+const fileName = "../../config/index.json";
+const file = require("../../config/index.json");
+const config = require("../../config/index.json");
+const YoloArtifacts = require('../../artifacts/contracts/Yolo.sol/Yolo.json');
 
 const main = () => {
     return new Promise(async (resolve) => {
@@ -24,7 +22,7 @@ const main = () => {
 
         BalancerHandler.deploy(
             configParams.balancerVault,
-            configParams.symphonyAddress,
+            configParams.yoloAddress,
         ).then(async (balancerHandler) => {
             await balancerHandler.deployed();
 
@@ -48,14 +46,14 @@ const main = () => {
 
             const [deployer] = await ethers.getSigners();
 
-            // Set Handler In Symphony Contract
-            const symphony = new ethers.Contract(
-                configParams.symphonyAddress,
-                SymphonyArtifacts.abi,
+            // Set Handler In Yolo Contract
+            const yolo = new ethers.Contract(
+                configParams.yoloAddress,
+                YoloArtifacts.abi,
                 deployer
             );
 
-            const tx = await symphony.addHandler(balancerHandler.address);
+            const tx = await yolo.addHandler(balancerHandler.address);
             await tx.wait();
 
             resolve(true);

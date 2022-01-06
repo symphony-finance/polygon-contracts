@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
 import "./IAaveAddressProvider.sol";
-import "../libraries/AaveDataTypes.sol";
+import "../../libraries/aave/AaveDataTypes.sol";
 
 interface IAaveLendingPool {
     function deposit(

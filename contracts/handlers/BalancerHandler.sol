@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/IHandler.sol";
-import "../libraries/PercentageMath.sol";
 
 enum SwapKind {
     GIVEN_IN,
@@ -41,31 +38,26 @@ struct Order {
 
 /// @notice Balancer Handler used to execute an order
 contract BalancerHandler is IHandler {
-    using SafeMath for uint256;
     using SafeERC20 for IERC20;
-    using PercentageMath for uint256;
 
     IVault public immutable vault;
-    address public immutable symphony;
+    address public immutable yolo;
 
     /**
      * @notice Creates the handler
      */
-    constructor(IVault _vault, address _symphony) {
+    constructor(IVault _vault, address _yolo) {
         vault = _vault;
-        symphony = _symphony;
+        yolo = _yolo;
     }
 
-    modifier onlySymphony() {
+    modifier onlyYolo() {
         require(
-            msg.sender == symphony,
-            "BalancerHandler: Only symphony contract can invoke this function"
+            msg.sender == yolo,
+            "BalancerHandler: only yolo contract can invoke this function"
         );
         _;
     }
-
-    /// @notice receive MATIC
-    receive() external payable override {}
 
     /**
      * @notice Handle an order execution
@@ -73,67 +65,56 @@ contract BalancerHandler is IHandler {
     function handle(
         IOrderStructs.Order memory order,
         uint256 oracleAmount,
-        uint256 feePercent,
-        uint256 protcolFeePercent,
-        address executor,
-        address treasury,
         bytes calldata handlerdata
-    ) external override onlySymphony {
-        IERC20(order.inputToken).safeApprove(address(vault), order.inputAmount);
+    ) external override onlyYolo returns (uint256 actualAmtOut) {
+        IERC20(order.inputToken).safeIncreaseAllowance(
+            address(vault),
+            order.inputAmount
+        );
+
+        uint256 balBeforeSwap = IERC20(order.outputToken).balanceOf(
+            order.recipient
+        );
 
         // Swap Tokens
-        uint256 returnAmount = _swap(handlerdata);
+        actualAmtOut = _swap(handlerdata, order.recipient);
 
+        uint256 balAfterSwap = IERC20(order.outputToken).balanceOf(
+            order.recipient
+        );
         require(
-            IERC20(order.outputToken).balanceOf(address(this)) >= returnAmount,
-            "BalancerHandler: Incorrect output token recieved !!"
+            balAfterSwap - balBeforeSwap >= actualAmtOut,
+            "BalancerHandler: incorrect output token amount recieved"
         );
 
         require(
-            returnAmount >= order.minReturnAmount ||
-                returnAmount <= order.stoplossAmount,
-            "BalancerHandler: Order condition doesn't satisfy !!"
+            actualAmtOut >= order.minReturnAmount ||
+                actualAmtOut <= order.stoplossAmount,
+            "BalancerHandler: order condition doesn't satisfy"
         );
 
         require(
-            returnAmount >= oracleAmount,
-            "BalancerHandler: Oracle amount doesn't match with return amount !!"
-        );
-
-        _transferTokens(
-            order.outputToken,
-            returnAmount, // Output amount received
-            order.recipient,
-            executor,
-            treasury,
-            feePercent,
-            protcolFeePercent
+            actualAmtOut >= oracleAmount,
+            "BalancerHandler: oracle amount doesn't match with return amount"
         );
     }
-
-    function simulate(
-        address _inputToken,
-        address _outputToken,
-        uint256 _inputAmount,
-        uint256 _minReturnAmount,
-        uint256 _stoplossAmount,
-        uint256 _oracleAmount,
-        bytes calldata
-    ) external view override returns (bool success, uint256 bought) {}
 
     /**
      * @notice Swap input token to output token
      */
-    function _swap(bytes calldata _data) internal returns (uint256 bought) {
+    function _swap(bytes calldata _handlerData, address recipient)
+        internal
+        returns (uint256 bought)
+    {
         (
             IAsset[] memory assets,
             BatchSwapStep[] memory swapSteps
-        ) = _decodeData(_data);
+        ) = _decodeData(_handlerData);
 
         FundManagement memory funds = FundManagement(
             address(this),
             false,
-            address(this),
+            payable(recipient),
             false
         );
 
@@ -156,32 +137,10 @@ contract BalancerHandler is IHandler {
             assets,
             funds,
             limits,
-            block.timestamp.add(1800)
+            block.timestamp
         );
 
         bought = uint256(-assetDeltas[assetDeltas.length - 1]);
-    }
-
-    function _transferTokens(
-        address token,
-        uint256 amount,
-        address recipient,
-        address executor,
-        address treasury,
-        uint256 feePercent,
-        uint256 protcolFeePercent
-    ) internal {
-        uint256 protocolFee;
-        uint256 totalFee = amount.percentMul(feePercent);
-
-        IERC20(token).safeTransfer(recipient, amount.sub(totalFee));
-
-        if (treasury != address(0)) {
-            protocolFee = totalFee.percentMul(protcolFeePercent);
-            IERC20(token).safeTransfer(treasury, protocolFee);
-        }
-
-        IERC20(token).safeTransfer(executor, totalFee.sub(protocolFee));
     }
 
     function _decodeData(bytes memory _data)

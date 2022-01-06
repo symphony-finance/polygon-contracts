@@ -1,220 +1,138 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
+pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "../interfaces/ISymphony.sol";
-import "../interfaces/IAaveToken.sol";
-import "../interfaces/IAavePoolCore.sol";
 import "../interfaces/IYieldAdapter.sol";
-import "../interfaces/IAaveLendingPool.sol";
-import "../interfaces/IAaveIncentivesController.sol";
-import "../interfaces/IUniswapRouter.sol";
-import "../libraries/UniswapLibrary.sol";
+import "../interfaces/aave/IAaveLendingPool.sol";
+import "../interfaces/aave/IAaveIncentivesController.sol";
+import "../interfaces/uniswap/IUniswapRouter.sol";
 
 /**
  * @title Aave Yield contract
  * @notice Implements the functions to deposit/withdraw into Aave
  * @author Symphony Finance
  **/
-contract AaveYield is IYieldAdapter, Initializable {
+contract AaveYield is IYieldAdapter {
     using SafeERC20 for IERC20;
-    using SafeMath for uint256;
+
+    address public immutable yolo;
+    address public manager;
 
     // Addresses related to aave
-    address public aAsset;
-    address public lendingPool;
-    address public protocolDataProvider;
-    IAaveIncentivesController public incentivesController;
+    address internal immutable tokenAddress;
+    address internal immutable aTokenAddress;
+    IAaveLendingPool public immutable lendingPool;
+    IAaveIncentivesController public immutable incentivesController;
+    address public immutable rewardToken;  // can only be native token i.e WMATIC
+    uint16 internal constant referralCode = 43915;
 
-    address public symphony;
-    address public governance;
-    address public REWARD_TOKEN;
-    uint16 public referralCode;
-    bool public isExternalRewardEnabled;
-    uint256 public pendingRewards;
-    uint256 public previousAccRewardPerShare;
+    // Addresses related to swap
+    address[] route;
+    IUniswapRouter public router;
+    IUniswapRouter public backupRouter;
+    uint256 public harvestMaxGas = 1000000; // 1000k wei
 
-    mapping(bytes32 => uint256) public orderRewardDebt;
-
-    modifier onlySymphony() {
+    modifier onlyYolo() {
         require(
-            msg.sender == symphony,
-            "AaveYield: Only symphony contract can invoke this function"
+            msg.sender == yolo,
+            "AaveYield: only yolo contract can invoke this function"
         );
         _;
     }
 
-    modifier onlyGovernance() {
+    modifier onlyManager() {
         require(
-            msg.sender == governance,
-            "YearnYield: Only governance contract can invoke this function"
+            msg.sender == manager,
+            "AaveYield: only manager contract can invoke this function"
         );
         _;
     }
 
     /**
      * @dev To initialize the contract addresses interacting with this contract
-     * @param _lendingPool the address of LendingPool
-     * @param _protocolDataProvider the address of ProtocolDataProvider
      **/
-    function initialize(
-        address _symphony,
-        address _governance,
-        address _lendingPool,
-        address _protocolDataProvider,
-        address _incentivesController
-    ) external initializer {
-        require(_symphony != address(0), "AaveYield: Symphony:: zero address");
+    constructor(
+        address _yolo,
+        address _manager,
+        address _tokenAddress,
+        IAaveLendingPool _lendingPool,
+        IAaveIncentivesController _incentivesController
+    ) {
+        require(_yolo != address(0), "yolo: zero address");
+        require(_manager != address(0), "manager: zero address");
         require(
-            _governance != address(0),
-            "AaveYield: Governance:: zero address"
-        );
-        require(
-            _protocolDataProvider != address(0),
-            "AaveYield: protocolDataProvider:: zero address"
-        );
-        require(
-            _lendingPool != address(0),
-            "AaveYield: lendingPool:: zero address"
+            address(_lendingPool) != address(0),
+            "lendingPool:: zero address"
         );
 
-        symphony = _symphony;
-        governance = _governance;
+        yolo = _yolo;
+        manager = _manager;
         lendingPool = _lendingPool;
-        protocolDataProvider = _protocolDataProvider;
-        incentivesController = IAaveIncentivesController(_incentivesController);
-        isExternalRewardEnabled = true;
-        REWARD_TOKEN = incentivesController.REWARD_TOKEN();
+        tokenAddress = _tokenAddress;
+        AaveDataTypes.ReserveData memory reserveData = lendingPool
+            .getReserveData(_tokenAddress);
+        aTokenAddress = reserveData.aTokenAddress;
+        incentivesController = _incentivesController;
+        rewardToken = _incentivesController.REWARD_TOKEN();
+        _maxApprove(_tokenAddress, reserveData.aTokenAddress);
     }
 
     /**
-     * @dev Used to deposit tokens in available protocol
-     * @param asset the address of token to invest
-     * @param amount the amount of asset
+     * @dev Used to deposit tokens
      **/
-    function deposit(address asset, uint256 amount)
-        external
-        override
-        onlySymphony
-    {
-        require(amount != 0, "AaveYield::deposit: zero amount");
-
-        emit Deposit(asset, amount);
-
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        _depositERC20(asset, amount);
+    function deposit(address, uint256 amount) external override onlyYolo {
+        _depositERC20(amount);
     }
 
     /**
-     * @dev Used to withdraw tokens from available protocol
+     * @dev Used to withdraw tokens
      **/
-    function withdraw(
-        address asset,
-        uint256 amount,
-        uint256 shares,
-        uint256 totalShares,
-        address recipient,
-        bytes32 orderId
-    ) external override onlySymphony {
-        if (amount > 0) {
-            emit Withdraw(asset, amount);
-
-            _withdrawERC20(asset, amount);
-        }
-
-        if (isExternalRewardEnabled && shares > 0 && recipient != address(0)) {
-            _calculateAndTransferReward(
-                shares,
-                totalShares,
-                orderRewardDebt[orderId],
-                recipient
-            );
-        }
+    function withdraw(address, uint256 amount) external override onlyYolo {
+        _withdrawERC20(amount);
     }
 
     /**
      * @dev Withdraw all tokens from the strategy
-     * @param asset the address of token
-     * @param data bytes of extra data
      **/
-    function withdrawAll(address asset, bytes calldata data)
-        external
-        override
-        onlySymphony
-    {
-        uint256 amount = IERC20(aAsset).balanceOf(address(this));
-
-        if (amount > 0) {
-            _withdrawERC20(asset, amount);
-        }
-
-        if (isExternalRewardEnabled) {
-            uint256 rewardAmount = _calculateAndTransferReward(
-                100,
-                100,
-                0,
-                address(this)
-            );
-
-            (
-                address router,
-                uint256 slippage,
-                bytes32 codeHash,
-                address[] memory path
-            ) = abi.decode(data, (address, uint256, bytes32, address[]));
-
-            if (router != address(0)) {
-                _swap(
-                    incentivesController.REWARD_TOKEN(),
-                    rewardAmount,
-                    router,
-                    slippage,
-                    codeHash,
-                    path
-                );
-            }
-        }
+    function withdrawAll(address) external override onlyYolo {
+        uint256 amount = IERC20(aTokenAddress).balanceOf(address(this));
+        _withdrawERC20(amount);
     }
 
     /**
-     * @dev Used to set external reward debt at the time of order creation
-     * @param orderId the id of the order
+     * @dev Used to claim reward and do auto compound
      **/
-    function setOrderRewardDebt(
-        bytes32 orderId,
-        address,
-        uint256,
-        uint256 totalShares
-    ) external override onlySymphony {
-        uint256 totalRewardBalance = getRewardBalance();
-        uint256 accRewardPerShare = getAccumulatedRewardPerShare(
-            totalShares,
-            totalRewardBalance
+    function harvestReward() external {
+        address[] memory assets = new address[](1);
+        assets[0] = aTokenAddress;
+
+        incentivesController.claimRewards(
+            assets,
+            type(uint256).max,
+            address(this)
         );
 
-        pendingRewards = totalRewardBalance;
-        previousAccRewardPerShare = accRewardPerShare;
-        orderRewardDebt[orderId] = accRewardPerShare;
-    }
+        address _rewardToken = rewardToken;
+        address _tokenAddress = tokenAddress;
+        uint256 rewardBal = IERC20(_rewardToken).balanceOf(address(this));
 
-    /**
-     * @dev Used to approve max token and add token for reward
-     * @param asset the address of token
-     **/
-    function maxApprove(address asset) external override onlySymphony {
-        require(
-            aAsset == address(0),
-            "AaveYield: Asset can't be changed after initilization."
-        );
+        // reimburse function caller
+        uint256 reimbursementAmt = harvestMaxGas * tx.gasprice;
+        if (rewardBal > reimbursementAmt) {
+            rewardBal -= reimbursementAmt;
+            IERC20(_tokenAddress).safeTransfer(msg.sender, reimbursementAmt);
+        }
 
-        aAsset = getYieldTokenAddress(asset);
+        if (_rewardToken != _tokenAddress) {
+            _swapRewards(rewardBal);
+        }
 
-        IERC20(asset).safeApprove(lendingPool, uint256(-1));
-        IERC20(aAsset).safeApprove(lendingPool, uint256(-1));
+        uint256 tokenBal = IERC20(_tokenAddress).balanceOf(address(this));
+        if (tokenBal > 0) {
+            _depositERC20(tokenBal);
+        }
     }
 
     // *************** //
@@ -222,8 +140,7 @@ contract AaveYield is IYieldAdapter, Initializable {
     // *************** //
 
     /**
-     * @dev Used to get amount of underlying tokens
-     * @return amount amount of underlying tokens
+     * @dev Get amount of underlying tokens
      **/
     function getTotalUnderlying(address)
         public
@@ -231,197 +148,120 @@ contract AaveYield is IYieldAdapter, Initializable {
         override
         returns (uint256 amount)
     {
-        amount = IERC20(aAsset).balanceOf(address(this));
+        amount = IERC20(aTokenAddress).balanceOf(address(this));
     }
 
     /**
-     * @dev Used to get IOU token address
-     * @param asset the address of token
-     * @return iouToken address of IOU token
+     * @dev Get IOU token address
      **/
-    function getYieldTokenAddress(address asset)
-        public
+    function getIouTokenAddress(address)
+        external
         view
-        override
         returns (address iouToken)
     {
-        (iouToken, , ) = IAavePoolCore(protocolDataProvider)
-            .getReserveTokensAddresses(asset);
+        iouToken = aTokenAddress;
     }
 
     /**
-     * @dev Used to get external reward balance
+     * @dev Get available reward balance
      **/
-    function getRewardBalance() public view returns (uint256 amount) {
-        address[] memory assets = new address[](1);
-        assets[0] = aAsset;
-
-        amount = incentivesController.getRewardsBalance(assets, address(this));
+    function getRewardBalance(address[] memory aTokens)
+        external
+        view
+        returns (uint256 amount)
+    {
+        amount = incentivesController.getRewardsBalance(aTokens, address(this));
     }
 
-    function getAccumulatedRewardPerShare(
-        uint256 totalShares,
-        uint256 rewardBalance
-    ) public view returns (uint256 result) {
-        if (totalShares > 0) {
-            // ARPS = previous_APRS + (new_reward / total_shares)
-            uint256 newReward = rewardBalance.sub(pendingRewards);
+    // ************************** //
+    // *** MANAGER METHODS *** //
+    // ************************** //
 
-            // ARPS stored in 10^18 denomination.
-            uint256 newRewardPerShare = newReward.mul(10**18).div(totalShares);
+    function updateManager(address _manager) external onlyManager {
+        require(
+            _manager != address(0),
+            "AaveYield::updateManagerAddr: zero address"
+        );
+        manager = _manager;
+    }
 
-            result = previousAccRewardPerShare.add(newRewardPerShare);
+    function updateRouter(IUniswapRouter _router) external onlyManager {
+        require(
+            address(_router) != address(0),
+            "AaveYield::updateRouter: zero address"
+        );
+        address previousRouterAddr = address(router);
+        if (previousRouterAddr != address(0)) {
+            IERC20(rewardToken).approve(previousRouterAddr, 0);
+        }
+        router = _router;
+        if (address(_router) != address(0)) {
+            IERC20(rewardToken).approve(address(_router), type(uint256).max);
         }
     }
 
-    // ************************** //
-    // *** GOVERNANCE METHODS *** //
-    // ************************** //
-
-    function updateReferralCode(uint16 _referralCode) external onlyGovernance {
-        referralCode = _referralCode;
-    }
-
-    function updateIsExternalRewardEnabled(bool _status)
-        external
-        onlyGovernance
-    {
-        isExternalRewardEnabled = _status;
-    }
-
-    function updateIncentivesController(address _incetivesController)
-        external
-        onlyGovernance
-    {
-        incentivesController = IAaveIncentivesController(_incetivesController);
-    }
-
-    function updateRewardToken(address _token) external onlyGovernance {
-        REWARD_TOKEN = _token;
-    }
-
-    function updateAaveAddresses(
-        address _lendingPool,
-        address _protocolDataProvider
-    ) external onlyGovernance {
+    function updateBackupRouter(IUniswapRouter _router) external onlyManager {
         require(
-            _lendingPool != address(0),
-            "AaveYield: lendingPool:: zero address"
+            address(_router) != address(0),
+            "AaveYield::updateBackupRouter: zero address"
         );
-        require(
-            _protocolDataProvider != address(0),
-            "AaveYield: protocolDataProvider:: zero address"
-        );
+        address previousRouterAddr = address(backupRouter);
+        if (previousRouterAddr != address(0)) {
+            IERC20(rewardToken).approve(previousRouterAddr, 0);
+        }
+        backupRouter = _router;
+        if (address(_router) != address(0)) {
+            IERC20(rewardToken).approve(address(_router), type(uint256).max);
+        }
+    }
 
-        lendingPool = _lendingPool;
-        protocolDataProvider = _protocolDataProvider;
+    function updateRoute(address[] memory _route) external onlyManager {
+        require(
+            _route[0] == rewardToken &&
+                _route[_route.length - 1] == tokenAddress,
+            "AaveYield::updateRoute: incorrect route"
+        );
+        route = _route;
+    }
+
+    function updateHarvestGas(uint256 _gas) external onlyManager {
+        harvestMaxGas = _gas;
     }
 
     // ************************** //
     // *** INTERNAL FUNCTIONS *** //
     // ************************** //
 
-    function _depositERC20(address _asset, uint256 _amount) internal {
-        IAaveLendingPool(lendingPool).deposit(
-            _asset,
-            _amount,
-            address(this),
-            referralCode
-        );
+    function _depositERC20(uint256 _amount) internal {
+        lendingPool.deposit(tokenAddress, _amount, address(this), referralCode);
     }
 
-    function _withdrawERC20(address _asset, uint256 _amount)
-        internal
-        returns (uint256 amount)
-    {
-        amount = IAaveLendingPool(lendingPool).withdraw(
-            _asset,
-            _amount,
-            symphony
-        );
+    function _withdrawERC20(uint256 _amount) internal returns (uint256 amount) {
+        amount = lendingPool.withdraw(tokenAddress, _amount, yolo);
     }
 
-    function _calculateAndTransferReward(
-        uint256 _shares,
-        uint256 _totalShares,
-        uint256 _rewardDebt,
-        address _recipient
-    ) internal returns (uint256 reward) {
-        uint256 totalRewardBalance = getRewardBalance();
-        uint256 accRewardPerShare = getAccumulatedRewardPerShare(
-            _totalShares,
-            totalRewardBalance
-        );
-
-        // reward_amount = shares x ((ARPS) - (reward_debt))
-        reward = _shares.mul(accRewardPerShare.sub(_rewardDebt)).div(10**18);
-
-        require(
-            totalRewardBalance >= reward,
-            "AaveYield:CATR:: total reward exceeds rewards"
-        );
-
-        pendingRewards = totalRewardBalance.sub(reward);
-        previousAccRewardPerShare = accRewardPerShare;
-        _transferReward(reward, _recipient);
+    function _maxApprove(address _token, address _aToken) internal {
+        IERC20(_token).safeApprove(address(lendingPool), type(uint256).max);
+        IERC20(_aToken).safeApprove(address(lendingPool), type(uint256).max);
     }
 
-    /**
-     * @notice Transfer WMATIC reward to order recipient
-     */
-    function _transferReward(uint256 _reward, address _recipient) internal {
-        if (_reward > 0) {
-            address[] memory assets = new address[](1);
-            assets[0] = aAsset;
-
-            incentivesController.claimRewards(assets, _reward, _recipient);
+    function _swapRewards(uint256 _amount) internal {
+        try
+            router.swapExactTokensForTokens(
+                _amount,
+                0,
+                route,
+                address(this),
+                block.timestamp
+            )
+        {} catch {
+            backupRouter.swapExactTokensForTokens(
+                _amount,
+                0,
+                route,
+                address(this),
+                block.timestamp
+            );
         }
     }
-
-    function _swap(
-        address _inputToken,
-        uint256 _inputAmount,
-        address _router,
-        uint256 _slippage,
-        bytes32 _codeHash,
-        address[] memory _path
-    ) internal {
-        IERC20(_inputToken).safeApprove(_router, _inputAmount);
-
-        uint256 amountOut = _getAmountOut(
-            _inputAmount,
-            _router,
-            _codeHash,
-            _path
-        );
-
-        // Swap Tokens
-        IUniswapRouter(_router).swapExactTokensForTokens(
-            _inputAmount,
-            amountOut.mul(uint256(100).sub(_slippage)).div(100), // Slipage: 2 for 2%
-            _path,
-            symphony,
-            block.timestamp.add(1800)
-        );
-    }
-
-    function _getAmountOut(
-        uint256 _inputAmount,
-        address _router,
-        bytes32 _codeHash,
-        address[] memory _path
-    ) internal view returns (uint256 amountOut) {
-        address factory = IUniswapRouter(_router).factory();
-
-        uint256[] memory _amounts = UniswapLibrary.getAmountsOut(
-            factory,
-            _inputAmount,
-            _path,
-            _codeHash
-        );
-
-        amountOut = _amounts[_amounts.length - 1];
-    }
-
-    receive() external payable {}
 }

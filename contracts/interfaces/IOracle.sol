@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
 interface IOracle {
     function get(
@@ -8,4 +7,6 @@ interface IOracle {
         address outputToken,
         uint256 inputAmount
     ) external view returns (uint256 amountOut, uint256 amountOutWithSlippage);
+
+    function isOracle() external view returns (bool);
 }

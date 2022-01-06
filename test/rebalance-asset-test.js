@@ -6,8 +6,11 @@ const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
+const YoloArtifacts = require(
+    "../artifacts/contracts/Yolo.sol/Yolo.json"
+);
+const AaveYieldArtifacts = require(
+    "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
 );
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
@@ -40,11 +43,11 @@ describe("Rebalance Asset Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        symphony = await upgrades.deployProxy(
-            Symphony,
+        yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 ZERO_ADDRESS,
@@ -53,11 +56,11 @@ describe("Rebalance Asset Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
@@ -65,46 +68,49 @@ describe("Rebalance Asset Test", () => {
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
         const configParams = config.mainnet;
-        const aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
 
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        expect(await symphony.strategy(daiAddress)).to.eq(aaveYield.address);
+        aaveYield = new ethers.Contract(
+            aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
 
-        await symphony.updateBufferPercentage(daiAddress, 4000);
-        expect(await symphony.assetBuffer(daiAddress)).to.eq(4000);
+        const aDaiAddress = "0x028171bCA77440897B824Ca71D1c56caC55b68A3";
 
-        const aDAIAddress = await aaveYield.getYieldTokenAddress(daiAddress);
+        await yolo.setStrategy(daiAddress, aaveYield.address);
+        expect(await yolo.strategy(daiAddress)).to.eq(aaveYield.address);
+
+        await yolo.updateTokenBuffer(daiAddress, 4000);
+        expect(await yolo.tokenBuffer(daiAddress)).to.eq(4000);
 
         // Create aDAI contract instance
         const adaiContract = new ethers.Contract(
-            aDAIAddress,
+            aDaiAddress,
             IERC20Artifacts.abi,
             deployer
         );
 
         // Transfer Token
-        await daiContract.transfer(symphony.address, depositAmount);
+        await daiContract.transfer(yolo.address, depositAmount);
 
-        expect(await daiContract.balanceOf(symphony.address)).to.eq(depositAmount);
+        expect(await daiContract.balanceOf(yolo.address)).to.eq(depositAmount);
 
         // Rebalance asset
-        await symphony.rebalanceAsset(daiAddress);
+        await yolo.rebalanceTokens([daiAddress]);
 
         const bufferBalance = getBufferBalance(depositAmount, bufferPercent);
         const yieldBalance = getYieldBalance(depositAmount, bufferBalance);
 
-        expect(await daiContract.balanceOf(symphony.address)).to.eq(bufferBalance);
+        expect(await daiContract.balanceOf(yolo.address)).to.eq(bufferBalance);
         expect(
             Number(await adaiContract.balanceOf(aaveYield.address))
         ).to.greaterThanOrEqual(Number(yieldBalance));
@@ -116,10 +122,10 @@ describe("Rebalance Asset Test", () => {
                         .exponentiatedBy(new BigNumber(18))
                 )).toString();
 
-        await daiContract.transfer(symphony.address, depositAmountNew);
+        await daiContract.transfer(yolo.address, depositAmountNew);
 
         // Rebalance asset
-        await symphony.rebalanceAsset(daiAddress);
+        await yolo.rebalanceTokens([daiAddress]);
 
         const bufferBalanceNew = getBufferBalance(
             new BigNumber(depositAmount).plus(depositAmountNew),
@@ -127,15 +133,15 @@ describe("Rebalance Asset Test", () => {
         );
 
         expect(
-            Number(await daiContract.balanceOf(symphony.address))
+            Number(await daiContract.balanceOf(yolo.address))
         ).to.greaterThanOrEqual(Number(bufferBalanceNew));
 
         // Decrease buffer percent
         const newBufferPercent = 3000;
-        await symphony.updateBufferPercentage(daiAddress, newBufferPercent);
-        expect(await symphony.assetBuffer(daiAddress)).to.eq(newBufferPercent);
+        await yolo.updateTokenBuffer(daiAddress, newBufferPercent);
+        expect(await yolo.tokenBuffer(daiAddress)).to.eq(newBufferPercent);
 
-        await symphony.rebalanceAsset(daiAddress);
+        await yolo.rebalanceTokens([daiAddress]);
 
         const updatedBufferBalance = getBufferBalance(
             new BigNumber(depositAmount).plus(depositAmountNew),
@@ -143,7 +149,7 @@ describe("Rebalance Asset Test", () => {
         );
 
         const balanceInContract = Number(
-            await daiContract.balanceOf(symphony.address)
+            await daiContract.balanceOf(yolo.address)
         );
 
         expect(
@@ -164,11 +170,11 @@ describe("Rebalance Asset Test", () => {
         );
         deployer.address = deployer._address;
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        symphony = await upgrades.deployProxy(
-            Symphony,
+        yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -177,18 +183,18 @@ describe("Rebalance Asset Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
         await expect(
-            symphony.rebalanceAsset(daiAddress)
+            yolo.rebalanceTokens([daiAddress])
         ).to.be.revertedWith(
-            'Symphony::rebalanceAsset: Rebalance needs some strategy'
+            "Yolo::rebalanceTokens: strategy doesn't exist"
         );
     });
 });

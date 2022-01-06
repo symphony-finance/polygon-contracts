@@ -3,23 +3,27 @@ const { expect } = require("chai");
 const config = require("../config/index.json");
 const { default: BigNumber } = require("bignumber.js");
 const { time } = require("@openzeppelin/test-helpers");
-const { ZERO_ADDRESS, ZERO_BYTES32 } = require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
+const YoloArtifacts = require(
+    "../artifacts/contracts/Yolo.sol/Yolo.json"
 );
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
+);
+const MstableYieldArtifacts = require(
+    "../artifacts/contracts/adapters/MstableYield.sol/MstableYield.json"
 );
 const { AbiCoder } = require("ethers/lib/utils");
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
-const rewardToken = "0x4da27a545c0c5b758a6ba100e3a049001de870f5";
-const bufferPercent = 4000; // 40%
+const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
+
+const bufferPercent = 0; // 0%
 const configParams = config.mainnet;
 
 const inputAmount = new BigNumber(10).times(
@@ -42,7 +46,7 @@ const approveAmount = new BigNumber(100)
     .toString();
 
 describe("Migrate Strategy Test", () => {
-    it("Should migrate existing strategy to new strategy and transfer assets to new stratregy", async () => {
+    it("Should migrate existing strategy to new strategy and transfer tokens to new stratregy", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -60,11 +64,11 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -73,26 +77,23 @@ describe("Migrate Strategy Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
@@ -103,17 +104,8 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        const aDaiAddress = await aaveYield.getYieldTokenAddress(daiAddress);
-
-        // Create aUSDC contract instance
-        const aDaiContract = new ethers.Contract(
-            aDaiAddress,
-            IERC20Artifacts.abi,
-            deployer
-        );
-
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(daiAddress, 4000);
+        await yolo.setStrategy(daiAddress, aaveYield.address);
+        await yolo.addWhitelistToken(daiAddress);
 
         const approveAmount = new BigNumber(100)
             .times(
@@ -122,74 +114,67 @@ describe("Migrate Strategy Test", () => {
             )
             .toString();
 
-        await daiContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
+        await daiContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        await symphony.createOrder(
+        await yolo.createOrder(
             deployer.address,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
         const strategyBal = Number(inputAmount) * (
             (10000 - bufferPercent) / 10000
         );
 
-        expect(Number(await aDaiContract.balanceOf(aaveYield.address)))
-            .to.greaterThanOrEqual(Number(strategyBal));
+        expect(Number(await aaveYield.getTotalUnderlying(daiAddress)))
+            .to.be.greaterThanOrEqual(strategyBal);
 
         for (let i = 0; i < 100; ++i) {
             await time.advanceBlock();
         };
 
-        // Deploy AaveYield Contract
-        const AaveYieldNew = await hre.ethers.getContractFactory("AaveYield");
+        // Deploy MstableYield Contract
+        const MstableYield = await hre.ethers.getContractFactory("MstableYield");
 
-        let aaveYieldNew = await upgrades.deployProxy(
-            AaveYieldNew,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let mstableYield = await MstableYield.deploy(
+            configParams.musdTokenAddress,
+            configParams.mstableSavingContract,
+            yolo.address,
         );
 
-        await aaveYieldNew.deployed();
+        await mstableYield.deployed();
 
-        const rewardBalance = await aaveYield.getRewardBalance();
-
-        expect(Number(rewardBalance)).to.be.greaterThan(0);
-
-        // construct extra data for swapping reward
-        const extraData = encodeData(
-            "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", // Uniswap V2 Router
-            100,
-            "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f", // Uniswap V2 init code hash
-            [rewardToken, configParams.wethAddress, daiAddress]
+        mstableYield = new ethers.Contract(
+            mstableYield.address,
+            MstableYieldArtifacts.abi,
+            deployer
         );
+
+        await mstableYield.maxApprove(daiAddress);
 
         // Migrate Strategy to new contract
-        await symphony.migrateStrategy(daiAddress, aaveYieldNew.address, extraData);
+        await yolo.migrateStrategy(daiAddress, mstableYield.address);
 
-        // expect(
-        //     Number(await rewardContract.balanceOf(symphony.address))
-        // ).greaterThanOrEqual(Number(rewardBalance.add(symphonyRewardBal)));
+        expect(await yolo.strategy(daiAddress)).to.eq(mstableYield.address);
 
-        expect(await symphony.strategy(daiAddress)).to.eq(aaveYieldNew.address);
+        expect(Number(await aaveYield.getTotalUnderlying(daiAddress)))
+            .to.eq(0);
 
-        expect(await aDaiContract.balanceOf(aaveYield.address)).to.eq(0);
-        expect(Number(await aDaiContract.balanceOf(aaveYieldNew.address)))
-            .to.be.greaterThanOrEqual(strategyBal);
+        expect(Number(await mstableYield.callStatic.getTotalUnderlying(daiAddress)))
+            .to.be.greaterThanOrEqual(
+                Number(
+                    new BigNumber(strategyBal) -
+                    new BigNumber(strategyBal).times(0.2 / 100) // 0.2%
+                )
+            );
     });
 
-    it("Should remove strategy of an asset", async () => {
+    it("Should remove strategy of a token", async () => {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
             params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
@@ -207,11 +192,11 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -220,26 +205,23 @@ describe("Migrate Strategy Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
@@ -250,41 +232,33 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(daiAddress, bufferPercent);
+        await yolo.setStrategy(daiAddress, aaveYield.address);
+        await yolo.addWhitelistToken(daiAddress);
 
-        await daiContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
+        await daiContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        await symphony.createOrder(
+        await yolo.createOrder(
             deployer.address,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
-        const symphonyDaiBal = Number(
-            await daiContract.balanceOf(symphony.address)
+        const yoloDaiBal = Number(
+            await daiContract.balanceOf(yolo.address)
         );
 
-        expect(symphonyDaiBal).to.eq(
+        expect(yoloDaiBal).to.eq(
             Number(inputAmount) * (bufferPercent / 10000)
         );
 
-        const data = encodeData(
-            ZERO_ADDRESS,
-            0,
-            ZERO_BYTES32,
-            []
-        );
+        await yolo.migrateStrategy(daiAddress, ZERO_ADDRESS);
 
-        await symphony.migrateStrategy(daiAddress, ZERO_ADDRESS, data);
-
-        expect(Number(await daiContract.balanceOf(symphony.address)))
+        expect(Number(await daiContract.balanceOf(yolo.address)))
             .to.be.greaterThanOrEqual(Number(inputAmount) - 1);
     });
 
@@ -299,11 +273,11 @@ describe("Migrate Strategy Test", () => {
         );
         deployer.address = deployer._address;
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -312,18 +286,18 @@ describe("Migrate Strategy Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
         await expect(
-            symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS, ZERO_BYTES32)
+            yolo.migrateStrategy(usdcAddress, ZERO_ADDRESS)
         ).to.be.revertedWith(
-            "Symphony::migrateStrategy: no strategy for asset exists!!"
+            "Yolo::migrateStrategy: no previous strategy exists"
         );
     });
 
@@ -338,11 +312,11 @@ describe("Migrate Strategy Test", () => {
         );
         deployer.address = deployer._address;
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -351,11 +325,11 @@ describe("Migrate Strategy Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
@@ -363,15 +337,12 @@ describe("Migrate Strategy Test", () => {
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
         const configParams = config.mainnet;
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            usdcAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
@@ -382,12 +353,12 @@ describe("Migrate Strategy Test", () => {
             deployer
         );
 
-        await symphony.updateStrategy(usdcAddress, aaveYield.address);
+        await yolo.setStrategy(usdcAddress, aaveYield.address);
 
         await expect(
-            symphony.migrateStrategy(usdcAddress, aaveYield.address, ZERO_BYTES32)
+            yolo.migrateStrategy(usdcAddress, aaveYield.address)
         ).to.be.revertedWith(
-            "Symphony::migrateStrategy: new startegy shouldn't be same!!"
+            "Yolo::migrateStrategy: new strategy same as previous"
         );
     });
 });

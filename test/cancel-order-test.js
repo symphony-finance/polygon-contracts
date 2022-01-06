@@ -1,17 +1,15 @@
 const { expect } = require("chai");
-const config = require("../config/index.json");
-const { AbiCoder } = require("ethers/lib/utils");
-const { BigNumber: EthersBN } = require('ethers');
+const { BigNumber: EthersBN } = require("ethers");
 const { default: BigNumber } = require("bignumber.js");
 const { time } = require("@openzeppelin/test-helpers");
-const { ZERO_ADDRESS, ZERO_BYTES32 } =
-    require("@openzeppelin/test-helpers/src/constants");
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
+const config = require("../config/index.json");
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
+const YoloArtifacts = require(
+    "../artifacts/contracts/Yolo.sol/Yolo.json"
 );
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
@@ -19,6 +17,9 @@ const AaveYieldArtifacts = require(
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
+const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
+const treasury = "0x71068bf5a429ccf51a4e2e6a65d930e3019f4d0e";
 
 const inputAmount = new BigNumber(10).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -58,11 +59,11 @@ describe("Cancel Order Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -71,26 +72,27 @@ describe("Cancel Order Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
-        await usdcContract.approve(symphony.address, approveAmount);
+        await usdcContract.approve(yolo.address, approveAmount);
 
-        await symphony.addWhitelistAsset(usdcAddress);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
-        const createTx = await symphony.createOrder(
-            deployer.address,
+        const createTx = await yolo.createOrder(
+            recipient,
             usdcAddress,
             daiAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
         const createTxReceipt = await createTx.wait();
@@ -101,9 +103,9 @@ describe("Cancel Order Test", () => {
         const orderData = createTxEvents[0].args[1];
 
         const balanceBeforeCancellation = await usdcContract
-            .balanceOf(deployer.address);
+            .balanceOf(recipient);
 
-        const cancelTx = await symphony.cancelOrder(
+        const cancelTx = await yolo.cancelOrder(
             createTxOrderId,
             orderData
         );
@@ -117,13 +119,13 @@ describe("Cancel Order Test", () => {
         expect(createTxOrderId).to.eq(cancelTxOrderId);
 
         const balanceAfterCancellation = await usdcContract
-            .balanceOf(deployer.address);
+            .balanceOf(recipient);
 
         expect(balanceBeforeCancellation).to
             .eq(balanceAfterCancellation.sub(inputAmount));
     });
 
-    it("Should cancel order with Aave yield strategy", async () => {
+    it("Should cancel multiple orders with Aave yield strategy", async () => {
         let totalShares = 0;
 
         await network.provider.request({
@@ -143,11 +145,11 @@ describe("Cancel Order Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -156,52 +158,47 @@ describe("Cancel Order Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
-        await usdcContract.approve(symphony.address, approveAmount);
+        await usdcContract.approve(yolo.address, approveAmount);
 
         const AaveYield = await ethers.getContractFactory("AaveYield");
 
         const configParams = config.mainnet;
-        const aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            usdcAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
 
-        await symphony.updateStrategy(
-            usdcAddress,
+        aaveYield = new ethers.Contract(
             aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
         );
 
-        await symphony.updateBufferPercentage(
-            usdcAddress,
-            0, // 40%
-        );
-
-        await symphony.addWhitelistAsset(usdcAddress);
+        await yolo.setStrategy(usdcAddress, aaveYield.address);
+        await yolo.addWhitelistToken(usdcAddress);
 
         // Create Order
-        const tx1 = await symphony.createOrder(
-            deployer.address,
+        const tx1 = await yolo.createOrder(
+            recipient,
             usdcAddress,
             daiAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor
         );
 
         const receipt1 = await tx1.wait();
@@ -221,13 +218,14 @@ describe("Cancel Order Test", () => {
         };
 
         // Create Order
-        const tx2 = await symphony.createOrder(
-            deployer.address,
+        const tx2 = await yolo.createOrder(
+            recipient,
             usdcAddress,
             daiAddress,
             inputAmount1,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor
         );
 
         const receipt2 = await tx2.wait();
@@ -238,12 +236,12 @@ describe("Cancel Order Test", () => {
 
         totalShares = totalShares + getShareFromOrder(orderData2);
 
-        await symphony.cancelOrder(
+        await yolo.cancelOrder(
             orderId2,
             orderData2
         );
 
-        await symphony.cancelOrder(
+        await yolo.cancelOrder(
             orderId1,
             orderData1
         );
@@ -267,11 +265,11 @@ describe("Cancel Order Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -280,10 +278,10 @@ describe("Cancel Order Test", () => {
             ]
         );
 
-        await symphony.deployed();
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        await yolo.deployed();
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
@@ -291,41 +289,38 @@ describe("Cancel Order Test", () => {
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
         const configParams = config.mainnet;
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            usdcAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
+
         aaveYield = new ethers.Contract(
             aaveYield.address,
             AaveYieldArtifacts.abi,
             deployer
         );
 
-        const bufferPercent = 40;
+        const bufferPercent = 0;
 
-        await symphony.updateStrategy(usdcAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(usdcAddress, bufferPercent * 100);
+        await yolo.setStrategy(usdcAddress, aaveYield.address);
+        await yolo.addWhitelistToken(usdcAddress);
 
-        await usdcContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(usdcAddress);
+        await usdcContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
+        const tx = await yolo.createOrder(
+            recipient,
             usdcAddress,
             daiAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
         const receipt = await tx.wait();
@@ -334,7 +329,7 @@ describe("Cancel Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+        expect(Number(await usdcContract.balanceOf(yolo.address))).to.eq(
             Number(new BigNumber(inputAmount).times(
                 new BigNumber(bufferPercent / 100)
             ))
@@ -347,21 +342,21 @@ describe("Cancel Order Test", () => {
             );
 
         // Remove yield strategy
-        await symphony.migrateStrategy(usdcAddress, ZERO_ADDRESS, encodedOrder);
+        await yolo.migrateStrategy(usdcAddress, ZERO_ADDRESS);
 
-        expect(Number(await usdcContract.balanceOf(symphony.address)))
+        expect(Number(await usdcContract.balanceOf(yolo.address)))
             .to.be.greaterThanOrEqual(Number(inputAmount) - 1);
         expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
 
-        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
+        const usdcBalBeforeCancel = await usdcContract.balanceOf(deployer.address);
 
-        // Execute Order
-        await symphony.cancelOrder(orderId, orderData);
+        // Cancel Order
+        await yolo.cancelOrder(orderId, orderData);
 
-        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
+        const usdcBalAfterCancel = await usdcContract.balanceOf(deployer.address);
 
-        expect(Number(usdcBalAfterExecute)).to.be
-            .greaterThanOrEqual(Number(usdcBalBeforeExecute.add(inputAmount)) - 1);
+        expect(Number(usdcBalAfterCancel)).to.be
+            .greaterThanOrEqual(Number(usdcBalBeforeCancel.add(inputAmount)) - 1);
     });
 
     it("Should cancel order when strategy migrated after creating the order", async () => {
@@ -382,11 +377,11 @@ describe("Cancel Order Test", () => {
             deployer
         );
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -395,10 +390,10 @@ describe("Cancel Order Test", () => {
             ]
         );
 
-        await symphony.deployed();
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        await yolo.deployed();
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
 
@@ -406,41 +401,38 @@ describe("Cancel Order Test", () => {
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
         const configParams = config.mainnet;
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            usdcAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
+
         aaveYield = new ethers.Contract(
             aaveYield.address,
             AaveYieldArtifacts.abi,
             deployer
         );
 
-        const bufferPercent = 40;
+        const bufferPercent = 0;
 
-        await symphony.updateStrategy(usdcAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(usdcAddress, bufferPercent * 100);
+        await yolo.setStrategy(usdcAddress, aaveYield.address);
+        await yolo.addWhitelistToken(usdcAddress);
 
-        await usdcContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(usdcAddress);
+        await usdcContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        const tx = await symphony.createOrder(
-            deployer.address,
+        const tx = await yolo.createOrder(
+            recipient,
             usdcAddress,
             daiAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor
         );
 
         const receipt = await tx.wait();
@@ -449,7 +441,7 @@ describe("Cancel Order Test", () => {
         const orderId = events[0].args[0];
         const orderData = events[0].args[1];
 
-        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+        expect(Number(await usdcContract.balanceOf(yolo.address))).to.eq(
             Number(new BigNumber(inputAmount).times(
                 new BigNumber(bufferPercent / 100)
             ))
@@ -461,23 +453,26 @@ describe("Cancel Order Test", () => {
                 )) - 1
             );
 
-        const aaveYieldNew = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYieldNew = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            usdcAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
-        await aaveYield.deployed();
+        await aaveYieldNew.deployed();
+
+        aaveYieldNew = new ethers.Contract(
+            aaveYieldNew.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
 
         // Migrate startegy to new contract
-        await symphony.migrateStrategy(usdcAddress, aaveYieldNew.address, encodedOrder);
+        await yolo.migrateStrategy(usdcAddress, aaveYieldNew.address);
 
-        expect(Number(await usdcContract.balanceOf(symphony.address))).to.eq(
+        expect(Number(await usdcContract.balanceOf(yolo.address))).to.eq(
             Number(new BigNumber(inputAmount).times(
                 new BigNumber(bufferPercent / 100)
             ))
@@ -490,165 +485,137 @@ describe("Cancel Order Test", () => {
             );
         expect(await aaveYield.getTotalUnderlying(usdcAddress)).to.eq(0);
 
-        const usdcBalBeforeExecute = await usdcContract.balanceOf(deployer.address);
+        const usdcBalBeforeCancel = await usdcContract.balanceOf(deployer.address);
 
-        // Execute Order
-        await symphony.cancelOrder(orderId, orderData);
+        await yolo.cancelOrder(orderId, orderData);
 
-        const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
+        const usdcBalAfterCancel = await usdcContract.balanceOf(deployer.address);
 
-        expect(Number(usdcBalAfterExecute)).to.be
-            .greaterThanOrEqual(Number(usdcBalBeforeExecute.add(inputAmount)));
+        expect(Number(usdcBalAfterCancel)).to.be
+            .greaterThanOrEqual(Number(usdcBalBeforeCancel.add(inputAmount)));
     });
 
-    // it("Should cancel order with Mstable yield strategy", async () => {
-    //     await network.provider.request({
-    //         method: "hardhat_impersonateAccount",
-    //         params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
-    //     });
+    it("Should deduct correct cancellation fee", async () => {
+        await network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
+        });
 
-    //     const deployer = await ethers.provider.getSigner(
-    //         "0xAb7677859331f95F25A3e7799176f7239feb5C44"
-    //     );
-    //     deployer.address = deployer._address;
+        const deployer = await ethers.provider.getSigner(
+            "0xAb7677859331f95F25A3e7799176f7239feb5C44"
+        );
+        deployer.address = deployer._address;
 
-    //     // Create USDC contract instance
-    //     const usdcContract = new ethers.Contract(
-    //         usdcAddress,
-    //         IERC20Artifacts.abi,
-    //         deployer
-    //     );
+        // Create USDC contract instance
+        const usdcContract = new ethers.Contract(
+            usdcAddress,
+            IERC20Artifacts.abi,
+            deployer
+        );
 
-    //     // Create DAI contract instance
-    //     const daiContract = new ethers.Contract(
-    //         daiAddress,
-    //         IERC20Artifacts.abi,
-    //         deployer
-    //     );
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-    //     // Deploy Symphony Contract
-    //     const Symphony = await ethers.getContractFactory("Symphony");
+        let yolo = await upgrades.deployProxy(
+            Yolo,
+            [
+                deployer.address,
+                deployer.address,
+                40, // 40 for 0.4 %
+                ZERO_ADDRESS,
+            ]
+        );
 
-    //     let symphony = await upgrades.deployProxy(
-    //         Symphony,
-    //         [
-    //             deployer.address,
-    //             deployer.address,
-    //             40, // 40 for 0.4 %,
-    //             ZERO_ADDRESS
-    //         ]
-    //     );
+        await yolo.deployed();
 
-    //     await symphony.deployed();
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
+            deployer
+        );
 
-    //     symphony = new ethers.Contract(
-    //         symphony.address,
-    //         SymphonyArtifacts.abi,
-    //         deployer
-    //     );
+        await usdcContract.approve(yolo.address, approveAmount);
 
-    //     await daiContract.approve(symphony.address, approveAmount);
-    //     await usdcContract.approve(symphony.address, approveAmount);
+        const AaveYield = await ethers.getContractFactory("AaveYield");
 
-    //     const MstableYield = await ethers.getContractFactory("MstableYield");
+        const configParams = config.mainnet;
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            usdcAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
+        );
 
-    //     const configParams = config.mainnet;
-    //     let mstableYield = await MstableYield.deploy(
-    //         configParams.musdTokenAddress,
-    //         configParams.mstableSavingContract,
-    //         symphony.address,
-    //     );
+        await aaveYield.deployed();
 
-    //     await mstableYield.deployed();
+        aaveYield = new ethers.Contract(
+            aaveYield.address,
+            AaveYieldArtifacts.abi,
+            deployer
+        );
 
-    //     await symphony.updateStrategy(
-    //         usdcAddress,
-    //         mstableYield.address,
-    //     );
+        await yolo.setStrategy(usdcAddress, aaveYield.address);
+        await yolo.addWhitelistToken(usdcAddress);
+        await yolo.updateCancellationFee(1000); // 10%
+        await yolo.updateTreasury(treasury);
 
-    //     await symphony.updateBufferPercentage(
-    //         usdcAddress,
-    //         0, // 40%
-    //     );
+        const inputAmt = new BigNumber(1000).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
 
-    //     await symphony.addWhitelistAsset(usdcAddress);
+        // Create Order
+        const tx = await yolo.createOrder(
+            recipient,
+            usdcAddress,
+            daiAddress,
+            inputAmt,
+            minReturnAmount,
+            stoplossAmount,
+            executor
+        );
 
-    //     // Create Order
-    //     const tx1 = await symphony.createOrder(
-    //         deployer.address,
-    //         usdcAddress,
-    //         daiAddress,
-    //         inputAmount,
-    //         minReturnAmount,
-    //         stoplossAmount
-    //     );
+        const receipt = await tx.wait();
+        const events = receipt.events.filter((x) => {
+            return x.event == "OrderCreated"
+        });
+        const orderId = events[0].args[0];
+        const orderData = events[0].args[1];
 
-    //     const receipt1 = await tx1.wait();
-    //     const events1 = receipt1.events.filter(
-    //         (x) => { return x.event == "OrderCreated" }
-    //     );
+        // Advancing 7 blocks
+        for (let i = 0; i < 7; ++i) {
+            await time.advanceBlock();
+        };
 
-    //     const orderId1 = events1[0].args[0];
-    //     const orderData1 = events1[0].args[1];
+        const yoloContractBal = await usdcContract.balanceOf(yolo.address);
+        const depositPlusYield = await yolo.callStatic.getTotalTokens(
+            usdcAddress, yoloContractBal, aaveYield.address
+        );
+        const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmt));
+        const cancellationFee = yieldEarned.mul(1000).div(10000);
 
-    //     // Advancing 100 blocks
-    //     for (let i = 0; i < 100; ++i) {
-    //         await time.advanceBlock();
-    //     };
+        const userBalBeforeCancellation =
+            await usdcContract.balanceOf(recipient);
+        const treasuryBalBeforeCancellation =
+            await usdcContract.balanceOf(treasury);
 
-    //     // Create Order
-    //     const tx2 = await symphony.createOrder(
-    //         deployer.address,
-    //         usdcAddress,
-    //         daiAddress,
-    //         inputAmount,
-    //         minReturnAmount,
-    //         0
-    //     );
+        await yolo.cancelOrder(orderId, orderData);
 
-    //     const receipt2 = await tx2.wait();
-    //     const events2 = receipt2.events.filter(
-    //         (x) => { return x.event == "OrderCreated" }
-    //     );
+        const userBalAfterCancellation =
+            await usdcContract.balanceOf(recipient);
+        const treasuryBalAfterCancellation =
+            await usdcContract.balanceOf(treasury);
 
-    //     const orderId2 = events2[0].args[0];
-    //     const orderData2 = events2[0].args[1];
-
-    //     await symphony.cancelOrder(
-    //         orderId2,
-    //         orderData2
-    //     );
-
-    //     await symphony.cancelOrder(
-    //         orderId1,
-    //         orderData1
-    //     );
-    // });
+        expect(Number(userBalAfterCancellation))
+            .greaterThanOrEqual(
+                Number(userBalBeforeCancellation.add(
+                    depositPlusYield.sub(cancellationFee)
+                )) - 1);
+        expect(Number(treasuryBalAfterCancellation))
+            .greaterThanOrEqual(
+                Number(treasuryBalBeforeCancellation.add(cancellationFee)));
+    });
 });
-
-const calculateReward = (aaveYield, orderId, orderData, totalShares) => {
-    return new Promise(async (resolve) => {
-        const totalAssetReward = await aaveYield.getRewardBalance(usdcAddress);
-        const orderRewardDebt = await aaveYield.orderRewardDebt(orderId);
-
-        const pendingRewards = await aaveYield.pendingRewards(usdcAddress);
-        const previousACRPShare = await aaveYield.previousAccRewardPerShare(usdcAddress);
-
-        const newReward = totalAssetReward.sub(pendingRewards);
-        const newRewardPerShare = newReward.mul(
-            new EthersBN.from(10).pow(new EthersBN.from(18))
-        ).div(new EthersBN.from(totalShares));
-
-        const accRewardPerShare = previousACRPShare.add(newRewardPerShare);
-        const orderShares = new EthersBN.from(getShareFromOrder(orderData));
-
-        const reward = orderShares.mul(accRewardPerShare).div(
-            new EthersBN.from(10).pow(new EthersBN.from(18))
-        ).sub(orderRewardDebt);
-
-        resolve(reward)
-    });
-}
 
 const getShareFromOrder = (orderData) => {
     const abiCoder = new ethers.utils.AbiCoder();
@@ -656,17 +623,14 @@ const getShareFromOrder = (orderData) => {
         "address",
         "address",
         "address",
+        "address",
         "uint256",
         "uint256",
         "uint256",
         "uint256",
+        "address",
     ];
 
     const decodedData = abiCoder.decode(abi, orderData);
     return decodedData[6];
 }
-
-const encodedOrder = new AbiCoder().encode(
-    ['address', 'uint256', 'bytes32', 'address[]'],
-    [ZERO_ADDRESS, 0, ZERO_BYTES32, []]
-);

@@ -1,7 +1,7 @@
 const hre = require("hardhat");
-const config = require("../config/index.json");
+const config = require("../../config/index.json");
 
-const main = () => {
+const main = (tokenAddress) => {
     return new Promise(async (resolve) => {
         let configParams = config.development;
         if (network.name === "matic") {
@@ -13,15 +13,12 @@ const main = () => {
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        upgrades.deployProxy(
-            AaveYield,
-            [
-                configParams.symphonyAddress,
-                configParams.admin,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        AaveYield.deploy(
+            configParams.yoloAddress,
+            configParams.emergencyAdmin,
+            tokenAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         ).then(async (aaveYield) => {
             await aaveYield.deployed();
 

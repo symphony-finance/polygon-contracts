@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity 0.7.4;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 contract Reward is Initializable, OwnableUpgradeable {
     using SafeERC20 for IERC20;
-    using SafeMath for uint256;
 
     IERC20 token;
     mapping(address => uint256) reward;
@@ -32,10 +29,10 @@ contract Reward is Initializable, OwnableUpgradeable {
         uint256[] memory _rewards
     ) external onlyOwner {
         for (uint256 i = 0; i < _addresses.length; i++) {
-            reward[_addresses[i]] = reward[_addresses[i]].add(_rewards[i]);
+            reward[_addresses[i]] = reward[_addresses[i]] + _rewards[i];
         }
 
-        RewardDistributed(epoch);
+        emit RewardDistributed(epoch);
     }
 
     function claimReward() external {
@@ -43,7 +40,7 @@ contract Reward is Initializable, OwnableUpgradeable {
 
         require(
             unclaimedReward > 0,
-            "claimReward: You don't have any unclaimed rewards"
+            "claimReward: you don't have any unclaimed rewards"
         );
 
         reward[msg.sender] = 0;

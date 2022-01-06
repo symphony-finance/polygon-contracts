@@ -4,10 +4,8 @@ const fileName = "../config/asset.json";
 const file = require("../config/asset.json");
 const config = require("../config/index.json");
 const assetConfig = require("../config/asset.json");
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
-);
-const { deployAaveYield } = require('./deployAaveYield');
+const { deployAaveYield } = require('./adapters/deployAaveYield');
+const YoloArtifacts = require("../artifacts/contracts/Yolo.sol/Yolo.json");
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -20,9 +18,9 @@ async function main() {
         configParams = config.mumbai;
     }
 
-    const symphony = new ethers.Contract(
-        configParams.symphonyAddress,
-        SymphonyArtifacts.abi,
+    const yolo = new ethers.Contract(
+        configParams.yoloAddress,
+        YoloArtifacts.abi,
         deployer
     );
 
@@ -34,32 +32,25 @@ async function main() {
     for (let i = 0; i < assetsData.length; i++) {
         let data = assetsData[i];
 
-        if (data.address && !data.strategy) {
+        if (data.address && !data.aaveStrategy) {
             console.log("\nSetting up strategy for", data.token);
-            const strategyAddr = await deployAaveYield();
+            const strategyAddr = await deployAaveYield(data.address);
 
-            const tx1 = await symphony.updateStrategy(
+            const tx1 = await yolo.setStrategy(
                 data.address,
                 strategyAddr,
             );
             await tx1.wait();
 
             if (data.buffer > 0) {
-                const tx2 = await symphony.updateBufferPercentage(
+                const tx2 = await yolo.updateTokenBuffer(
                     data.address,
                     data.buffer,
                 );
                 await tx2.wait();
             }
 
-            const tx3 = await symphony.addWhitelistAsset(data.address);
-            await tx3.wait();
-
-            if (network.name === "mumbai") {
-                file.mumbai[i].strategy = strategyAddr;
-            } else if (network.name === "matic") {
-                file.matic[i].strategy = strategyAddr;
-            }
+            file[network.name][i].aaveStrategy = strategyAddr;
 
             fs.writeFileSync(
                 path.join(__dirname, fileName),

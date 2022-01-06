@@ -2,14 +2,13 @@ const hre = require("hardhat");
 const { expect } = require("chai")
 
 const config = require("../config/index.json");
-const { BigNumber: EthersBN } = require("ethers");
 const { default: BigNumber } = require("bignumber.js");
 const { time } = require("@openzeppelin/test-helpers");
 const IERC20Artifacts = require(
     "../artifacts/contracts/mocks/TestERC20.sol/TestERC20.json"
 );
-const SymphonyArtifacts = require(
-    "../artifacts/contracts/Symphony.sol/Symphony.json"
+const YoloArtifacts = require(
+    "../artifacts/contracts/Yolo.sol/Yolo.json"
 );
 const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
@@ -17,11 +16,14 @@ const AaveYieldArtifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
+const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
-const totalFeePercent = 20;
+const totalFeePercent = 10; // 0.1%
+const protocolFeePercent = 0; // 0%
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0x641fb9877b73823f41f0f25de666275e6e846e75";
+const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
 const inputAmount = new BigNumber(10).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
@@ -74,23 +76,22 @@ describe("Fill Order Test", () => {
             ChainlinkArtifacts.abi,
             deployer
         );
-        await chainlinkOracle.updateTokenFeed(
-            usdcAddress,
-            "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4", // USDC-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [usdcAddress],
+            ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
-
-        await chainlinkOracle.updateTokenFeed(
-            daiAddress,
-            "0x773616E4d11A78F511299002da57A0a94577F1f4", // DAI-ETH
+        await chainlinkOracle.updateTokenFeeds(
+            [daiAddress],
+            ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
         );
 
         await chainlinkOracle.updatePriceSlippage(100);
 
-        // Deploy Symphony Contract
-        const Symphony = await ethers.getContractFactory("Symphony");
+        // Deploy Yolo Contract
+        const Yolo = await ethers.getContractFactory("Yolo");
 
-        let symphony = await upgrades.deployProxy(
-            Symphony,
+        let yolo = await upgrades.deployProxy(
+            Yolo,
             [
                 deployer.address,
                 deployer.address,
@@ -99,26 +100,32 @@ describe("Fill Order Test", () => {
             ]
         );
 
-        await symphony.deployed();
+        await yolo.deployed();
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             deployer
         );
+
+        const Treasury = await ethers.getContractFactory("Treasury");
+        const treasury = await upgrades.deployProxy(
+            Treasury,
+            [deployer.address]
+        );
+        await treasury.deployed();
+        await yolo.updateTreasury(treasury.address);
+        await yolo.updateProtocolFee(protocolFeePercent);
 
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
 
-        let aaveYield = await upgrades.deployProxy(
-            AaveYield,
-            [
-                symphony.address,
-                deployer.address,
-                configParams.aaveLendingPool,
-                configParams.aaveProtocolDataProvider,
-                configParams.aaveIncentivesController
-            ]
+        let aaveYield = await AaveYield.deploy(
+            yolo.address,
+            deployer.address,
+            daiAddress,
+            configParams.aaveLendingPool,
+            configParams.aaveIncentivesController
         );
 
         await aaveYield.deployed();
@@ -129,21 +136,21 @@ describe("Fill Order Test", () => {
             deployer
         );
 
-        await symphony.updateStrategy(daiAddress, aaveYield.address);
-        await symphony.updateBufferPercentage(daiAddress, 4000);
+        await yolo.setStrategy(daiAddress, aaveYield.address);
+        await yolo.updateTokenBuffer(daiAddress, 4000);
+        await yolo.addWhitelistToken(daiAddress);
 
-        await daiContract.approve(symphony.address, approveAmount);
-
-        await symphony.addWhitelistAsset(daiAddress);
+        await daiContract.approve(yolo.address, approveAmount);
 
         // Create Order
-        const tx = await symphony.createOrder(
+        const tx = await yolo.createOrder(
             recipient,
             daiAddress,
             usdcAddress,
             inputAmount,
             minReturnAmount,
-            stoplossAmount
+            stoplossAmount,
+            executor,
         );
 
         const receipt = await tx.wait();
@@ -168,14 +175,15 @@ describe("Fill Order Test", () => {
             newDeployer
         );
 
-        await usdcContract.approve(symphony.address, approveAmount);
+        await usdcContract.approve(yolo.address, approveAmount);
 
-        const daiBalBeforeExecute = await daiContract.balanceOf(recipient);
-        const usdcBalBeforeExecute = await usdcContract.balanceOf(recipient);
+        const execBalBeforeExecute = await daiContract.balanceOf(executor);
+        const recDaiBalBeforeExecute = await daiContract.balanceOf(recipient);
+        const recUsdcBalBeforeExecute = await usdcContract.balanceOf(recipient);
 
-        symphony = new ethers.Contract(
-            symphony.address,
-            SymphonyArtifacts.abi,
+        yolo = new ethers.Contract(
+            yolo.address,
+            YoloArtifacts.abi,
             newDeployer
         );
 
@@ -188,34 +196,55 @@ describe("Fill Order Test", () => {
             await time.advanceBlock();
         };
 
-        const totalTokens = await symphony.getTotalFunds(daiAddress);
+        const contractBal = await daiContract.balanceOf(yolo.address);
+        const totalTokens = await yolo.callStatic.getTotalTokens(
+            daiAddress, contractBal, aaveYield.address
+        );
         const depositPlusYield = totalTokens; // as there is only one order
-        const yieldEarned = depositPlusYield.sub(EthersBN.from(inputAmount));
+        const yieldEarned = new BigNumber(depositPlusYield.toString())
+            .minus(new BigNumber(inputAmount));
 
         // Execute Order
-        await symphony.fillOrder(orderId, orderData, quoteAmount);
+        await yolo.fillOrder(orderId, orderData, quoteAmount);
 
-        const daiBalAfterExecute = await daiContract.balanceOf(recipient);
-        const usdcBalAfterExecute = await usdcContract.balanceOf(recipient);
-        const recipientReturn = getRecipientReturn(quoteAmount);
+        const execBalAfterExecute = await daiContract.balanceOf(executor);
+        const recDaiBalAfterExecute = await daiContract.balanceOf(recipient);
+        const recUsdcBalAfterExecute = await usdcContract.balanceOf(recipient);
+        const treasuryBalAfter = await daiContract.balanceOf(treasury.address);
 
-        expect(Number(daiBalAfterExecute))
+        const protocolFee = getProtocolFee(inputAmount);
+
+        expect(Number(execBalAfterExecute))
             .to.be.greaterThanOrEqual(
-                Number(daiBalBeforeExecute) + Number(yieldEarned)
+                Number(
+                    new BigNumber(execBalBeforeExecute.toString())
+                        .plus(new BigNumber(inputAmount))
+                        .minus(protocolFee)
+                )
             );
 
-        expect(Number(usdcBalAfterExecute)).to.eq(
-            Number(usdcBalBeforeExecute) + Number(recipientReturn)
-        );
+        expect(Number(recDaiBalAfterExecute)).to.be
+            .greaterThanOrEqual(
+                Number(
+                    new BigNumber(
+                        recDaiBalBeforeExecute.toString()
+                    ).plus(yieldEarned)
+                ));
+
+        expect(Number(recUsdcBalAfterExecute)).to.eq(
+            Number(
+                new BigNumber(
+                    recUsdcBalBeforeExecute.toString()
+                ).plus(quoteAmount)
+            ));
+
+        expect(Number(protocolFee)).to.be.eq(Number(treasuryBalAfter));
     });
 });
 
-
-const getRecipientReturn = (quoteAmount) => {
+const getProtocolFee = (inputAmount) => {
     const _totalFeePercent = new BigNumber(totalFeePercent / 100);
-
-    const recipientAmount = new BigNumber(quoteAmount)
-        .times(100 - _totalFeePercent).dividedBy(100);
-
-    return recipientAmount;
+    const _protocolFeePercent = _totalFeePercent.times(protocolFeePercent / 10000);
+    const protocolFee = new BigNumber(inputAmount).times(_protocolFeePercent).dividedBy(100);
+    return protocolFee;
 }

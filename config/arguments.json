@@ -1,9 +1,11 @@
 {
-  "symphony": {
-    "_comment::executionFee": "20 = 0.2%",
-    "executionFee": 20,
-    "_comment::protocolFee": "2500 = 0.2 / 4 = 0.05%",
-    "protocolFee": 2500
+  "yolo": {
+    "_comment::baseFee": "20 = 0.2%",
+    "baseFee": 20,
+    "_comment::protocolFeePercent": "4000 = 0.2 / (10000/4000) = 0.08%",
+    "protocolFeePercent": 4000,
+    "_comment::cancellationFeePercent": "1000 = 10% of yield",
+    "cancellationFeePercent": 1000
   },
   "timelock": {
     "matic": {
@@ -23,7 +25,7 @@
     }
   },
   "chainlink": {
-    "_comment::slippage": "0.7%",
-    "slippage": 70
+    "_comment::slippage": "0.5%",
+    "slippage": 50
   }
 }

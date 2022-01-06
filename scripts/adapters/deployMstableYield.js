@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
-const fileName = "../config/index.json";
-const file = require("../config/index.json");
-const config = require("../config/index.json");
+const fileName = "../../config/index.json";
+const file = require("../../config/index.json");
+const config = require("../../config/index.json");
 
 const main = () => {
     return new Promise(async (resolve) => {
@@ -20,7 +20,7 @@ const main = () => {
         MstableYield.deploy(
             configParams.musdTokenAddress,
             configParams.mstableSavingContract,
-            configParams.symphonyAddress,
+            configParams.yoloAddress,
         ).then(async (mstableYield) => {
             await mstableYield.deployed();
 

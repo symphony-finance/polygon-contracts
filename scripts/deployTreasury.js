@@ -18,27 +18,28 @@ const main = () => {
         // Deploy Treasury Contract
         const Treasury = await hre.ethers.getContractFactory("Treasury");
 
-        Treasury.deploy(configParams.admin)
-            .then(async (treasury) => {
+        upgrades.deployProxy(
+            Treasury,
+            [configParams.admin],
+        ).then(async (treasury) => {
+            await treasury.deployed();
+            console.log("Treasury deployed to:", treasury.address, "\n");
 
-                await treasury.deployed();
-                console.log("Treasury deployed to:", treasury.address, "\n");
+            if (network.name === "matic") {
+                file.matic.treasury = treasury.address;
+            } else if (network.name === "mumbai") {
+                file.mumbai.treasury = treasury.address;
+            } else {
+                file.development.treasury = treasury.address;
+            }
 
-                if (network.name === "mumbai") {
-                    file.mumbai.treasury = treasury.address;
-                } else if (network.name === "matic") {
-                    file.matic.treasury = treasury.address;
-                } else {
-                    file.development.treasury = treasury.address;
-                }
+            fs.writeFileSync(
+                path.join(__dirname, fileName),
+                JSON.stringify(file, null, 2),
+            );
 
-                fs.writeFileSync(
-                    path.join(__dirname, fileName),
-                    JSON.stringify(file, null, 2),
-                );
-
-                resolve(true);
-            });
+            resolve(true);
+        });
     });
 }
 
