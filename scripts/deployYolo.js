@@ -24,7 +24,7 @@ const main = () => {
             [
                 configParams.admin,
                 configParams.emergencyAdmin,
-                globalArgs.yolo.executionFee,
+                globalArgs.yolo.baseFee,
                 configParams.chainlinkOracle,
             ]
         ).then(async (yolo) => {

@@ -51,7 +51,7 @@ module.exports = {
             accounts: [`0x${process.env.MAINNET_PRIVATE_KEY}`],
             chainId: 137,
             blockGasLimit: DEFAULT_BLOCK_GAS_LIMIT,
-            gasPrice: 10 * GWEI
+            gasPrice: 30 * GWEI
         },
         mumbai: {
             hardfork: HARDFORK,
