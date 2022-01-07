@@ -21,9 +21,11 @@ const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const treasury = "0x71068bf5a429ccf51a4e2e6a65d930e3019f4d0e";
 
-const inputAmount = new BigNumber(10).times(
+let inputAmount = new BigNumber(10).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
-).toString();
+);
+let executionFee = inputAmount.multipliedBy(new BigNumber(0.2)).toString()
+inputAmount = inputAmount.toString()
 
 const minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
@@ -93,6 +95,7 @@ describe("Cancel Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const createTxReceipt = await createTx.wait();
@@ -198,7 +201,8 @@ describe("Cancel Order Test", () => {
             inputAmount,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee
         );
 
         const receipt1 = await tx1.wait();
@@ -225,7 +229,8 @@ describe("Cancel Order Test", () => {
             inputAmount1,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee,
         );
 
         const receipt2 = await tx2.wait();
@@ -321,6 +326,7 @@ describe("Cancel Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -432,7 +438,8 @@ describe("Cancel Order Test", () => {
             inputAmount,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee
         );
 
         const receipt = await tx.wait();
@@ -557,8 +564,8 @@ describe("Cancel Order Test", () => {
 
         await yolo.setStrategy(usdcAddress, aaveYield.address);
         await yolo.addWhitelistToken(usdcAddress);
-        await yolo.updateCancellationFee(1000); // 10%
         await yolo.updateTreasury(treasury);
+        await yolo.updateCancellationFee(1000); // 10%
 
         const inputAmt = new BigNumber(1000).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -572,7 +579,8 @@ describe("Cancel Order Test", () => {
             inputAmt,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee
         );
 
         const receipt = await tx.wait();
@@ -629,6 +637,7 @@ const getShareFromOrder = (orderData) => {
         "uint256",
         "uint256",
         "address",
+        "uint256",
     ];
 
     const decodedData = abiCoder.decode(abi, orderData);

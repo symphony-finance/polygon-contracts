@@ -5,7 +5,6 @@ const { network } = require("hardhat");
 const fileName = "../config/index.json";
 const file = require("../config/index.json");
 const config = require("../config/index.json");
-const globalArgs = require('../config/arguments.json');
 
 const main = () => {
     return new Promise(async (resolve) => {
@@ -24,7 +23,6 @@ const main = () => {
             [
                 configParams.admin,
                 configParams.emergencyAdmin,
-                globalArgs.yolo.baseFee,
                 configParams.chainlinkOracle,
             ]
         ).then(async (yolo) => {

@@ -16,18 +16,21 @@ const AaveYieldArtifacts = require(
 const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
-const { ZERO_ADDRESS } = require("@openzeppelin/test-helpers/src/constants");
 
-const totalFeePercent = 10; // 0.1%
-const protocolFeePercent = 0; // 0%
+const totalFeePercent = 20; // 0.2%
+const executorFeePercent = 12; // 0.12%
+const protocolFeePercent = 8; // 0.08%
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0x641fb9877b73823f41f0f25de666275e6e846e75";
 const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
-const inputAmount = new BigNumber(10).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
-).toString();
+let inputAmount = new BigNumber(10)
+    .times(new BigNumber(10).exponentiatedBy(new BigNumber(18)));
+let executionFee = inputAmount
+    .multipliedBy(new BigNumber(executorFeePercent / 100)).toString()
+inputAmount = new BigNumber(inputAmount)
+    .plus(new BigNumber(executionFee)).toString()
 
 const minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -151,6 +154,7 @@ describe("Fill Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -243,8 +247,6 @@ describe("Fill Order Test", () => {
 });
 
 const getProtocolFee = (inputAmount) => {
-    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
-    const _protocolFeePercent = _totalFeePercent.times(protocolFeePercent / 10000);
-    const protocolFee = new BigNumber(inputAmount).times(_protocolFeePercent).dividedBy(100);
-    return protocolFee;
+    const _protocolFeePercent = new BigNumber(protocolFeePercent / 100);
+    return new BigNumber(inputAmount).multipliedBy(_protocolFeePercent).dividedBy(100);
 }

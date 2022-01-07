@@ -47,6 +47,7 @@ const order = {
     creator: recipient,
     recipient,
     executor,
+    executionFee: 0,
 };
 
 describe("Sushiswap Handler Test", () => {
@@ -223,6 +224,7 @@ describe("Sushiswap Handler Test", () => {
             creator: recipient,
             recipient,
             executor,
+            executionFee: 0,
         };
 
         newOrder.minReturnAmount = new BigNumber(0.5).times(

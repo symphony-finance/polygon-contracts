@@ -25,10 +25,13 @@ const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
 const bufferPercent = 0; // 0%
 const configParams = config.mainnet;
+const executorFeePercent = 20 // 0.2%
 
-const inputAmount = new BigNumber(10).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
-).toString();
+let inputAmount = new BigNumber(10)
+    .times(new BigNumber(10).exponentiatedBy(new BigNumber(18)));
+let executionFee = inputAmount
+    .multipliedBy(new BigNumber(executorFeePercent / 100)).toString()
+inputAmount = inputAmount.toString()
 
 const minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -125,6 +128,7 @@ describe("Migrate Strategy Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const strategyBal = Number(inputAmount) * (
@@ -246,6 +250,7 @@ describe("Migrate Strategy Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const yoloDaiBal = Number(

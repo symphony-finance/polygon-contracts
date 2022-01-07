@@ -102,6 +102,7 @@ describe("Balancer Handler Test", () => {
             stoplossAmount: 0,
             shares: 0,
             executor,
+            executionFee: 0,
         };
 
         // Create Bal contract instance
@@ -234,6 +235,7 @@ describe("Balancer Handler Test", () => {
             stoplossAmount,
             shares: 0,
             executor,
+            executionFee: 0,
         };
 
         const oracleResult = await chainlinkOracle.get(
@@ -333,6 +335,7 @@ describe("Balancer Handler Test", () => {
             stoplossAmount,
             shares: 0,
             executor,
+            executionFee: 0,
         };
 
         const addresses = [usdcAddress, balAddress];
@@ -430,6 +433,7 @@ describe("Balancer Handler Test", () => {
             stoplossAmount,
             shares: 0,
             executor,
+            executionFee: 0,
         };
 
         const oracleResult = await chainlinkOracle.get(

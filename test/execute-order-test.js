@@ -25,12 +25,15 @@ const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
-const totalFeePercent = 20; // 0.2%;
-const protocolFeePercent = 4000; // 0.08%
+const totalFeePercent = 20 // 0.2%
+const executorFeePercent = 15; // 0.15%;
+const protocolFeePercent = 5; // 0.05%
 
-const inputAmount = new BigNumber(10).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
-).toString();
+let inputAmount = new BigNumber(10)
+    .times(new BigNumber(10).exponentiatedBy(new BigNumber(18)));
+let executionFee = inputAmount
+    .multipliedBy(new BigNumber(executorFeePercent / 100)).toString()
+inputAmount = inputAmount.toString()
 
 const minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -46,10 +49,6 @@ const approveAmount = new BigNumber(100)
             .exponentiatedBy(new BigNumber(18))
     )
     .toString();
-
-const expectedReturn = new BigNumber(9.9).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(6))
-).toString();
 
 describe("Execute Order Test", () => {
     it("Should execute order with Sushiswap Handler & Aave Yield", async () => {
@@ -170,6 +169,7 @@ describe("Execute Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -189,7 +189,7 @@ describe("Execute Order Test", () => {
         const oracleResult = await chainlinkOracle.get(
             daiAddress,
             usdcAddress,
-            inputAmount
+            new BigNumber(inputAmount).minus(new BigNumber(executionFee)).toString()
         );
         const oracleAmount = Number(oracleResult.amountOutWithSlippage);
 
@@ -337,15 +337,19 @@ describe("Execute Order Test", () => {
 
         await yolo.addWhitelistToken(daiAddress);
 
+        const inputAmount1 = new BigNumber(inputAmount)
+            .plus(new BigNumber(executionFee)).toString();
+
         // Create Order
         const tx = await yolo.createOrder(
             recipient,
             daiAddress,
             usdcAddress,
-            inputAmount,
+            inputAmount1,
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -364,6 +368,9 @@ describe("Execute Order Test", () => {
 
         const usdcBalAfterExecute = await usdcContract.balanceOf(deployer.address);
 
+        const expectedReturn = new BigNumber(9.9).times(
+            new BigNumber(10).exponentiatedBy(new BigNumber(6))
+        ).toString();
         expect(Number(usdcBalAfterExecute)).to.be.greaterThanOrEqual(
             Number(usdcBalBeforeExecute) + Number(expectedReturn)
         );
@@ -440,7 +447,7 @@ describe("Execute Order Test", () => {
         await treasury.deployed();
 
         await yolo.updateTreasury(treasury.address);
-        await yolo.updateProtocolFee(2500);
+        await yolo.updateProtocolFee(protocolFeePercent);
 
         // Deploy AaveYield Contract
         const AaveYield = await hre.ethers.getContractFactory("AaveYield");
@@ -492,6 +499,7 @@ describe("Execute Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -628,6 +636,7 @@ describe("Execute Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -651,11 +660,11 @@ describe("Execute Order Test", () => {
         const executorBalAfter = await daiContract.balanceOf(executor);
         const treasuryBalAfter = await daiContract.balanceOf(treasury.address);
 
-        const totalFee = getFee(new BigNumber(inputAmount));
+        const totalFee = getTotalFee(new BigNumber(inputAmount));
         const oracleResult = await chainlinkOracle.get(
             daiAddress,
             usdcAddress,
-            new BigNumber(inputAmount).minus(totalFee).toString()
+            (new BigNumber(inputAmount).minus(totalFee)).toString()
         );
         const oracleAmount = Number(oracleResult.amountOutWithSlippage);
 
@@ -713,7 +722,6 @@ describe("Execute Order Test", () => {
             [usdcAddress],
             ["0x986b5E1e1755e3C2440e960477f25201B0a8bbD4"], // USDC-ETH
         );
-
         await chainlinkOracle.updateTokenFeeds(
             [daiAddress],
             ["0x773616E4d11A78F511299002da57A0a94577F1f4"], // DAI-ETH
@@ -760,6 +768,8 @@ describe("Execute Order Test", () => {
 
         await daiContract.approve(yolo.address, approveAmount);
 
+        const inputAmount1 = new BigNumber(inputAmount)
+            .plus(new BigNumber(executionFee)).toString();
         const stoplossAmount1 = new BigNumber(9).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
@@ -769,10 +779,11 @@ describe("Execute Order Test", () => {
             recipient,
             daiAddress,
             usdcAddress,
-            inputAmount,
+            inputAmount1,
             minReturnAmount,
             stoplossAmount1,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -876,6 +887,7 @@ describe("Execute Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -985,6 +997,7 @@ describe("Execute Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -1016,21 +1029,17 @@ describe("Execute Order Test", () => {
     });
 });
 
-const getFee = (amount) => {
-    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
-    return amount.multipliedBy(_totalFeePercent).dividedBy(100);
+const getTotalFee = (amount) => {
+    const _protocolFeePercent = new BigNumber(protocolFeePercent / 100);
+    return new BigNumber(executionFee).plus(
+        amount.multipliedBy(_protocolFeePercent).dividedBy(100)
+    );
 }
 
 const getParticipantsDividend = (inputAmount) => {
-    const _totalFeePercent = new BigNumber(totalFeePercent / 100);
-
-    const _protocolFeePercent = _totalFeePercent.times(protocolFeePercent / 10000);
-    const _executorFeePercent = _totalFeePercent.minus(_protocolFeePercent);
-
-    const executorFee = new BigNumber(inputAmount)
-        .times(_executorFeePercent).dividedBy(100);
+    const _protocolFeePercent = new BigNumber(protocolFeePercent / 100);
+    const executorFee = new BigNumber(executionFee);
     const protocolFee = new BigNumber(inputAmount)
         .times(_protocolFeePercent).dividedBy(100);
-
     return { executorFee, protocolFee };
 }

@@ -20,7 +20,9 @@ const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
 let inputAmount = new BigNumber(10).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
-).toString();
+);
+let executionFee = inputAmount.multipliedBy(new BigNumber(0.2)).toString()
+inputAmount = inputAmount.toString()
 
 let minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
@@ -99,7 +101,8 @@ describe("Create Order Test", () => {
             inputAmount,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee,
         );
 
         // Create New Order
@@ -115,7 +118,8 @@ describe("Create Order Test", () => {
             inputAmount,
             minReturnAmount,
             newstoploss,
-            executor
+            executor,
+            executionFee,
         );
     });
 
@@ -182,6 +186,7 @@ describe("Create Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
             { value: depositAmount }
         );
 
@@ -196,6 +201,7 @@ describe("Create Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
             block.timestamp
         );
 
@@ -216,6 +222,7 @@ describe("Create Order Test", () => {
             "uint256",
             "uint256",
             "address",
+            "uint256",
         ];
 
         const shareAmount = depositAmount;
@@ -232,6 +239,7 @@ describe("Create Order Test", () => {
                 stoplossAmount,
                 shareAmount,
                 executor,
+                executionFee,
             ]
         );
 
@@ -298,8 +306,9 @@ describe("Create Order Test", () => {
 
         expect(totalSharesBefore).to.eq(0);
 
-        const inputAmount1 = 1;
-        const minReturnAmount1 = 2;
+        const inputAmount1 = 2;
+        const minReturnAmount1 = 4;
+        const executionFee1 = 1;
 
         // Create Order 1 USDC  
         await yolo.createOrder(
@@ -310,6 +319,7 @@ describe("Create Order Test", () => {
             minReturnAmount1,
             0,
             executor,
+            executionFee1
         );
 
         // check the state changes
@@ -317,18 +327,18 @@ describe("Create Order Test", () => {
             usdcAddress
         );
 
-        expect(totalSharesAfter).to.eq(1);
+        expect(totalSharesAfter).to.eq(2);
 
         totalSharesBefore = await yolo.totalTokenShares(
             usdcAddress
         );
 
-        expect(totalSharesBefore).to.eq(1);
+        expect(totalSharesBefore).to.eq(2);
 
         const inputAmount2 = new BigNumber(10000000).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
-        ).toString();
-
+        );
+        const executionFee2 = inputAmount2.multipliedBy(0.2).toString();
         const minReturnAmount2 = new BigNumber(20000000).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(6))
         ).toString();
@@ -337,16 +347,17 @@ describe("Create Order Test", () => {
             recipient,
             usdcAddress,
             daiAddress,
-            inputAmount2,
+            inputAmount2.toString(),
             minReturnAmount2,
             0,
-            executor
+            executor,
+            executionFee2,
         );
 
         totalSharesAfter = await yolo.totalTokenShares(
             usdcAddress
         );
-        expect(totalSharesAfter).to.eq(10000000000001);
+        expect(totalSharesAfter).to.eq(10000000000002);
     });
 
     it("Should create order with yield strategy & 0% buffer", async () => {
@@ -430,6 +441,7 @@ describe("Create Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -534,7 +546,8 @@ describe("Create Order Test", () => {
             inputAmount,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -634,7 +647,8 @@ describe("Create Order Test", () => {
             inputAmount,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee,
         );
 
         expect(await yolo.totalTokenShares(usdcAddress)).to.eq(inputAmount);
@@ -721,7 +735,8 @@ describe("Create Order Test", () => {
                 inputAmount,
                 minReturnAmount,
                 stoplossAmount,
-                executor
+                executor,
+                executionFee,
             )
         ).to.be.revertedWith(
             'Pausable: paused'
@@ -736,7 +751,8 @@ describe("Create Order Test", () => {
             inputAmount,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -749,75 +765,6 @@ describe("Create Order Test", () => {
 
         expect(orderStatus).to.be.true;
     });
-
-    // it("Shouldn't create order with same order id", async () => {
-    //     await network.provider.request({
-    //         method: "hardhat_impersonateAccount",
-    //         params: ["0xAb7677859331f95F25A3e7799176f7239feb5C44"]
-    //     });
-
-    //     const deployer = await ethers.provider.getSigner(
-    //         "0xAb7677859331f95F25A3e7799176f7239feb5C44"
-    //     );
-    //     deployer.address = deployer._address;
-
-    //     // Create USDC contract instance
-    //     const usdcContract = new ethers.Contract(
-    //         usdcAddress,
-    //         IERC20Artifacts.abi,
-    //         deployer
-    //     );
-
-    //     // Deploy Yolo Contract
-    //     const Yolo = await ethers.getContractFactory("Yolo");
-
-    //     let yolo = await upgrades.deployProxy(
-    //         Yolo,
-    //         [
-    //             deployer.address,
-    //             deployer.address,
-    //             40, // 40 for 0.4 %
-    //             ZERO_ADDRESS,
-    //         ]
-    //     );
-
-    //     await yolo.deployed();
-
-    //     yolo = new ethers.Contract(
-    //         yolo.address,
-    //         YoloArtifacts.abi,
-    //         deployer
-    //     );
-
-    //     await usdcContract.approve(yolo.address, approveAmount);
-
-    //     await yolo.addWhitelistToken(usdcAddress);
-
-    //     // Create Order
-    //     await yolo.createOrder(
-    //         recipient,
-    //         usdcAddress,
-    //         daiAddress,
-    //         inputAmount,
-    //         minReturnAmount,
-    //         stoplossAmount,
-    //         executor
-    //     );
-
-    //     await expect(
-    //         yolo.createOrder(
-    //             recipient,
-    //             usdcAddress,
-    //             daiAddress,
-    //             inputAmount,
-    //             minReturnAmount,
-    //             stoplossAmount,
-    //             executor
-    //         )
-    //     ).to.be.revertedWith(
-    //         'Yolo::createOrder: There is already an existing order with same id'
-    //     );
-    // });
 });
 
 const getOrderStatus = (
@@ -843,6 +790,7 @@ const getOrderStatus = (
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
             block.timestamp
         );
 
@@ -859,6 +807,7 @@ const getOrderStatus = (
             "uint256",
             "uint256",
             "address",
+            "uint256",
         ];
 
         const decodedData = abiCoder.decode(abi, orderData);
@@ -871,6 +820,8 @@ const getOrderStatus = (
         expect(decodedData[5]).to.eq(minReturnAmount);
         expect(decodedData[6]).to.eq(stoplossAmount);
         expect(decodedData[7]).to.eq(inputAmount);
+        expect(decodedData[8]).to.eq(executor);
+        expect(decodedData[9]).to.eq(executionFee);
 
         resolve(true);
     });
