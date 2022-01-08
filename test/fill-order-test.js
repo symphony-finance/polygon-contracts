@@ -17,7 +17,6 @@ const ChainlinkArtifacts = require(
     "../artifacts/contracts/oracles/ChainlinkOracle.sol/ChainlinkOracle.json"
 );
 
-const totalFeePercent = 20; // 0.2%
 const executorFeePercent = 12; // 0.12%
 const protocolFeePercent = 8; // 0.08%
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
@@ -98,7 +97,6 @@ describe("Fill Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address
             ]
         );

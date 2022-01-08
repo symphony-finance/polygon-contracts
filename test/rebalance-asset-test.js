@@ -14,7 +14,6 @@ const AaveYieldArtifacts = require(
 );
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
-const baseFeeInPercent = 40; // 0.04%
 const bufferPercent = 4000; // 40%
 
 const depositAmount = (
@@ -51,7 +50,6 @@ describe("Rebalance Asset Test", () => {
             [
                 deployer.address,
                 ZERO_ADDRESS,
-                baseFeeInPercent,
                 ZERO_ADDRESS,
             ]
         );
@@ -178,7 +176,6 @@ describe("Rebalance Asset Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                baseFeeInPercent,
                 ZERO_ADDRESS,
             ]
         );

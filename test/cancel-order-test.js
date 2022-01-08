@@ -69,7 +69,6 @@ describe("Cancel Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
                 ZERO_ADDRESS
             ]
         );
@@ -156,7 +155,6 @@ describe("Cancel Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
                 ZERO_ADDRESS,
             ]
         );
@@ -278,7 +276,6 @@ describe("Cancel Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );
@@ -391,7 +388,6 @@ describe("Cancel Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );
@@ -528,7 +524,6 @@ describe("Cancel Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
                 ZERO_ADDRESS,
             ]
         );

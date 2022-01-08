@@ -34,7 +34,6 @@ describe("Mstable Yield Test", function () {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
                 ZERO_ADDRESS,
             ]
         );
@@ -106,7 +105,6 @@ describe("Mstable Yield Test", function () {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
                 ZERO_ADDRESS,
             ]
         );

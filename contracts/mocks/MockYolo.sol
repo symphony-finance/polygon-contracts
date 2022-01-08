@@ -33,9 +33,6 @@ contract MockYolo is
     // Emergency admin address
     address public emergencyAdmin;
 
-    /// Total fee (protocol_fee + relayer_fee)
-    uint256 public baseFeePercent; // 1 for 0.01%
-
     /// Protocol fee: x% of input amount
     uint256 public protocolFeePercent; // 1 for 0.01%
 
@@ -72,7 +69,6 @@ contract MockYolo is
     event TokenStrategyUpdated(address token, address strategy);
     event HandlerAdded(address handler);
     event HandlerRemoved(address handler);
-    event BaseFeeUpdated(uint256 feePercent);
     event ProtocolFeeUpdated(uint256 feePercent);
     event CancellationFeeUpdated(uint256 feePercent);
     event TokenBufferUpdated(address token, uint256 bufferPercent);
@@ -96,7 +92,6 @@ contract MockYolo is
     function initialize(
         address _owner,
         address _emergencyAdmin,
-        uint256 _baseFeePercent,
         IOracle _oracle
     ) external initializer {
         __Ownable_init();
@@ -104,9 +99,7 @@ contract MockYolo is
         __ReentrancyGuard_init();
         super.transferOwnership(_owner);
         oracle = _oracle;
-        baseFeePercent = _baseFeePercent;
         emergencyAdmin = _emergencyAdmin;
-        emit BaseFeeUpdated(_baseFeePercent);
     }
 
     /**

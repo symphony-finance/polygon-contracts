@@ -75,7 +75,6 @@ describe("Migrate Strategy Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS
             ]
         );
@@ -204,7 +203,6 @@ describe("Migrate Strategy Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );
@@ -286,7 +284,6 @@ describe("Migrate Strategy Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );
@@ -325,7 +322,6 @@ describe("Migrate Strategy Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );

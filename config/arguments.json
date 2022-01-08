@@ -1,6 +1,6 @@
 {
   "yolo": {
-    "_comment::protocolFeePercent": "5 = 0.05% of input",
+    "_comment::protocolFeePercent": "5bps = 0.05% of input",
     "protocolFeePercent": 5,
     "_comment::cancellationFeePercent": "1000 = 10% of yield",
     "cancellationFeePercent": 1000

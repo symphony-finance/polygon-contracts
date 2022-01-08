@@ -60,7 +60,6 @@ describe("Aave Yield Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                20, // 20 for 0.2%
                 ZERO_ADDRESS
             ]
         );

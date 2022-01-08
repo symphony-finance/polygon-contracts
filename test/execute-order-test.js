@@ -25,7 +25,6 @@ const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
-const totalFeePercent = 20 // 0.2%
 const executorFeePercent = 15; // 0.15%;
 const protocolFeePercent = 5; // 0.05%
 
@@ -107,7 +106,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
@@ -277,7 +275,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
@@ -425,7 +422,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
@@ -587,7 +583,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
@@ -737,7 +732,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
@@ -846,7 +840,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 chainlinkOracle.address,
             ]
         );
@@ -956,7 +949,6 @@ describe("Execute Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                totalFeePercent,
                 ZERO_ADDRESS, // false chainlink oracle
             ]
         );

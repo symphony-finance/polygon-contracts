@@ -72,7 +72,6 @@ describe("Update Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );
