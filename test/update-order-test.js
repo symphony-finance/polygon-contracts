@@ -15,6 +15,7 @@ const AaveYieldArtifacts = require(
     "../artifacts/contracts/adapters/AaveYield.sol/AaveYield.json"
 );
 
+const executorFeePercent = 20; // 0.2%
 const configParams = config.mainnet;
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -22,9 +23,12 @@ const usdcAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const recipient = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 const executor = "0xAb7677859331f95F25A3e7799176f7239feb5C44";
 
-const inputAmount = new BigNumber(10).times(
-    new BigNumber(10).exponentiatedBy(new BigNumber(18))
-).toString();
+let inputAmount = new BigNumber(10)
+    .times(new BigNumber(10).exponentiatedBy(new BigNumber(18)));
+let executionFee = inputAmount
+    .multipliedBy(new BigNumber(executorFeePercent / 100)).toString()
+inputAmount = new BigNumber(inputAmount)
+    .plus(new BigNumber(executionFee)).toString()
 
 const minReturnAmount = new BigNumber(15).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(6))
@@ -68,7 +72,6 @@ describe("Update Order Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40,
                 ZERO_ADDRESS,
             ]
         );
@@ -116,6 +119,7 @@ describe("Update Order Test", () => {
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
         );
 
         const receipt = await tx.wait();
@@ -141,7 +145,8 @@ describe("Update Order Test", () => {
             usdcAddress,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee,
         );
 
         // check the recipient of the order has changed (check the event logs)
@@ -162,7 +167,8 @@ describe("Update Order Test", () => {
             "uint256",
             "uint256",
             "uint256",
-            "address"
+            "address",
+            "uint256",
         ];
 
         const decodedData = abiCoder.decode(abi, eventOrderData);

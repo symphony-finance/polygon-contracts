@@ -4,49 +4,49 @@
       "token": "wmatic",
       "address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
       "feed": "0xAB594600376Ec9fD91F8e885dADF0CE036862dE0",
-      "aaveStrategy": "0xCe76985444F584e63e603E7F3a5e5Ca9bD693A09",
+      "aaveStrategy": "0xD4fEcfFFe5A4Fe0733506D330965Cbb9B963C6b7",
       "buffer": 0
     },
     {
       "token": "usdc",
       "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "feed": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
-      "aaveStrategy": "0x93E1acCe95676A3EB330bF38A0DEd23DF446136E",
+      "aaveStrategy": "0x718C6f1025328D8dB27Fa8d4FFDF6C03ec119430",
       "buffer": 0
     },
     {
       "token": "aave",
       "address": "0xD6DF932A45C0f255f85145f286eA0b292B21C90B",
       "feed": "0x72484B12719E23115761D5DA1646945632979bB6",
-      "aaveStrategy": "0x2ac5DDd589F41Cb840a073234fa364b8BF0952B8",
+      "aaveStrategy": "0xcAf326954A0b6973556fc52d15375287FC661253",
       "buffer": 0
     },
     {
       "token": "dai",
       "address": "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
       "feed": "0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D",
-      "aaveStrategy": "0xD586F16bB7a1DD30B2CDf7807072BF98feb609D8",
+      "aaveStrategy": "0x0081875d6e3249Be28A1F7E393Af4dF44F1A876c",
       "buffer": 0
     },
     {
       "token": "weth",
       "address": "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
       "feed": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
-      "aaveStrategy": "0x3ECBB33BA2A54DB77f2D5ef10A0Af71053fFb674",
+      "aaveStrategy": "0xe3cB77366f5736fa51b025f19CA7ED6f78777fE4",
       "buffer": 0
     },
     {
       "token": "wbtc",
       "address": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
       "feed": "0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6",
-      "aaveStrategy": "0xd2236d0DB3eB9c0D3A29fcC3DEe38a16cb6366b5",
+      "aaveStrategy": "0xC1387236bf46b07DE9E28bF66f0c58300Da89bF5",
       "buffer": 0
     },
     {
       "token": "usdt",
       "address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
       "feed": "0x0A6513e40db6EB1b165753AD52E80663aeA50545",
-      "aaveStrategy": "0x0AA8C05c1706C30109f00f9655d5A2955F0720d4",
+      "aaveStrategy": "0xcad92b6139D18B41F3aB33c13e62616eC7036304",
       "buffer": 0
     }
   ],

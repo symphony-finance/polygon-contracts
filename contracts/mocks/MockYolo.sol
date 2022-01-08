@@ -33,11 +33,8 @@ contract MockYolo is
     // Emergency admin address
     address public emergencyAdmin;
 
-    /// Total fee (protocol_fee + relayer_fee)
-    uint256 public baseFeePercent; // 1 for 0.01%
-
-    /// Protocol fee: base_fee_percent - relayer_ee
-    uint256 public protocolFeePercent;
+    /// Protocol fee: x% of input amount
+    uint256 public protocolFeePercent; // 1 for 0.01%
 
     /// Cancellation fee: x% of total yield
     uint256 public cancellationFeePercent; // 1 for 0.01%
@@ -72,7 +69,6 @@ contract MockYolo is
     event TokenStrategyUpdated(address token, address strategy);
     event HandlerAdded(address handler);
     event HandlerRemoved(address handler);
-    event BaseFeeUpdated(uint256 feePercent);
     event ProtocolFeeUpdated(uint256 feePercent);
     event CancellationFeeUpdated(uint256 feePercent);
     event TokenBufferUpdated(address token, uint256 bufferPercent);
@@ -96,16 +92,14 @@ contract MockYolo is
     function initialize(
         address _owner,
         address _emergencyAdmin,
-        uint256 _baseFeePercent,
         IOracle _oracle
     ) external initializer {
-        baseFeePercent = _baseFeePercent;
         __Ownable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         super.transferOwnership(_owner);
-        emergencyAdmin = _emergencyAdmin;
         oracle = _oracle;
+        emergencyAdmin = _emergencyAdmin;
     }
 
     /**
@@ -118,7 +112,8 @@ contract MockYolo is
         uint256 inputAmount,
         uint256 minReturnAmount,
         uint256 stoplossAmount,
-        address executor
+        address executor,
+        uint256 executionFee
     )
         external
         nonReentrant
@@ -139,6 +134,10 @@ contract MockYolo is
             stoplossAmount < minReturnAmount,
             "Yolo::createOrder: stoploss amount greater than return amount"
         );
+        require(
+            executionFee > 0 && executionFee < inputAmount,
+            "Yolo::createOrder: invalid or zero execution fee"
+        );
 
         orderId = getOrderId(
             msg.sender,
@@ -149,6 +148,7 @@ contract MockYolo is
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
             block.timestamp
         );
 
@@ -187,17 +187,19 @@ contract MockYolo is
 
         totalTokenShares[inputToken] = prevTotalShares + shares;
 
-        orderData = abi.encode(
-            msg.sender,
-            recipient,
-            inputToken,
-            outputToken,
-            inputAmount,
-            minReturnAmount,
-            stoplossAmount,
-            shares,
-            executor
-        );
+        IOrderStructs.Order memory myOrder = IOrderStructs.Order({
+            creator: msg.sender,
+            recipient: recipient,
+            inputToken: inputToken,
+            outputToken: outputToken,
+            inputAmount: inputAmount,
+            minReturnAmount: minReturnAmount,
+            stoplossAmount: stoplossAmount,
+            shares: shares,
+            executor: executor,
+            executionFee: executionFee
+        });
+        orderData = getOrderData(myOrder);
 
         orderHash[orderId] = keccak256(orderData);
 
@@ -218,7 +220,8 @@ contract MockYolo is
         address outputToken,
         uint256 minReturnAmount,
         uint256 stoplossAmount,
-        address executor
+        address executor,
+        uint256 executionFee
     )
         external
         payable
@@ -242,6 +245,10 @@ contract MockYolo is
             stoplossAmount < minReturnAmount,
             "Yolo::createNativeOrder: stoploss amount greater than return amount"
         );
+        require(
+            executionFee > 0 && executionFee < inputAmount,
+            "Yolo::createNativeOrder: invalid or zero execution fee"
+        );
 
         orderId = getOrderId(
             msg.sender,
@@ -252,6 +259,7 @@ contract MockYolo is
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
             block.timestamp
         );
 
@@ -288,17 +296,19 @@ contract MockYolo is
 
         totalTokenShares[inputToken] = prevTotalShares + shares;
 
-        orderData = abi.encode(
-            msg.sender,
-            recipient,
-            inputToken,
-            outputToken,
-            inputAmount,
-            minReturnAmount,
-            stoplossAmount,
-            shares,
-            executor
-        );
+        IOrderStructs.Order memory myOrder = IOrderStructs.Order({
+            creator: msg.sender,
+            recipient: recipient,
+            inputToken: inputToken,
+            outputToken: outputToken,
+            inputAmount: inputAmount,
+            minReturnAmount: minReturnAmount,
+            stoplossAmount: stoplossAmount,
+            shares: shares,
+            executor: executor,
+            executionFee: executionFee
+        });
+        orderData = getOrderData(myOrder);
 
         orderHash[orderId] = keccak256(orderData);
 
@@ -321,7 +331,8 @@ contract MockYolo is
         address outputToken,
         uint256 minReturnAmount,
         uint256 stoplossAmount,
-        address executor
+        address executor,
+        uint256 executionFee
     )
         external
         nonReentrant
@@ -348,6 +359,10 @@ contract MockYolo is
             stoplossAmount < minReturnAmount,
             "Yolo::updateOrder: stoploss amount greater than return amount"
         );
+        require(
+            executionFee > 0 && executionFee < myOrder.inputAmount,
+            "Yolo::updateOrder: invalid or zero execution fee"
+        );
 
         delete orderHash[orderId];
 
@@ -360,6 +375,7 @@ contract MockYolo is
             minReturnAmount,
             stoplossAmount,
             executor,
+            executionFee,
             block.timestamp
         );
 
@@ -377,7 +393,8 @@ contract MockYolo is
             minReturnAmount,
             stoplossAmount,
             myOrder.shares,
-            executor
+            executor,
+            executionFee
         );
 
         orderHash[newOrderId] = keccak256(newOrderData);
@@ -465,11 +482,19 @@ contract MockYolo is
             myOrder.inputAmount = depositPlusYield;
         }
 
-        uint256 totalFee = _getTotalFee(myOrder.inputAmount);
-        if (totalFee > 0) {
-            _transferFee(myOrder.inputToken, totalFee, msg.sender);
+        uint256 protocolFee = 0;
+        uint256 _protocolFeePercent = protocolFeePercent;
+        if (_protocolFeePercent > 0) {
+            protocolFee = myOrder.inputAmount.percentMul(_protocolFeePercent);
         }
 
+        _transferFee(
+            myOrder.inputToken,
+            myOrder.executionFee,
+            protocolFee,
+            msg.sender
+        );
+        uint256 totalFee = protocolFee + myOrder.executionFee;
         myOrder.inputAmount = myOrder.inputAmount - totalFee;
 
         (, uint256 oracleAmount) = oracle.get(
@@ -529,7 +554,12 @@ contract MockYolo is
             myOrder.inputAmount = depositPlusYield;
         }
 
-        uint256 totalFee = _getTotalFee(myOrder.inputAmount);
+        uint256 protocolFee = 0;
+        uint256 _protocolFeePercent = protocolFeePercent;
+        if (_protocolFeePercent > 0) {
+            protocolFee = myOrder.inputAmount.percentMul(_protocolFeePercent);
+        }
+        uint256 totalFee = protocolFee + myOrder.executionFee;
 
         (uint256 oracleAmount, ) = oracle.get(
             myOrder.inputToken,
@@ -545,14 +575,12 @@ contract MockYolo is
 
         emit OrderExecuted(orderId, quoteAmount, depositPlusYield);
 
-        uint256 protocolFee = 0;
-        if (totalFee > 0) {
-            protocolFee = _transferFee(
-                myOrder.inputToken,
-                totalFee,
-                address(0)
-            );
-        }
+        _transferFee(
+            myOrder.inputToken,
+            myOrder.executionFee,
+            protocolFee,
+            address(0)
+        );
 
         // caution: external calls to unknown address
         IERC20(myOrder.outputToken).safeTransferFrom(
@@ -629,6 +657,7 @@ contract MockYolo is
         uint256 minReturnAmount,
         uint256 stoplossAmount,
         address executor,
+        uint256 executionFee,
         uint256 blockTimestamp
     ) public view returns (bytes32) {
         return
@@ -642,6 +671,7 @@ contract MockYolo is
                     minReturnAmount,
                     stoplossAmount,
                     executor,
+                    executionFee,
                     blockTimestamp
                 )
             );
@@ -674,7 +704,8 @@ contract MockYolo is
             uint256 minReturnAmount,
             uint256 stoplossAmount,
             uint256 shares,
-            address executor
+            address executor,
+            uint256 executionFee
         ) = abi.decode(
                 orderData,
                 (
@@ -686,7 +717,8 @@ contract MockYolo is
                     uint256,
                     uint256,
                     uint256,
-                    address
+                    address,
+                    uint256
                 )
             );
 
@@ -699,7 +731,8 @@ contract MockYolo is
             minReturnAmount,
             stoplossAmount,
             shares,
-            executor
+            executor,
+            executionFee
         );
     }
 
@@ -731,24 +764,16 @@ contract MockYolo is
     }
 
     /**
-     * @notice Update base execution fee oercent
-     */
-    function updateBaseFee(uint256 _feePercent) external onlyOwner {
-        require(
-            _feePercent < 10000,
-            "Yolo::updateBaseFee: fee percent exceeds max threshold"
-        );
-        baseFeePercent = _feePercent;
-        emit BaseFeeUpdated(_feePercent);
-    }
-
-    /**
      * @notice Update protocol fee percent
      */
     function updateProtocolFee(uint256 _feePercent) external onlyOwner {
         require(
             _feePercent <= 10000,
             "Yolo::updateProtocolFee: fee percent exceeds max threshold"
+        );
+        require(
+            treasury != address(0),
+            "Yolo::updateProtocolFee: treasury addresss not set"
         );
         protocolFeePercent = _feePercent;
         emit ProtocolFeeUpdated(_feePercent);
@@ -761,6 +786,10 @@ contract MockYolo is
         require(
             _feePercent <= 10000,
             "Yolo::updateCancellationFee: fee percent exceeds max threshold"
+        );
+        require(
+            treasury != address(0),
+            "Yolo::updateCancellationFee: treasury addresss not set"
         );
         cancellationFeePercent = _feePercent;
         emit CancellationFeeUpdated(_feePercent);
@@ -795,7 +824,7 @@ contract MockYolo is
     }
 
     /**
-     * @notice Set strategy of an token
+     * @notice Set strategy of a token
      */
     function setStrategy(address _token, address _strategy) external onlyOwner {
         require(
@@ -924,29 +953,18 @@ contract MockYolo is
         }
     }
 
-    function _getTotalFee(uint256 _amount)
-        internal
-        view
-        returns (uint256 totalFee)
-    {
-        totalFee = _amount.percentMul(baseFeePercent);
-    }
-
     function _transferFee(
         address _token,
-        uint256 _totalFee,
+        uint256 _executionFee,
+        uint256 _protocolFee,
         address _executor
     ) internal returns (uint256 protocolFee) {
         address treasuryAddress = treasury;
-        uint256 _protocolFeePercent = protocolFeePercent;
-
-        if (treasuryAddress != address(0) && _protocolFeePercent > 0) {
-            protocolFee = _totalFee.percentMul(_protocolFeePercent);
-            IERC20(_token).safeTransfer(treasuryAddress, protocolFee);
+        if (_protocolFee > 0) {
+            IERC20(_token).safeTransfer(treasuryAddress, _protocolFee);
         }
-
-        if (_executor != address(0) && protocolFee < _totalFee) {
-            IERC20(_token).safeTransfer(_executor, _totalFee - protocolFee);
+        if (_executor != address(0) && _executionFee > 0) {
+            IERC20(_token).safeTransfer(_executor, _executionFee - protocolFee);
         }
     }
 
@@ -976,5 +994,25 @@ contract MockYolo is
                 depositPlusYield + neededAmountInBuffer - contractBal
             );
         }
+    }
+
+    function getOrderData(IOrderStructs.Order memory order)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return
+            abi.encode(
+                order.creator,
+                order.recipient,
+                order.inputToken,
+                order.outputToken,
+                order.inputAmount,
+                order.minReturnAmount,
+                order.stoplossAmount,
+                order.shares,
+                order.executor,
+                order.executionFee
+            );
     }
 }

@@ -14,5 +14,6 @@ interface IOrderStructs {
         uint256 stoplossAmount;
         uint256 shares;
         address executor;
+        uint256 executionFee;
     }
 }

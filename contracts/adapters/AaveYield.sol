@@ -25,7 +25,7 @@ contract AaveYield is IYieldAdapter {
     address internal immutable aTokenAddress;
     IAaveLendingPool public immutable lendingPool;
     IAaveIncentivesController public immutable incentivesController;
-    address public immutable rewardToken;  // can only be native token i.e WMATIC
+    address public immutable rewardToken; // can only be native token i.e WMATIC
     uint16 internal constant referralCode = 43915;
 
     // Addresses related to swap
@@ -104,7 +104,7 @@ contract AaveYield is IYieldAdapter {
     /**
      * @dev Used to claim reward and do auto compound
      **/
-    function harvestReward() external {
+    function harvestReward() external returns (uint256 tokenBal) {
         address[] memory assets = new address[](1);
         assets[0] = aTokenAddress;
 
@@ -129,7 +129,7 @@ contract AaveYield is IYieldAdapter {
             _swapRewards(rewardBal);
         }
 
-        uint256 tokenBal = IERC20(_tokenAddress).balanceOf(address(this));
+        tokenBal = IERC20(_tokenAddress).balanceOf(address(this));
         if (tokenBal > 0) {
             _depositERC20(tokenBal);
         }

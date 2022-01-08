@@ -60,7 +60,6 @@ describe("Aave Yield Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                40, // 40 for 0.4 %
                 ZERO_ADDRESS
             ]
         );
@@ -105,17 +104,19 @@ describe("Aave Yield Test", () => {
 
         const inputAmount1 = new BigNumber(10).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
-        ).toString();
+        );
+        const executionFee = inputAmount1.multipliedBy(0.2).toString();
 
         // Create first order
         const tx1 = await yolo.createOrder(
             recipient,
             daiAddress,
             usdcAddress,
-            inputAmount1,
+            inputAmount1.toString(),
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            executionFee
         );
 
         const tx1Receipt = await tx1.wait();
@@ -138,7 +139,8 @@ describe("Aave Yield Test", () => {
             inputAmount2,
             minReturnAmount,
             stoplossAmount,
-            executor
+            executor,
+            1 // executionFee
         );
 
         const tx2Receipt = await tx2.wait();
@@ -178,7 +180,6 @@ describe("Aave Yield Test", () => {
 
         await aaveYield.harvestReward();
 
-        // expect(Number(await rewardContract.balanceOf(treasury.address)))
-        //     .to.eq(Number(rewardEarned) - 1);
+        // TODO: check correct balance deposited in strategy
     });
 });

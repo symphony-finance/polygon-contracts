@@ -44,6 +44,7 @@ const order = {
     creator: recipient,
     recipient,
     executor,
+    executionFee: 0,
 };
 
 describe("Mstable Handler Test", () => {

@@ -14,8 +14,7 @@ const AaveYieldArtifacts = require(
 );
 
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
-const baseFeeInPercent = 40; // 0.04%
-const bufferPercent = 4000; // 30%
+const bufferPercent = 4000; // 40%
 
 const depositAmount = (
     new BigNumber(10).
@@ -51,7 +50,6 @@ describe("Rebalance Asset Test", () => {
             [
                 deployer.address,
                 ZERO_ADDRESS,
-                baseFeeInPercent,
                 ZERO_ADDRESS,
             ]
         );
@@ -89,8 +87,8 @@ describe("Rebalance Asset Test", () => {
         await yolo.setStrategy(daiAddress, aaveYield.address);
         expect(await yolo.strategy(daiAddress)).to.eq(aaveYield.address);
 
-        await yolo.updateTokenBuffer(daiAddress, 4000);
-        expect(await yolo.tokenBuffer(daiAddress)).to.eq(4000);
+        await yolo.updateTokenBuffer(daiAddress, bufferPercent);
+        expect(await yolo.tokenBuffer(daiAddress)).to.eq(bufferPercent);
 
         // Create aDAI contract instance
         const adaiContract = new ethers.Contract(
@@ -178,7 +176,6 @@ describe("Rebalance Asset Test", () => {
             [
                 deployer.address,
                 deployer.address,
-                baseFeeInPercent,
                 ZERO_ADDRESS,
             ]
         );

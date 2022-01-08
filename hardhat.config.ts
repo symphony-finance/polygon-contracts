@@ -38,7 +38,9 @@ module.exports = {
             chainId: BUIDLEREVM_CHAINID,
             throwOnTransactionFailures: true,
             throwOnCallFailures: true,
-            accounts: accounts.map(({ secretKey, balance }) => ({
+            accounts: accounts.map((
+                { secretKey, balance }: { secretKey: any, balance: any }
+            ) => ({
                 privateKey: secretKey,
                 balance,
             })),
