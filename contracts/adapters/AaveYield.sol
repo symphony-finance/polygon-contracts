@@ -122,7 +122,7 @@ contract AaveYield is IYieldAdapter {
         uint256 reimbursementAmt = harvestMaxGas * tx.gasprice;
         if (rewardBal > reimbursementAmt) {
             rewardBal -= reimbursementAmt;
-            IERC20(_tokenAddress).safeTransfer(msg.sender, reimbursementAmt);
+            IERC20(_rewardToken).safeTransfer(msg.sender, reimbursementAmt);
         }
 
         if (_rewardToken != _tokenAddress) {
@@ -165,11 +165,9 @@ contract AaveYield is IYieldAdapter {
     /**
      * @dev Get available reward balance
      **/
-    function getRewardBalance(address[] memory aTokens)
-        external
-        view
-        returns (uint256 amount)
-    {
+    function getRewardBalance() external view returns (uint256 amount) {
+        address[] memory aTokens = new address[](1);
+        aTokens[0] = aTokenAddress;
         amount = incentivesController.getRewardsBalance(aTokens, address(this));
     }
 

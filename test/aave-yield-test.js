@@ -162,9 +162,6 @@ describe("Aave Yield Test", () => {
         // Cancel second order
         await yolo.cancelOrder(tx2Id, tx2Data);
 
-        const aAssets = [aDaiAddress];
-        const rewardEarned = await aaveYield.getRewardBalance(aAssets);
-
         const rewardContract = new ethers.Contract(
             rewardToken,
             IERC20Artifacts.abi,

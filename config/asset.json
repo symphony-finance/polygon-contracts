@@ -48,6 +48,34 @@
       "feed": "0x0A6513e40db6EB1b165753AD52E80663aeA50545",
       "aaveStrategy": "0xcad92b6139D18B41F3aB33c13e62616eC7036304",
       "buffer": 0
+    },
+    {
+      "token": "CRV",
+      "address": "0x172370d5Cd63279eFa6d502DAB29171933a610AF",
+      "feed": "0x336584C8E6Dc19637A5b36206B1c79923111b405",
+      "aaveStrategy": "0xAa75CA0b0162152390ABc9C7c8EA39f6b94f1C72",
+      "buffer": 0
+    },
+    {
+      "token": "BAL",
+      "address": "0x9a71012B13CA4d3D0Cdc72A177DF3ef03b0E76A3",
+      "feed": "0xD106B538F2A868c28Ca1Ec7E298C3325E0251d66",
+      "aaveStrategy": "0x46C96C02308953Ce019d23e7cA73EF9F61F8996c",
+      "buffer": 0
+    },
+    {
+      "token": "GHST",
+      "address": "0x385Eeac5cB85A38A9a07A70c73e0a3271CfB54A7",
+      "feed": "0xDD229Ce42f11D8Ee7fFf29bDB71C7b81352e11be",
+      "aaveStrategy": "0x68E57A34530c8B55BeEA18036cF4203cD6b13de0",
+      "buffer": 0
+    },
+    {
+      "token": "LINK",
+      "address": "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39",
+      "feed": "0xd9FFdb71EbE7496cC440152d43986Aae0AB76665",
+      "aaveStrategy": "0x57e19fe0248F501412D3EFc8cA33F64835853Fda",
+      "buffer": 0
     }
   ],
   "mumbai": [
