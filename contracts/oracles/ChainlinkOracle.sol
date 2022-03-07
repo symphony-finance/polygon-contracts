@@ -10,7 +10,7 @@ import "../libraries/PercentageMath.sol";
 contract ChainlinkOracle is IOracle, Ownable {
     using PercentageMath for uint256;
 
-    uint256 public priceSlippage = 50; // 0.5%
+    uint256 public priceSlippage = 70; // 0.7%
 
     mapping(address => address) public oracleFeed;
 
@@ -40,7 +40,8 @@ contract ChainlinkOracle is IOracle, Ownable {
 
         if (inputToken != address(0)) {
             address inputFeedAddress = oracleFeed[inputToken];
-            int256 inputAnswer = IAggregator(inputFeedAddress).latestAnswer();
+            (, int256 inputAnswer, , , ) = IAggregator(inputFeedAddress)
+                .latestRoundData();
             price =
                 price *
                 (inputAnswer > int256(0) ? uint256(inputAnswer) : 0);
@@ -48,7 +49,8 @@ contract ChainlinkOracle is IOracle, Ownable {
 
         if (outputToken != address(0)) {
             address outputFeedAddress = oracleFeed[outputToken];
-            int256 outputAnswer = IAggregator(outputFeedAddress).latestAnswer();
+            (, int256 outputAnswer, , , ) = IAggregator(outputFeedAddress)
+                .latestRoundData();
             price =
                 price /
                 (outputAnswer > int256(0) ? uint256(outputAnswer) : 0);
@@ -92,5 +94,14 @@ contract ChainlinkOracle is IOracle, Ownable {
 
 // Chainlink Aggregator
 interface IAggregator {
-    function latestAnswer() external view returns (int256 answer);
+    function latestRoundData()
+        external
+        view
+        returns (
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        );
 }

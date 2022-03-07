@@ -76,6 +76,20 @@
       "feed": "0xd9FFdb71EbE7496cC440152d43986Aae0AB76665",
       "aaveStrategy": "0x57e19fe0248F501412D3EFc8cA33F64835853Fda",
       "buffer": 0
+    },
+    {
+      "token": "SUSHI",
+      "address": "0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a",
+      "feed": "0x49B0c695039243BBfEb8EcD054EB70061fd54aa0",
+      "aaveStrategy": "",
+      "buffer": 0
+    },
+    {
+      "token": "DPI",
+      "address": "0x85955046DF4668e1DD369D2DE9f3AEB98DD2A369",
+      "feed": "0x2e48b7924FBe04d575BA229A59b64547d9da16e9",
+      "aaveStrategy": "",
+      "buffer": 0
     }
   ],
   "mumbai": [

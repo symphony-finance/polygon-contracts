@@ -1,7 +1,7 @@
 {
   "matic": {
     "yoloAddress": "0x935b97586FE291750F46Bf4eD7BeB8E1c3d110A2",
-    "chainlinkOracle": "0x4690324EcADF8CD6711a80e11E34992DDEd96237",
+    "chainlinkOracle": "0xBD0A26B494c13Fe097176917C54E058053481562",
     "aaveLendingPool": "0x8dFf5E27EA6b7AC08EbFdf9eB090F32ee9a30fcf",
     "aaveProtocolDataProvider": "0x7551b5D2763519d4e37e8B81929D336De671d46d",
     "aaveIncentivesController": "0x357D51124f59836DeD84c8a1730D72B749d8BC23",
