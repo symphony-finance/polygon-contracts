@@ -212,7 +212,7 @@ describe("Balancer Handler Test", () => {
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 
-        const stoplossAmount = new BigNumber(0.98).times(
+        const stoplossAmount = new BigNumber(0.999).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         ).toString();
 

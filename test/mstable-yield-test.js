@@ -89,11 +89,11 @@ describe("Mstable Yield Test", function () {
     it("Should work for mUSD token as input", async function () {
         await network.provider.request({
             method: "hardhat_impersonateAccount",
-            params: ["0xC3747113fF14ec359b482594Fd3260758453b141"]
+            params: ["0xa23F54e0BB57a6114D831c080823F5Fe2616CF98"]
         });
 
         const deployer = await ethers.provider.getSigner(
-            "0xC3747113fF14ec359b482594Fd3260758453b141"
+            "0xa23F54e0BB57a6114D831c080823F5Fe2616CF98"
         );
         deployer.address = deployer._address;
 

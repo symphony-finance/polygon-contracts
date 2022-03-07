@@ -25,13 +25,14 @@
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.5.1",
-    "hardhat": "^2.1.2",
+    "hardhat": "^2.6.8",
     "hardhat-gas-reporter": "^1.0.4",
     "ts-node": "^9.1.1",
     "typescript": "^4.2.4"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.4.0",
-    "@openzeppelin/contracts-upgradeable": "^4.4.0"
+    "@openzeppelin/contracts-upgradeable": "^4.4.0",
+    "paraswap": "^5.1.0"
   }
 }

@@ -102,7 +102,7 @@ describe("Aave Yield Test", () => {
 
         await daiContract.approve(yolo.address, approveAmount);
 
-        const inputAmount1 = new BigNumber(10).times(
+        const inputAmount1 = new BigNumber(100).times(
             new BigNumber(10).exponentiatedBy(new BigNumber(18))
         );
         const executionFee = inputAmount1.multipliedBy(0.2).toString();
@@ -151,8 +151,8 @@ describe("Aave Yield Test", () => {
         const tx2Id = tx2Events[0].args[0];
         const tx2Data = tx2Events[0].args[1];
 
-        // Advancing 100 blocks
-        for (let i = 0; i < 100; ++i) {
+        // Advancing 500 blocks
+        for (let i = 0; i < 500; ++i) {
             await time.advanceBlock();
         };
 
@@ -174,6 +174,7 @@ describe("Aave Yield Test", () => {
         await aaveYield.updateRoute([rewardToken, configParams.wethAddress, daiAddress]);
         await aaveYield.updateRouter(configParams.quickswapRouter);
         await aaveYield.updateBackupRouter(configParams.sushiswapRouter);
+        await aaveYield.updateHarvestGas(0);
 
         await aaveYield.harvestReward();
 
