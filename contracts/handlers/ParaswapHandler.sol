@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/IHandler.sol";
-import "../libraries/paraswap/Utils.sol";
 
 /// @notice Paraswap Handler used to execute an order
 contract ParaswapHandler is IHandler {
