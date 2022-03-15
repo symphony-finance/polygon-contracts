@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../interfaces/IHandler.sol";
+import {IWETH as IWMATIC} from "../interfaces/IWETH.sol";
 
 /// @notice Paraswap Handler used to execute an order
 contract ParaswapHandler is IHandler {
@@ -15,6 +16,8 @@ contract ParaswapHandler is IHandler {
         0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57;
     address public constant tokenTransferProxy =
         0x216B4B4Ba9F3e719726886d34a177484278Bfcae;
+    address internal constant WMATIC =
+        0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
 
     constructor(address _yolo) {
         yolo = _yolo;
@@ -64,6 +67,22 @@ contract ParaswapHandler is IHandler {
             "ParaswapHandler: oracle amount doesn't match with return amount"
         );
 
-        IERC20(order.outputToken).safeTransfer(order.recipient, actualAmtOut);
+        if (order.outputToken == WMATIC) {
+            IWMATIC(order.outputToken).withdraw(actualAmtOut);
+            _safeTransferMatic(order.recipient, actualAmtOut);
+        } else {
+            IERC20(order.outputToken).safeTransfer(
+                order.recipient,
+                actualAmtOut
+            );
+        }
     }
+
+    function _safeTransferMatic(address to, uint256 value) internal {
+        (bool success, ) = to.call{value: value}(new bytes(0));
+        require(success, "MATIC_TRANSFER_FAILED");
+    }
+
+    /// @notice receive MATIC
+    receive() external payable {}
 }

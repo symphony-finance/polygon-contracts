@@ -11,6 +11,7 @@ const { deployChainlinkOracle } = require('./oracles/deployChainlinkOracle');
 const { deploySushiswapHandler } = require('./handlers/deploySushiswapHandler');
 const { deployQuickswapHandler } = require('./handlers/deployQuickswapHandler');
 const { deployBalancerHandler } = require('./handlers/deployBalancerHandler');
+const { deployParaswapHandler } = require('./handlers/deployParaswapHandler');
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -36,9 +37,11 @@ async function main() {
         console.log("\nDeploying QuickswapHandler..");
         await deployQuickswapHandler();
 
-        // Note: Only deploy on matic mainnet (not on testnet)
         console.log("\nDeploying BalancerHandler..");
         await deployBalancerHandler();
+
+        console.log("\nDeploying ParaswapHandler..");
+        await deployParaswapHandler();
     }
 
     let configParams = config.development;
