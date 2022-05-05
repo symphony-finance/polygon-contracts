@@ -5,7 +5,7 @@ require("@nomiclabs/hardhat-etherscan");
 require('@openzeppelin/hardhat-upgrades');
 const { accounts } = require('./test-accounts.ts');
 
-const HARDFORK = 'istanbul';
+const HARDFORK = 'london';
 const DEFAULT_GAS_MUL = 5;
 const GWEI = 1000 * 1000 * 1000;
 const DEFAULT_BLOCK_GAS_LIMIT = 12450000;
@@ -16,7 +16,7 @@ const BUIDLEREVM_CHAINID = 31337;
 const POLYGONSCAN_KEY = process.env.POLYGONSCAN_KEY || '';
 const mainnetFork = MAINNET_FORK
     ? {
-        blockNumber: 12721512,
+        blockNumber: 14335112,
         url: ALCHEMY_KEY
             ? `https://eth-mainnet.alchemyapi.io/v2/${ALCHEMY_KEY}`
             : `https://mainnet.infura.io/v3/${INFURA_KEY}`,
@@ -38,9 +38,7 @@ module.exports = {
             chainId: BUIDLEREVM_CHAINID,
             throwOnTransactionFailures: true,
             throwOnCallFailures: true,
-            accounts: accounts.map((
-                { secretKey, balance }: { secretKey: any, balance: any }
-            ) => ({
+            accounts: accounts.map(({ secretKey, balance }: { secretKey: string; balance: string }) => ({
                 privateKey: secretKey,
                 balance,
             })),
@@ -77,7 +75,10 @@ module.exports = {
         settings: {
             optimizer: {
                 enabled: true,
-                runs: 200
+                runs: 200,
+                details: {
+                    yul: false
+                },
             }
         }
     },

@@ -227,7 +227,7 @@ describe("Chainlink Oracle Test", () => {
             aaveAddress, daiAddress, inputAmount
         );
 
-        expectedOutputAmount = 213; // aave price on 28/6/21 8:39 UTC
+        expectedOutputAmount = 121; // aave price on 07/3/22 4:10 UTC
         expect(Number(result.amountOut)).to.eq(expectedOutputAmount);
     });
 

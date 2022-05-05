@@ -30,7 +30,7 @@ const minReturnAmount = new BigNumber(10.2).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
-const stoplossAmount = new BigNumber(9.99).times(
+const stoplossAmount = new BigNumber(9.999).times(
     new BigNumber(10).exponentiatedBy(new BigNumber(18))
 ).toString();
 
