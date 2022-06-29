@@ -113,7 +113,8 @@ contract Yolo is
         uint256 minReturnAmount,
         uint256 stoplossAmount,
         address executor,
-        uint256 executionFee
+        uint256 executionFee,
+        address onBehalfOf
     )
         external
         nonReentrant
@@ -140,7 +141,7 @@ contract Yolo is
         );
 
         orderId = getOrderId(
-            msg.sender,
+            onBehalfOf,
             recipient,
             inputToken,
             outputToken,
@@ -158,10 +159,10 @@ contract Yolo is
         );
 
         uint256 prevTotalShares = totalTokenShares[inputToken];
-
         uint256 shares = inputAmount;
-        address tokenStrategy = strategy[inputToken];
+
         if (prevTotalShares > 0) {
+            address tokenStrategy = strategy[inputToken];
             uint256 prevTotalTokens = IERC20(inputToken).balanceOf(
                 address(this)
             );
@@ -188,7 +189,7 @@ contract Yolo is
         totalTokenShares[inputToken] = prevTotalShares + shares;
 
         IOrderStructs.Order memory myOrder = IOrderStructs.Order({
-            creator: msg.sender,
+            creator: onBehalfOf,
             recipient: recipient,
             inputToken: inputToken,
             outputToken: outputToken,
@@ -205,11 +206,7 @@ contract Yolo is
 
         emit OrderCreated(orderId, orderData);
 
-        if (tokenStrategy != address(0)) {
-            address[] memory tokens = new address[](1);
-            tokens[0] = inputToken;
-            rebalanceTokens(tokens);
-        }
+        autoRebalance(inputToken);
     }
 
     /**
@@ -221,7 +218,8 @@ contract Yolo is
         uint256 minReturnAmount,
         uint256 stoplossAmount,
         address executor,
-        uint256 executionFee
+        uint256 executionFee,
+        address onBehalfOf
     )
         external
         payable
@@ -251,7 +249,7 @@ contract Yolo is
         );
 
         orderId = getOrderId(
-            msg.sender,
+            onBehalfOf,
             recipient,
             inputToken,
             outputToken,
@@ -269,10 +267,10 @@ contract Yolo is
         );
 
         uint256 prevTotalShares = totalTokenShares[inputToken];
-
         uint256 shares = inputAmount;
-        address tokenStrategy = strategy[inputToken];
+
         if (prevTotalShares > 0) {
+            address tokenStrategy = strategy[inputToken];
             uint256 prevTotalTokens = IERC20(inputToken).balanceOf(
                 address(this)
             );
@@ -297,7 +295,7 @@ contract Yolo is
         totalTokenShares[inputToken] = prevTotalShares + shares;
 
         IOrderStructs.Order memory myOrder = IOrderStructs.Order({
-            creator: msg.sender,
+            creator: onBehalfOf,
             recipient: recipient,
             inputToken: inputToken,
             outputToken: outputToken,
@@ -314,11 +312,7 @@ contract Yolo is
 
         emit OrderCreated(orderId, orderData);
 
-        if (tokenStrategy != address(0)) {
-            address[] memory tokens = new address[](1);
-            tokens[0] = inputToken;
-            rebalanceTokens(tokens);
-        }
+        autoRebalance(inputToken);
     }
 
     /**
@@ -1014,5 +1008,13 @@ contract Yolo is
                 order.executor,
                 order.executionFee
             );
+    }
+
+    function autoRebalance(address token) internal {
+        if (strategy[token] != address(0)) {
+            address[] memory tokens = new address[](1);
+            tokens[0] = token;
+            rebalanceTokens(tokens);
+        }
     }
 }
